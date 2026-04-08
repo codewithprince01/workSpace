@@ -1,0 +1,18 @@
+﻿Γ£à Connected to MongoDB
+≡ƒòÆ Server Time: 2026-02-01T06:38:46.229Z
+
+≡ƒÄ» Project: "just education" (ID: 697c85aa83b4bf59a0b0edd2)
+
+≡ƒôï Statuses:
+  "To Do" -> Category: todo, ID: 697c85aa83b4bf59a0b0edd6
+  "In Progress" -> Category: doing, ID: 697c85aa83b4bf59a0b0edd8
+  "Done" -> Category: done, ID: 697c85aa83b4bf59a0b0edda
+
+≡ƒôè Tasks Analysis (1 total):
+  ≡ƒö╣ Task: "frontend"
+     Status: "To Do" (Is Done category? false)
+     Due Date: None
+     Is Overdue? false (Server thinks: false)
+
+Γ£à Calculated Overdue Count: 0
+≡ƒùô∩╕Å  DB Query Overdue Count: 0

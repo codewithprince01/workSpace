@@ -1,0 +1,24 @@
+// Export all models
+module.exports = {
+  User: require('./User'),
+  Team: require('./Team'),
+  TeamMember: require('./TeamMember'),
+  Project: require('./Project'),
+  ProjectMember: require('./ProjectMember'),
+  Task: require('./Task'),
+  TaskStatus: require('./TaskStatus'),
+  TaskLabel: require('./TaskLabel'),
+  TaskComment: require('./TaskComment'),
+  TaskAttachment: require('./TaskAttachment'),
+  TimeLog: require('./TimeLog'),
+  Notification: require('./Notification'),
+  PersonalTask: require('./PersonalTask'),
+  ProjectCategory: require('./ProjectCategory'),
+  Client: require('./Client'),
+  RunningTimer: require('./RunningTimer'),
+  ActivityLog: require('./ActivityLog'),
+  ProjectComment: require('./ProjectComment'),
+  TaskPhase: require('./TaskPhase'),
+  CustomColumn: require('./CustomColumn'),
+  ProjectInvitation: require('./ProjectInvitation')
+};

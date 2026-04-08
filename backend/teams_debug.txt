@@ -1,0 +1,11 @@
+Connected to DB
+
+--- Found 2 specific teams ---
+Team: "WebVertex" (ID: 6981d1e4022de9dd16c170f7) Owner: 6981d19f022de9dd16c170e5
+  - Member: harshit (harshit@gmail.com) Role: owner
+Team: "harshit's Team" (ID: 6981d1a0022de9dd16c170e7) Owner: 6981d19f022de9dd16c170e5
+  - Member: harshit (harshit@gmail.com) Role: owner
+
+--- User Found: harshit ---
+  - Member of: "harshit's Team" Role: owner
+  - Member of: "WebVertex" Role: owner

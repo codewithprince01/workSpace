@@ -1,0 +1,160 @@
+import { UserOutlined } from '@/shared/antd-imports';
+import { Button, Card, Dropdown, Flex, MenuProps, Tooltip, Typography } from '@/shared/antd-imports';
+
+import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+
+import { useAppSelector } from '@/hooks/useAppSelector';
+import { RootState } from '@/app/store';
+
+import { getRole } from '@/utils/session-helper';
+import { useProjectRole } from '@/services/project-role/projectRole.service';
+
+import './profile-dropdown.css';
+import './profile-button.css';
+import SingleAvatar from '@/components/common/single-avatar/single-avatar';
+import { useAuthService } from '@/hooks/useAuth';
+import { useAuthStatus } from '@/hooks/useAuthStatus';
+import { useEffect, useState } from 'react';
+
+interface ProfileButtonProps {
+  isOwnerOrAdmin: boolean;
+}
+
+const ProfileButton = ({ isOwnerOrAdmin }: ProfileButtonProps) => {
+  const { t } = useTranslation('navbar');
+  const authService = useAuthService();
+  const currentSession = useAppSelector((state: RootState) => state.userReducer);
+  const { isLicenseExpired } = useAuthStatus();
+
+  const { projectRole: roleInfo } = useProjectRole();
+  
+  // Determine role to display based on context
+  // Priority: Project role > Team role > Fallback
+  const role = (() => {
+    // If inside a project, use project role
+    if (roleInfo.projectRole) {
+      return roleInfo.projectRole.charAt(0).toUpperCase() + roleInfo.projectRole.slice(1); // Capitalize
+    }
+    
+    // If on home page or no project selected, use team role from session
+    if (currentSession?.team_role) {
+      return currentSession.team_role.charAt(0).toUpperCase() + currentSession.team_role.slice(1); // Capitalize
+    }
+    
+    // Fallback to old logic for backwards compatibility
+    return roleInfo.isProjectOwner ? 'Owner' : 'Member';
+  })();
+  
+  const themeMode = useAppSelector((state: RootState) => state.themeReducer.mode);
+
+  const getLinkStyle = () => ({
+    color: themeMode === 'dark' ? '#ffffffd9' : '#181818',
+  });
+
+  const getDangerLinkStyle = () => ({
+    color: '#ff4d4f',
+  });
+
+  const profile: MenuProps['items'] = [
+    {
+      key: '1',
+      label: (
+        <Card
+          className={`profile-card ${themeMode === 'dark' ? 'dark' : ''}`}
+          title={
+            <div style={{ paddingBlock: '16px' }}>
+              <Typography.Text>Account</Typography.Text>
+              <Flex gap={8} align="center" justify="flex-start" style={{ width: '100%' }}>
+                <SingleAvatar
+                  avatarUrl={currentSession?.avatar_url}
+                  name={currentSession?.name}
+                  email={currentSession?.email}
+                />
+                <Flex vertical style={{ flex: 1, minWidth: 0 }}>
+                  <Typography.Text
+                    ellipsis={{ tooltip: currentSession?.name }} // Show tooltip on hover
+                    style={{
+                      width: '100%',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {currentSession?.name}
+                  </Typography.Text>
+                  <Typography.Text
+                    ellipsis={{ tooltip: currentSession?.email }} // Show tooltip on hover
+                    style={{
+                      fontSize: 12,
+                      width: '100%',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {currentSession?.email}
+                  </Typography.Text>
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    ({role})
+                  </Typography.Text>
+                </Flex>
+              </Flex>
+            </div>
+          }
+          variant="borderless"
+          style={{ width: 230 }}
+        >
+          {!isLicenseExpired && roleInfo.canAccessSettings && (
+            <Link to="/worklenz/admin-center/overview" style={getLinkStyle()}>
+              {t('adminCenter')}
+            </Link>
+          )}
+          {!isLicenseExpired && (
+            <Link to="/worklenz/settings/profile" style={getLinkStyle()}>
+              {t('settings')}
+            </Link>
+          )}
+          {isLicenseExpired && (
+            <Link to="/worklenz/settings/account-deletion" style={getDangerLinkStyle()}>
+              {t('deleteAccount')}
+            </Link>
+          )}
+          <Link to="/auth/logging-out" style={getLinkStyle()}>
+            {t('logOut')}
+          </Link>
+        </Card>
+      ),
+    },
+  ];
+
+  return (
+    <Dropdown
+      overlayClassName="profile-dropdown"
+      menu={{ items: profile }}
+      placement="bottomRight"
+      trigger={['click']}
+    >
+      <Tooltip title={t('profileTooltip')}>
+        <Button
+          className="profile-button"
+          style={{ height: '62px', width: '60px' }}
+          type="text"
+          icon={
+            currentSession?.avatar_url ? (
+              <SingleAvatar
+                avatarUrl={currentSession.avatar_url}
+                name={currentSession.name}
+                email={currentSession.email}
+              />
+            ) : (
+              <UserOutlined style={{ fontSize: 20 }} />
+            )
+          }
+        />
+      </Tooltip>
+    </Dropdown>
+  );
+};
+
+export default ProfileButton;
