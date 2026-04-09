@@ -40,7 +40,7 @@ const ProjectCategorySection = ({ categories, form, t, disabled }: ProjectCatego
 
   const categoryOptions = categories.map((category, index) => ({
     key: index,
-    value: category.id,
+    value: category.id || (category as any)._id,
     label: category.name,
   }));
 
@@ -64,8 +64,9 @@ const ProjectCategorySection = ({ categories, form, t, disabled }: ProjectCatego
       );
       if (existingCategory) {
         form.setFieldValue('category_id', existingCategory.value);
+      } else {
+        form.setFieldValue('category_id', undefined);
       }
-      form.setFieldValue('category_id', undefined);
     } catch (error) {
       console.error(error);
     } finally {
@@ -94,8 +95,9 @@ const ProjectCategorySection = ({ categories, form, t, disabled }: ProjectCatego
       };
 
       const res = await dispatch(createProjectCategory(newCategory)).unwrap();
-      if (res.id) {
-        form.setFieldValue('category_id', res.id);
+      const createdCategoryId = res?.id || (res as any)?._id;
+      if (createdCategoryId) {
+        form.setFieldValue('category_id', createdCategoryId);
         setCategoryText('');
         setIsAddCategoryInputShow(false);
       }

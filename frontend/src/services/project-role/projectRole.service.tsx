@@ -160,15 +160,6 @@ export const ProjectRoleProvider = ({ children }: { children: ReactNode }) => {
         canInviteMembers: shouldHaveAccess
       });
       
-      console.error('🚨 [DEBUG] TEAM ROLE VALUE:', {
-        teamRole,
-        typeOf: typeof teamRole,
-        isUndefined: teamRole === undefined,
-        isNull: teamRole === null,
-        userObject: user,
-        shouldHaveAccess
-      });
-      
       // On home page, check if user owns this team
       const isInOwnTeam = teamRole === 'owner';
       

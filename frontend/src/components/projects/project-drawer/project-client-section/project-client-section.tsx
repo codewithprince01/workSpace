@@ -30,7 +30,7 @@ const ProjectClientSection = ({
   const clientOptions = [
     ...(clients.data?.map((client, index) => ({
       key: index,
-      value: client.id,
+      value: client.id || (client as any)._id,
       label: client.name,
     })) || []),
     ...(searchTerm && clients.data?.length === 0 && !loadingClients
@@ -53,10 +53,11 @@ const ProjectClientSection = ({
     if (option.key === 'create') {
       const res = await dispatch(createClient({ name: searchTerm })).unwrap();
       if (res.done) {
+        const createdClientId = res?.body?.id || (res?.body as any)?._id;
         setSearchTerm('');
         form.setFieldsValue({
           client_name: res.body.name,
-          client_id: res.body.id,
+          client_id: createdClientId,
         });
       }
       return;

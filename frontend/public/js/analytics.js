@@ -5,19 +5,38 @@
 
 class AnalyticsManager {
   constructor() {
-    this.isProduction = window.location.hostname === 'app.worklenz.com';
-    this.trackingId = this.isProduction ? 'G-7KSRKQ1397' : 'G-3LM2HGWEXG';
+    const host = window.location.hostname;
+    this.isProduction = host === 'worklenz.com' || host === 'app.worklenz.com';
+    this.trackingId = 'G-7KSRKQ1397';
+  }
+
+  /**
+   * Allow analytics only on production domains.
+   * This prevents noisy ERR_BLOCKED_BY_CLIENT errors on localhost/dev environments.
+   */
+  shouldEnableAnalytics() {
+    return this.isProduction;
   }
 
   /**
    * Initialize Google Analytics asynchronously
    */
   init() {
+    if (!this.shouldEnableAnalytics()) {
+      // Keep a harmless no-op gtag so app code never fails if it calls gtag.
+      window.dataLayer = window.dataLayer || [];
+      window.gtag = window.gtag || function () {};
+      return;
+    }
+
     const loadAnalytics = () => {
       // Load the Google Analytics script
       const script = document.createElement('script');
       script.async = true;
       script.src = `https://www.googletagmanager.com/gtag/js?id=${this.trackingId}`;
+      script.onerror = () => {
+        // Silently ignore blocked analytics script loads (adblock/privacy tools).
+      };
       document.head.appendChild(script);
 
       // Initialize Google Analytics
@@ -25,6 +44,7 @@ class AnalyticsManager {
       function gtag() {
         dataLayer.push(arguments);
       }
+      window.gtag = gtag;
       gtag('js', new Date());
       gtag('config', this.trackingId);
     };

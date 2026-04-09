@@ -448,6 +448,8 @@ exports.getAll = async (req, res, next) => {
       return {
         ...project.toObject(),
         id: project._id,
+        category_id: project.category_id ? project.category_id._id : null,
+        client_id: project.client_id ? project.client_id._id : null,
         total_tasks: totalTasks,
         completed_tasks: completedTasks,
         progress: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
@@ -964,6 +966,7 @@ exports.getById = async (req, res, next) => {
   try {
     const project = await Project.findById(req.params.id)
       .populate('owner_id', 'name email avatar_url')
+      .populate('category_id', 'name color_code')
       .populate('client_id', 'name')
       .populate('project_manager_id', 'name email avatar_url')
       .populate('team_id', 'name');
@@ -1000,6 +1003,8 @@ exports.getById = async (req, res, next) => {
       body: {
         ...project.toObject(),
         id: project._id,
+        category_name: project.category_id ? project.category_id.name : null,
+        category_color: project.category_id ? project.category_id.color_code : null,
         client_name: project.client_name || (project.client_id ? project.client_id.name : null),
         project_manager:
           project.project_manager_id && project.project_manager_id._id

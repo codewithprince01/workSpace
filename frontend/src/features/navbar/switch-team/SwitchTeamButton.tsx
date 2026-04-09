@@ -21,7 +21,6 @@ import { createAuthService } from '@/services/auth/auth.service';
 import { useMixpanelTracking } from '@/hooks/useMixpanelTracking';
 import { evt_common_switch_team } from '@/shared/worklenz-analytics-events';
 import { useProjectRole } from '@/services/project-role/projectRole.service';
-import { projectsApiService } from '@/api/projects/projects.api.service';
 
 // Components
 import CustomAvatar from '@/components/CustomAvatar';
@@ -29,7 +28,9 @@ import CustomAvatar from '@/components/CustomAvatar';
 // Styles
 import { colors } from '@/styles/colors';
 import './switchTeam.css';
-import { useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+
+const AUTO_SWITCH_KEY_PREFIX = 'worklenz_auto_admin_team_switch';
 
 const SwitchTeamButton = () => {
   const dispatch = useAppDispatch();
@@ -40,12 +41,13 @@ const SwitchTeamButton = () => {
   const { t } = useTranslation('navbar');
   const { setIdentity, trackMixpanelEvent } = useMixpanelTracking();
   const { setCurrentProject } = useProjectRole();
+  const autoSwitchAttemptedRef = useRef(false);
 
   // Selectors
   const teamsList = useAppSelector(state => state.teamReducer.teamsList);
   const themeMode = useAppSelector(state => state.themeReducer.mode);
 
-  const normalizeTeamText = (value?: string) => (value || '').trim().toLowerCase();
+  const normalizeTeamText = useCallback((value?: string) => (value || '').trim().toLowerCase(), []);
 
   const displayTeams = useMemo(() => {
     if (!teamsList?.length) return [];
@@ -74,7 +76,7 @@ const SwitchTeamButton = () => {
 
       return !hasOwnerNamedTeam;
     });
-  }, [teamsList]);
+  }, [normalizeTeamText, teamsList]);
 
   useEffect(() => {
     dispatch(fetchTeams());
@@ -82,69 +84,98 @@ const SwitchTeamButton = () => {
 
   const isActiveTeam = (teamId: string): boolean => {
     if (!teamId || !session?.team_id) {
-       console.log('⚠️ [ACTIVE CHECK] Missing ID:', { teamId, sessionTeamId: session?.team_id });
-       return false;
+      return false;
     }
-    const match = String(teamId).trim() === String(session.team_id).trim();
-    console.log('🔍 [ACTIVE CHECK]', { teamId, sessionTeamId: session.team_id, match });
-    return match;
+    return String(teamId).trim() === String(session.team_id).trim();
   };
 
-  const handleVerifyAuth = async () => {
+  const handleVerifyAuth = useCallback(async () => {
     const result = await dispatch(verifyAuthentication()).unwrap();
     if (result.authenticated) {
       // Backend returns { authenticated, data: { user } } - extract user correctly
       const user = (result as any).data?.user || result.user;
       if (user) {
-        console.log('🔍 [VERIFY-AUTH] User object received:', {
-          userId: user.id,
-          userName: user.name,
-          teamId: user.team_id,
-          teamRole: user.team_role,
-          hasTeamRole: 'team_role' in user,
-          fullUser: user
-        });
-        
         dispatch(setUser(user));
         authService.setCurrentSession(user);
         setIdentity(user);
-        
-        console.log('✅ [VERIFY-AUTH] Session updated with team_role:', user.team_role);
       }
     }
-  };
+  }, [authService, dispatch, setIdentity]);
 
-  const handleTeamSelect = async (id: string) => {
-    if (!id) return;
+  const handleTeamSelect = useCallback(
+    async (id: string) => {
+      if (!id) return;
 
-    console.log('🔄 [FRONTEND] Switching to team:', id);
-    trackMixpanelEvent(evt_common_switch_team);
-    
-    try {
-      // 1. Activate the team on backend
-      const result = await dispatch(setActiveTeam(id)).unwrap();
-      console.log('🔄 [FRONTEND] setActiveTeam result:', result);
-      
-      // 2. Verify auth to update session with new team_id and team_role
-      await handleVerifyAuth();
-      console.log('✅ [FRONTEND] Auth verified with new team');
-      
-      // 3. Reset RTK Query cache
-      dispatch({ type: 'homePageApi/resetApiState' });
-      console.log('✅ [FRONTEND] RTK Query cache reset');
-      
-      // 4. Reset project role
-      setCurrentProject(null);
-      console.log('✅ [FRONTEND] ProjectRoleProvider reset');
-      
-      // 5. Reload page to fetch fresh data with new team context
-      console.log('🔄 [FRONTEND] Reloading page for team switch');
-      window.location.reload();
-      
-    } catch (error) {
-      console.error('❌ [FRONTEND] Team switch failed:', error);
-    }
-  };
+      trackMixpanelEvent(evt_common_switch_team);
+
+      try {
+        // 1. Activate the team on backend
+        await dispatch(setActiveTeam(id)).unwrap();
+
+        // 2. Verify auth to update session with new team_id and team_role
+        await handleVerifyAuth();
+
+        // 3. Reset RTK Query cache
+        dispatch({ type: 'homePageApi/resetApiState' });
+
+        // 4. Reset project role
+        setCurrentProject(null);
+
+        // 5. Reload page to fetch fresh data with new team context
+        window.location.reload();
+      } catch (error) {
+        console.error('[FRONTEND] Team switch failed:', error);
+      }
+    },
+    [dispatch, handleVerifyAuth, setCurrentProject, trackMixpanelEvent]
+  );
+
+  // Auto-switch on first login when user lands as member but owns an organization team.
+  // This avoids forcing users to manually switch to see admin/owner context.
+  useEffect(() => {
+    if (autoSwitchAttemptedRef.current) return;
+    if (!session?.team_id || !session?.team_role || !session?.name || !displayTeams.length) return;
+
+    const currentRole = session.team_role.toLowerCase();
+    if (currentRole === 'owner' || currentRole === 'admin') return;
+
+    const ownerName = normalizeTeamText(session.name);
+    if (!ownerName) return;
+
+    const ownedTeams = displayTeams.filter(team => normalizeTeamText(team.owns_by) === ownerName);
+    if (!ownedTeams.length) return;
+
+    const defaultPersonalTeamNames = new Set([
+      `${ownerName}'s team`,
+      `${ownerName}s team`,
+      `${ownerName} team`,
+    ]);
+
+    const preferredOwnedTeam =
+      ownedTeams.find(team => normalizeTeamText(team.name) === ownerName) ||
+      ownedTeams.find(team => !defaultPersonalTeamNames.has(normalizeTeamText(team.name))) ||
+      ownedTeams[0];
+
+    if (!preferredOwnedTeam?.id || preferredOwnedTeam.id === session.team_id) return;
+
+    const userKey = session.id || session.email || 'unknown';
+    const switchMarkerKey = `${AUTO_SWITCH_KEY_PREFIX}:${userKey}`;
+
+    if (localStorage.getItem(switchMarkerKey) === preferredOwnedTeam.id) return;
+
+    autoSwitchAttemptedRef.current = true;
+    localStorage.setItem(switchMarkerKey, preferredOwnedTeam.id);
+    void handleTeamSelect(preferredOwnedTeam.id);
+  }, [
+    displayTeams,
+    handleTeamSelect,
+    normalizeTeamText,
+    session?.email,
+    session?.id,
+    session?.name,
+    session?.team_id,
+    session?.team_role,
+  ]);
 
   const renderTeamCard = (team: any, index: number) => (
     <Card
@@ -177,7 +208,7 @@ const SwitchTeamButton = () => {
 
   const dropdownItems =
     displayTeams
-      ?.filter((team): team is typeof team & { id: string } => !!team.id) // Type guard
+      ?.filter((team): team is typeof team & { id: string } => !!team.id)
       .map((team, index) => ({
         key: team.id,
         label: renderTeamCard(team, index),
@@ -208,7 +239,6 @@ const SwitchTeamButton = () => {
         >
           <BankOutlined />
           <Typography.Text strong style={{ color: colors.skyBlue, cursor: 'pointer' }}>
-            {/* Prioritize Team Name (Workspace Name) */}
             {displayTeams.find(t => t.id === session?.team_id)?.name ||
               (() => {
                 const activeTeam = teamsList.find(t => t.id === session?.team_id);

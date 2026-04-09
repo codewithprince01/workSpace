@@ -3,6 +3,7 @@ import {
   ITaskListGroup,
   ITaskListMemberFilter,
 } from '@/types/tasks/taskList.types';
+import axios from 'axios';
 import apiClient from '@api/api-client';
 import { API_BASE_URL } from '@/shared/constants';
 import { IServerResponse } from '@/types/common.types';
@@ -145,8 +146,51 @@ export const tasksApiService = {
     config: ITaskListConfigV2
   ): Promise<IServerResponse<ITaskListV3Response>> => {
     const q = toQueryString({ ...config, include_empty: 'true' });
-    const response = await apiClient.get(`${rootUrl}/list/v3/${config.id}${q}`);
-    return response.data;
+    try {
+      const response = await apiClient.get(`${rootUrl}/list/v3/${config.id}${q}`);
+      return response.data;
+    } catch (error) {
+      // Backward compatibility: some running backends expose only v2.
+      if (!axios.isAxiosError(error) || error.response?.status !== 404) {
+        throw error;
+      }
+
+      const fallbackResponse = await apiClient.get(`${rootUrl}/list/v2/${config.id}${q}`);
+      const fallbackData = fallbackResponse.data as IServerResponse<any>;
+
+      if (fallbackData?.body && !Array.isArray(fallbackData.body) && fallbackData.body.groups) {
+        return fallbackData as IServerResponse<ITaskListV3Response>;
+      }
+
+      const fallbackGroups = Array.isArray(fallbackData?.body) ? fallbackData.body : [];
+      const normalizedGroups = fallbackGroups.map((group: any) => {
+        const tasks = Array.isArray(group?.tasks) ? group.tasks : [];
+        return {
+          id: String(group?.id ?? group?._id ?? ''),
+          title: String(group?.title ?? group?.name ?? 'Tasks'),
+          groupType: (config.group as 'status' | 'priority' | 'phase') || 'status',
+          groupValue: String(group?.id ?? group?._id ?? ''),
+          collapsed: false,
+          tasks,
+          taskIds: tasks.map((task: any) => String(task?.id ?? task?._id ?? '')),
+          color: String(group?.color ?? group?.color_code ?? '#cccccc'),
+        };
+      });
+
+      const allTasks = normalizedGroups.flatMap((group: any) => group.tasks || []);
+
+      return {
+        done: Boolean(fallbackData?.done ?? true),
+        title: fallbackData?.title,
+        message: fallbackData?.message,
+        body: {
+          groups: normalizedGroups,
+          allTasks,
+          grouping: config.group || 'status',
+          totalTasks: allTasks.length,
+        },
+      };
+    }
   },
 
   refreshTaskProgress: async (projectId: string): Promise<IServerResponse<{ message: string }>> => {
