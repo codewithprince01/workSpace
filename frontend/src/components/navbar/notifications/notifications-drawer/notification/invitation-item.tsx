@@ -1,7 +1,9 @@
 import { teamsApiService } from '@/api/teams/teams.api.service';
+import { notificationsApiService } from '@/api/notifications/notifications.api.service';
 import { verifyAuthentication } from '@/features/auth/authSlice';
 import { setActiveTeam } from '@/features/teams/teamSlice';
 import { setUser } from '@/features/user/userSlice';
+import { fetchInvitations, fetchNotifications } from '@/features/navbar/notificationSlice';
 import { useAppDispatch } from '@/hooks/useAppDispatch';
 import { createAuthService } from '@/services/auth/auth.service';
 import { ITeamInvitationViewModel } from '@/types/notifications/notifications.types';
@@ -27,14 +29,13 @@ const InvitationItem: React.FC<InvitationItemProps> = ({ item, isUnreadNotificat
 
   const inProgress = () => accepting || joining;
 
-  const acceptInvite = async (showAlert?: boolean) => {
+  const acceptInvite = async () => {
     if (!item.team_member_id) return;
 
     try {
       setAccepting(true);
       const body: IAcceptTeamInvite = {
         team_member_id: item.team_member_id,
-        show_alert: showAlert,
       };
       const res = await teamsApiService.acceptInvitation(body);
       setAccepting(false);
@@ -61,7 +62,7 @@ const InvitationItem: React.FC<InvitationItemProps> = ({ item, isUnreadNotificat
 
   const acceptAndJoin = async () => {
     try {
-      const res = await acceptInvite(true);
+      const res = await acceptInvite();
       if (res && res.id) {
         setJoining(true);
         await dispatch(setActiveTeam(res.id));
@@ -74,6 +75,18 @@ const InvitationItem: React.FC<InvitationItemProps> = ({ item, isUnreadNotificat
     } finally {
       setAccepting(false);
       setJoining(false);
+    }
+  };
+
+  const markAsReadOnly = async () => {
+    try {
+      if (item.notification_id) {
+        await notificationsApiService.updateNotification(item.notification_id);
+      }
+      await dispatch(fetchInvitations());
+      await dispatch(fetchNotifications('Unread'));
+    } catch (error) {
+      logger.error('Error marking invitation as read', error);
     }
   };
 
@@ -92,7 +105,7 @@ const InvitationItem: React.FC<InvitationItemProps> = ({ item, isUnreadNotificat
             style={{ display: 'flex', gap: '8px', justifyContent: 'space-between' }}
           >
             <button
-              onClick={() => acceptInvite(true)}
+              onClick={markAsReadOnly}
               disabled={inProgress()}
               className="p-0"
               style={{
@@ -101,7 +114,7 @@ const InvitationItem: React.FC<InvitationItemProps> = ({ item, isUnreadNotificat
                 cursor: inProgress() ? 'not-allowed' : 'pointer',
               }}
             >
-              {item.accepting ? 'Loading...' : <u>{t('notificationsDrawer.markAsRead')}</u>}
+              {accepting ? 'Loading...' : <u>{t('notificationsDrawer.markAsRead')}</u>}
             </button>
             <button
               onClick={() => acceptAndJoin()}
@@ -112,7 +125,7 @@ const InvitationItem: React.FC<InvitationItemProps> = ({ item, isUnreadNotificat
                 cursor: inProgress() ? 'not-allowed' : 'pointer',
               }}
             >
-              {item.joining ? 'Loading...' : <u>{t('notificationsDrawer.readAndJoin')}</u>}
+              {joining ? 'Loading...' : <u>{t('notificationsDrawer.readAndJoin')}</u>}
             </button>
           </div>
         )}

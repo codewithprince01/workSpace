@@ -44,6 +44,11 @@ exports.create = async (req, res, next) => {
       }
     }
     
+    const normalizedParentTaskId =
+      parent_task_id && parent_task_id !== 'null' && parent_task_id !== 'undefined'
+        ? parent_task_id
+        : null;
+
     const task = await Task.create({
       name,
       description,
@@ -56,7 +61,7 @@ exports.create = async (req, res, next) => {
       end_date,
       due_date,
       estimated_hours,
-      parent_task_id,
+      parent_task_id: normalizedParentTaskId,
       labels,
       phase_id
     });
@@ -92,8 +97,11 @@ exports.getAll = async (req, res, next) => {
     if (priority) query.priority = priority;
     if (assignee) query.assignees = assignee;
     if (reporter) query.reporter_id = reporter; // Fixed: filter by reporter
-    if (parent_task_id) query.parent_task_id = parent_task_id;
-    if (parent_task_id === 'null') query.parent_task_id = null;
+    if (parent_task_id && parent_task_id !== 'undefined' && parent_task_id !== 'null') {
+      query.parent_task_id = parent_task_id;
+    } else if (parent_task_id === 'null') {
+      query.parent_task_id = null;
+    }
     if (search) query.name = { $regex: search, $options: 'i' };
     
     const tasks = await Task.find(query)
@@ -532,10 +540,20 @@ exports.getTaskListV3 = async (req, res, next) => {
     if (search) query.name = { $regex: search, $options: 'i' };
     
     // Explicitly handle subtasks vs main tasks
-    if (parent_task) {
+    if (
+      parent_task &&
+      parent_task !== 'undefined' &&
+      parent_task !== 'null' &&
+      parent_task !== ''
+    ) {
         query.parent_task_id = parent_task;
     } else {
-        query.parent_task_id = null;
+        // Treat empty-string parent ids as top-level as well (legacy-safe).
+        query.$or = [
+          { parent_task_id: null },
+          { parent_task_id: { $exists: false } },
+          { parent_task_id: '' }
+        ];
     }
 
     // Filtering
@@ -665,8 +683,15 @@ exports.getTaskListV3 = async (req, res, next) => {
     let groups = [];
     if (group === 'status') {
         const statuses = await TaskStatus.find({ project_id: projectId }).sort({ sort_order: 1 });
+        const matchedTaskIds = new Set();
+
         groups = statuses.map(s => {
-            const filteredTasks = tasks.filter(t => t.status_id?._id?.toString() === s._id.toString());
+            const filteredTasks = tasks.filter(t => {
+                const taskStatusId = t.status_id?._id?.toString() || t.status_id?.toString();
+                const isMatch = taskStatusId === s._id.toString();
+                if (isMatch) matchedTaskIds.add(t._id.toString());
+                return isMatch;
+            });
             return {
                 id: s._id.toString(),
                 title: s.name,
@@ -678,6 +703,35 @@ exports.getTaskListV3 = async (req, res, next) => {
                 color: s.color_code
             };
         });
+
+        // Fallback for tasks with missing/deleted/unmatched statuses.
+        const unmatchedTasks = tasks.filter(t => !matchedTaskIds.has(t._id.toString()));
+        if (unmatchedTasks.length > 0) {
+            groups.push({
+                id: 'unmapped-status',
+                title: 'Unmapped Status',
+                groupType: 'status',
+                groupValue: 'unmapped-status',
+                collapsed: false,
+                tasks: unmatchedTasks.map(formatTask),
+                taskIds: unmatchedTasks.map(t => t._id.toString()),
+                color: '#cccccc'
+            });
+        }
+
+        // Absolute fallback: if no statuses exist but tasks are present.
+        if (!groups.length && tasks.length > 0) {
+            groups = [{
+                id: 'all',
+                title: 'Tasks',
+                groupType: 'status',
+                groupValue: 'all',
+                collapsed: false,
+                tasks: tasks.map(formatTask),
+                taskIds: tasks.map(t => t._id.toString()),
+                color: '#cccccc'
+            }];
+        }
     } else if (group === 'priority') {
         const priorities = [
             { id: 'urgent', name: 'Urgent', color: '#f50' },
@@ -700,8 +754,14 @@ exports.getTaskListV3 = async (req, res, next) => {
         });
     } else if (group === 'phase') {
         const phases = await TaskPhase.find({ project_id: projectId }).sort({ sort_order: 1 });
+        const matchedTaskIds = new Set();
         groups = phases.map(p => {
-            const filteredTasks = tasks.filter(t => t.phase_id?.toString() === p._id.toString());
+            const filteredTasks = tasks.filter(t => {
+                const taskPhaseId = t.phase_id?._id?.toString() || t.phase_id?.toString();
+                const isMatch = taskPhaseId === p._id.toString();
+                if (isMatch) matchedTaskIds.add(t._id.toString());
+                return isMatch;
+            });
             return {
                 id: p._id.toString(),
                 title: p.name,
@@ -714,7 +774,9 @@ exports.getTaskListV3 = async (req, res, next) => {
             };
         });
 
-        const tasksWithoutPhase = tasks.filter(t => !t.phase_id);
+        const tasksWithoutPhase = tasks.filter(
+          t => !t.phase_id || !matchedTaskIds.has(t._id.toString())
+        );
         if (tasksWithoutPhase.length > 0) {
             groups.push({
                 id: 'no-phase',

@@ -13,6 +13,7 @@ export interface ITeamInvites {
   team_member_id?: string;
   team_name?: string;
   team_owner?: string;
+  notification_id?: string;
 }
 
 export interface IAcceptTeamInvite {

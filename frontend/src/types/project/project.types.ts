@@ -18,6 +18,8 @@ export interface IProject {
   created_at?: string;
   updated_at?: string;
   status_id?: string;
+  status?: string;
+  health?: string;
   man_days?: number;
   hours_per_day?: number;
 }

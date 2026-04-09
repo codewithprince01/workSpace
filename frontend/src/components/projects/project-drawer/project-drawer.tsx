@@ -17,6 +17,7 @@ import {
   Switch,
   Tooltip,
   Typography,
+  InfoCircleOutlined,
 } from '@/shared/antd-imports';
 import dayjs from 'dayjs';
 
@@ -32,8 +33,6 @@ import { useAppSelector } from '@/hooks/useAppSelector';
 import { projectColors } from '@/lib/project/project-constants';
 import { setProject, setProjectId } from '@/features/project/project.slice';
 import { fetchProjectCategories } from '@/features/projects/lookups/projectCategories/projectCategoriesSlice';
-import { fetchProjectHealth } from '@/features/projects/lookups/projectHealth/projectHealthSlice';
-import { fetchProjectStatuses } from '@/features/projects/lookups/projectStatuses/projectStatusesSlice';
 
 import ProjectManagerDropdown from '../project-manager-dropdown/project-manager-dropdown';
 import ProjectBasicInfo from './project-basic-info/project-basic-info';
@@ -80,8 +79,6 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
   const { isProjectDrawerOpen, projectId, projectLoading, project } = useAppSelector(
     state => state.projectDrawerReducer
   );
-  const { projectStatuses } = useAppSelector(state => state.projectStatusesReducer);
-  const { projectHealths } = useAppSelector(state => state.projectHealthReducer);
   const { projectCategories } = useAppSelector(state => state.projectCategoriesReducer);
 
   // API Hooks
@@ -90,14 +87,33 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
   const [updateProject, { isLoading: isUpdatingProject }] = useUpdateProjectMutation();
   const [createProject, { isLoading: isCreatingProject }] = useCreateProjectMutation();
 
+  // Auth and permissions
+  const isProjectManager = currentSession?.team_member_id == selectedProjectManager?.id;
+  const isOwnerorAdmin = useAuthService().isOwnerOrAdmin();
+  const isEditable = isProjectManager || isOwnerorAdmin;
+
+  const normalizeProjectStatus = useCallback((status?: string) => {
+    if (!status) return 'proposed';
+    const normalized = status.toLowerCase().replace(/\s+/g, '_');
+    if (normalized === 'active') return 'in_progress';
+    return normalized;
+  }, []);
+
+  const normalizeProjectHealth = useCallback((health?: string) => {
+    if (!health) return 'not_set';
+    const normalized = health.toLowerCase().replace(/\s+/g, '_');
+    if (normalized === 'critical') return 'at_risk';
+    return normalized;
+  }, []);
+
   // Memoized values
   const defaultFormValues = useMemo(
     () => ({
       color_code: project?.color_code || projectColors[0],
-      status_id: project?.status_id || projectStatuses.find(status => status.is_default)?.id,
-      health_id: project?.health_id || projectHealths.find(health => health.is_default)?.id,
+      status: normalizeProjectStatus(project?.status),
+      health: normalizeProjectHealth((project as any)?.health),
       client_id: project?.client_id || null,
-      client: project?.client_name || null,
+      client_name: project?.client_name || null,
       category_id: project?.category_id || null,
       working_days: project?.working_days || 0,
       man_days: project?.man_days || 0,
@@ -106,21 +122,22 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
       use_weighted_progress: project?.use_weighted_progress || false,
       use_time_progress: project?.use_time_progress || false,
     }),
-    [project, projectStatuses, projectHealths]
+    [project, normalizeProjectHealth, normalizeProjectStatus]
   );
 
-  // Auth and permissions
-  const isProjectManager = currentSession?.team_member_id == selectedProjectManager?.id;
-  const isOwnerorAdmin = useAuthService().isOwnerOrAdmin();
-  const isEditable = isProjectManager || isOwnerorAdmin;
+  const normalizeId = useCallback((value: any): string | null => {
+    if (!value) return null;
+    if (typeof value === 'string') return value;
+    return value.id || value._id || null;
+  }, []);
+
+  const getStatusOverrideKey = useCallback((id: string) => `project_status_override_${id}`, []);
 
   // Effects
   useEffect(() => {
     const loadInitialData = async () => {
       const fetchPromises = [];
-      if (projectStatuses.length === 0) fetchPromises.push(dispatch(fetchProjectStatuses()));
       if (projectCategories.length === 0) fetchPromises.push(dispatch(fetchProjectCategories()));
-      if (projectHealths.length === 0) fetchPromises.push(dispatch(fetchProjectHealth()));
       if (!clients.data?.length) {
         fetchPromises.push(
           dispatch(fetchClients({ index: 1, size: 5, field: null, order: null, search: null }))
@@ -130,7 +147,11 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
     };
 
     loadInitialData();
-  }, [dispatch]);
+  }, [
+    dispatch,
+    projectCategories.length,
+    clients.data?.length,
+  ]);
 
   // New effect to handle form population when project data becomes available
   useEffect(() => {
@@ -139,8 +160,28 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
       setEditMode(true);
       
       try {
+        const statusOverride =
+          projectId && (project as any)?.status === 'active'
+            ? localStorage.getItem(getStatusOverrideKey(projectId))
+            : null;
+        const mappedStatus = normalizeProjectStatus(
+          statusOverride || (project as any).status || (project as any).status_name
+        );
+        const mappedHealth = normalizeProjectHealth((project as any).health);
+        const mappedCategoryId = normalizeId(project.category_id);
+        const mappedClientId =
+          normalizeId(project.client_id) ||
+          normalizeId((project as any).client?.id) ||
+          normalizeId((project as any).client?._id);
+        const mappedClientName = project.client_name || (project as any).client?.name || null;
+
         form.setFieldsValue({
           ...project,
+          status: mappedStatus,
+          health: mappedHealth,
+          category_id: mappedCategoryId || undefined,
+          client_id: mappedClientId || null,
+          client_name: mappedClientName,
           start_date: project.start_date ? dayjs(project.start_date) : null,
           end_date: project.end_date ? dayjs(project.end_date) : null,
           working_days: project.working_days || 0,
@@ -161,6 +202,7 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
       // Creating new project
       console.log('Setting up drawer for new project creation');
       setEditMode(false);
+      form.setFieldsValue(defaultFormValues);
       setLoading(false);
     } else if (drawerVisible && projectId && !project && !projectLoading) {
       // Project data failed to load or is empty
@@ -169,7 +211,18 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
     } else if (drawerVisible && projectId) {
       console.log('Drawer visible, waiting for project data to load...');
     }
-  }, [drawerVisible, projectId, project, projectLoading, form]);
+  }, [
+    drawerVisible,
+    projectId,
+    project,
+    projectLoading,
+    form,
+    defaultFormValues,
+    normalizeProjectHealth,
+    normalizeProjectStatus,
+    normalizeId,
+    getStatusOverrideKey,
+  ]);
 
   // Additional effect to handle loading state when project data is being fetched
   useEffect(() => {
@@ -202,12 +255,36 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
   // Handlers
   const handleFormSubmit = async (values: any) => {
     try {
+      const mapToLegacyStatus = (status?: string) => {
+        const normalized = (status || '').toLowerCase().replace(/\s+/g, '_');
+        if (normalized === 'cancelled') return 'cancelled';
+        if (normalized === 'on_hold') return 'on_hold';
+        if (normalized === 'completed') return 'completed';
+        return 'active';
+      };
+
+      const mapToLegacyHealth = (health?: string) => {
+        const normalized = (health || '').toLowerCase().replace(/\s+/g, '_');
+        if (normalized === 'critical') return 'critical';
+        if (normalized === 'at_risk' || normalized === 'needs_attention') return 'at_risk';
+        return 'good';
+      };
+
+      const getErrorMessage = (res: any) =>
+        res?.error?.data?.message || res?.error?.message || res?.data?.message || '';
+
+      const isEnumValidationError = (res: any) => {
+        const message = String(getErrorMessage(res) || '').toLowerCase();
+        return message.includes('not a valid enum value for path `status`') ||
+          message.includes('not a valid enum value for path `health`');
+      };
+
       const projectModel: IProjectViewModel = {
         name: values.name,
         color_code: values.color_code,
-        status_id: values.status_id,
+        status: values.status || 'proposed',
         category_id: values.category_id || null,
-        health_id: values.health_id,
+        health: values.health || 'not_set',
         notes: values.notes,
         key: values.key,
         client_id: values.client_id,
@@ -228,9 +305,25 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
           ? updateProject({ id: projectId, project: projectModel })
           : createProject(projectModel);
 
-      const response = await action;
+      let response = await action;
+
+      // Backward compatibility fallback for legacy backend enum sets
+      if (editMode && projectId && isEnumValidationError(response)) {
+        const legacyProjectModel: IProjectViewModel = {
+          ...projectModel,
+          status: mapToLegacyStatus(projectModel.status),
+          health: mapToLegacyHealth(projectModel.health),
+        };
+        response = await updateProject({ id: projectId, project: legacyProjectModel });
+      }
 
       if (response?.data?.done) {
+        if (values.status) {
+          const savedProjectId = (projectId || response?.data?.body?.id || '').toString();
+          if (savedProjectId) {
+            localStorage.setItem(getStatusOverrideKey(savedProjectId), values.status);
+          }
+        }
         form.resetFields();
         dispatch(toggleProjectDrawer());
         if (!editMode) {
@@ -242,10 +335,10 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
         refetchProjects();
         window.location.reload(); // Refresh the page
       } else {
-        notification.error({ message: response?.data?.message });
+        notification.error({ message: getErrorMessage(response) || 'Failed to save project' });
         logger.error(
           editMode ? 'Error updating project' : 'Error creating project',
-          response?.data?.message
+          getErrorMessage(response)
         );
       }
     } catch (error) {
@@ -461,13 +554,11 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
             disabled={!isProjectManager && !isOwnerorAdmin}
           />
           <ProjectStatusSection
-            statuses={projectStatuses}
             form={form}
             t={t}
             disabled={!isProjectManager && !isOwnerorAdmin}
           />
           <ProjectHealthSection
-            healths={projectHealths}
             form={form}
             t={t}
             disabled={!isProjectManager && !isOwnerorAdmin}
@@ -615,7 +706,7 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
               <Space>
                 <Typography.Text>{t('manualProgress')}</Typography.Text>
                 <Tooltip title={t('manualProgressTooltip')}>
-                  <Button type="text" size="small" icon={<Typography.Text>ⓘ</Typography.Text>} />
+                  <Button type="text" size="small" icon={<InfoCircleOutlined />} />
                 </Tooltip>
               </Space>
             }
@@ -633,7 +724,7 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
               <Space>
                 <Typography.Text>{t('weightedProgress')}</Typography.Text>
                 <Tooltip title={t('weightedProgressTooltip')}>
-                  <Button type="text" size="small" icon={<Typography.Text>ⓘ</Typography.Text>} />
+                  <Button type="text" size="small" icon={<InfoCircleOutlined />} />
                 </Tooltip>
               </Space>
             }
@@ -651,7 +742,7 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
               <Space>
                 <Typography.Text>{t('timeProgress')}</Typography.Text>
                 <Tooltip title={t('timeProgressTooltip')}>
-                  <Button type="text" size="small" icon={<Typography.Text>ⓘ</Typography.Text>} />
+                  <Button type="text" size="small" icon={<InfoCircleOutlined />} />
                 </Tooltip>
               </Space>
             }

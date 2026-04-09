@@ -86,6 +86,26 @@ const SurveyPromptModal = React.lazy(() =>
 const createFilters = (items: { id: string; name: string }[]) =>
   items.map(item => ({ text: item.name, value: item.id })) as ColumnFilterItem[];
 
+const formatProjectStatusLabel = (value?: string, projectId?: string) => {
+  if (!value) return '-';
+  const statusOverride =
+    value === 'active' && projectId
+      ? localStorage.getItem(`project_status_override_${projectId}`)
+      : null;
+  const normalized = String(statusOverride || value).trim().toLowerCase().replace(/\s+/g, '_');
+  const map: Record<string, string> = {
+    active: 'In Progress',
+    cancelled: 'Cancelled',
+    blocked: 'Blocked',
+    on_hold: 'On Hold',
+    proposed: 'Proposed',
+    in_planning: 'In Planning',
+    in_progress: 'In Progress',
+    completed: 'Completed',
+  };
+  return map[normalized] || normalized.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+};
+
 const ProjectList: React.FC = () => {
   const [filteredInfo, setFilteredInfo] = useState<Record<string, FilterValue | null>>({});
   const [isLoading, setIsLoading] = useState(false);
@@ -98,7 +118,11 @@ const ProjectList: React.FC = () => {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   useDocumentTitle('Projects');
-  const isOwnerOrAdmin = useAuthService().isOwnerOrAdmin();
+  const authService = useAuthService();
+  const isOwnerOrAdmin = authService.isOwnerOrAdmin();
+  const currentSession = authService.getCurrentSession();
+  const canCreateProjectInCurrentTeam =
+    currentSession?.team_role === 'owner' || currentSession?.team_role === 'admin';
   const { trackMixpanelEvent } = useMixpanelTracking();
 
   // Get view state from Redux
@@ -660,6 +684,8 @@ const ProjectList: React.FC = () => {
         filters: statusFilters,
         filteredValue: filteredInfo.status_id || filteredStatuses || [],
         filterMultiple: true,
+        render: (value: string, record: IProjectViewModel) =>
+          formatProjectStatusLabel(value, record?.id),
         sorter: true,
       },
       {
@@ -860,7 +886,7 @@ const ProjectList: React.FC = () => {
                 debouncedSearch('');
               }}
             />
-            <CreateProjectButton />
+            {canCreateProjectInCurrentTeam && <CreateProjectButton />}
           </Flex>
         }
       />

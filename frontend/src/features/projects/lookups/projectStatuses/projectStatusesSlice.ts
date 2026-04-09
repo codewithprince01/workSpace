@@ -12,9 +12,9 @@ type ProjectStatusState = {
 // Async thunk
 export const fetchProjectStatuses = createAsyncThunk(
   'projectStatuses/fetchAll',
-  async (_, { rejectWithValue }) => {
+  async (projectId: string | undefined = undefined, { rejectWithValue }) => {
     try {
-      const response = await projectStatusesApiService.getStatuses();
+      const response = await projectStatusesApiService.getStatuses(projectId);
       return response.body;
     } catch (error) {
       logger.error('Fetch Project Statuses', error);

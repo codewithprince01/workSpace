@@ -25,6 +25,10 @@ const projectMemberSchema = new Schema({
     type: Boolean,
     default: true
   },
+  pending_invitation: {
+    type: Boolean,
+    default: false
+  },
   default_view: {
     type: String,
     enum: ['list', 'board', 'gantt', 'calendar'],

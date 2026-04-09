@@ -18,6 +18,10 @@ const projectSchema = new Schema({
     type: String,
     default: null
   },
+  notes: {
+    type: String,
+    default: null
+  },
   team_id: {
     type: Schema.Types.ObjectId,
     ref: 'Team',
@@ -34,16 +38,63 @@ const projectSchema = new Schema({
   },
   status: {
     type: String,
-    enum: ['active', 'on_hold', 'completed', 'cancelled'],
-    default: 'active'
+    enum: [
+      'active',
+      'cancelled',
+      'blocked',
+      'on_hold',
+      'proposed',
+      'in_planning',
+      'in_progress',
+      'completed'
+    ],
+    default: 'proposed'
   },
   health: {
     type: String,
-    enum: ['good', 'at_risk', 'critical'],
-    default: 'good'
+    enum: ['not_set', 'needs_attention', 'at_risk', 'good', 'critical'],
+    default: 'not_set'
+  },
+  client_id: {
+    type: Schema.Types.ObjectId,
+    ref: 'Client',
+    default: null
+  },
+  client_name: {
+    type: String,
+    default: null
+  },
+  project_manager_id: {
+    type: Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
   },
   start_date: Date,
   end_date: Date,
+  working_days: {
+    type: Number,
+    default: 0
+  },
+  man_days: {
+    type: Number,
+    default: 0
+  },
+  hours_per_day: {
+    type: Number,
+    default: 8
+  },
+  use_manual_progress: {
+    type: Boolean,
+    default: false
+  },
+  use_weighted_progress: {
+    type: Boolean,
+    default: false
+  },
+  use_time_progress: {
+    type: Boolean,
+    default: false
+  },
   estimated_hours: {
     type: Number,
     default: 0

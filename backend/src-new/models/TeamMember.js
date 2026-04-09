@@ -25,6 +25,10 @@ const teamMemberSchema = new Schema({
     type: Boolean,
     default: true
   },
+  pending_invitation: {
+    type: Boolean,
+    default: false
+  },
   joined_at: {
     type: Date,
     default: Date.now

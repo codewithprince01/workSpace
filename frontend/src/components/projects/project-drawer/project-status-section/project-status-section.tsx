@@ -1,34 +1,28 @@
-import { Form, FormInstance, Select, Typography } from '@/shared/antd-imports';
+import { Form, FormInstance, Select } from '@/shared/antd-imports';
 import { TFunction } from 'i18next';
 
-import { IProjectStatus } from '@/types/project/projectStatus.types';
-
-import { getStatusIcon } from '@/utils/projectUtils';
-
 interface ProjectStatusSectionProps {
-  statuses: IProjectStatus[];
   form: FormInstance;
   t: TFunction;
   disabled: boolean;
 }
 
-const ProjectStatusSection = ({ statuses, form, t, disabled }: ProjectStatusSectionProps) => {
-  const statusOptions = statuses.map((status, index) => ({
-    key: index,
-    value: status.id,
-    label: (
-      <Typography.Text style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-        {status.icon && status.color_code && getStatusIcon(status.icon, status.color_code)}
-        {status.name}
-      </Typography.Text>
-    ),
-  }));
+const ProjectStatusSection = ({ form, t, disabled }: ProjectStatusSectionProps) => {
+  const statusOptions = [
+    { value: 'cancelled', label: 'Cancelled' },
+    { value: 'blocked', label: 'Blocked' },
+    { value: 'on_hold', label: 'On Hold' },
+    { value: 'proposed', label: 'Proposed' },
+    { value: 'in_planning', label: 'In Planning' },
+    { value: 'in_progress', label: 'In Progress' },
+    { value: 'completed', label: 'Completed' },
+  ];
 
   return (
-    <Form.Item name="status_id" label={t('status')}>
+    <Form.Item name="status" label={t('status')}>
       <Select
         options={statusOptions}
-        onChange={value => form.setFieldValue('status_id', value)}
+        onChange={value => form.setFieldValue('status', value)}
         placeholder={t('selectStatus')}
         disabled={disabled}
       />

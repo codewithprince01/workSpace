@@ -6,8 +6,9 @@ import { IProjectStatus } from '@/types/project/projectStatus.types';
 const rootUrl = `${API_BASE_URL}/project-statuses`;
 
 export const projectStatusesApiService = {
-  getStatuses: async (): Promise<IServerResponse<IProjectStatus[]>> => {
-    const response = await apiClient.get<IServerResponse<IProjectStatus[]>>(rootUrl);
+  getStatuses: async (projectId?: string): Promise<IServerResponse<IProjectStatus[]>> => {
+    const query = projectId ? `?project_id=${encodeURIComponent(projectId)}` : '';
+    const response = await apiClient.get<IServerResponse<IProjectStatus[]>>(`${rootUrl}${query}`);
     return response.data;
   },
 };

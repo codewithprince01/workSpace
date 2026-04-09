@@ -147,8 +147,8 @@ exports.invite = async (req, res, next) => {
     // Check if already a project member
     const existing = await ProjectMember.findOne({ project_id, user_id: user._id });
     if (existing) {
-      if (!existing.is_active) {
-        existing.is_active = true;
+      if (!existing.is_active || existing.pending_invitation) {
+        existing.is_active = false;
         existing.pending_invitation = true;
         await existing.save();
         
@@ -169,6 +169,7 @@ exports.invite = async (req, res, next) => {
       project_id,
       user_id: user._id,
       role: 'member',
+      is_active: false,
       pending_invitation: true
     });
     

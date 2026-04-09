@@ -1,4 +1,4 @@
-const { Team, TeamMember, User, ProjectMember, Project } = require('../models');
+const { Team, TeamMember, User, ProjectMember, Project, Notification } = require('../models');
 
 /**
  * @desc    Create team
@@ -55,20 +55,8 @@ exports.getAll = async (req, res, next) => {
         teamIds = memberships.map(m => m.team_id ? m.team_id.toString() : null).filter(Boolean);
     }
     
-    // ALSO Get teams where user is a PROJECT member (guest/shared access)
-    // 1. Find all projects user is a member of
-    const projectMemberships = await ProjectMember.find({ user_id: req.user._id, is_active: true });
-    
-    if (Array.isArray(projectMemberships) && projectMemberships.length > 0) {
-      const projectIds = projectMemberships.map(pm => pm.project_id);
-      
-      // 2. Find teams for those projects
-      const projects = await Project.find({ _id: { $in: projectIds } }).select('team_id');
-      if (Array.isArray(projects)) {
-          const projectTeamIds = projects.map(p => p.team_id ? p.team_id.toString() : null).filter(Boolean);
-          teamIds = [...new Set([...teamIds, ...projectTeamIds])];
-      }
-    }
+    // IMPORTANT: Only show teams where the user has active team membership.
+    // Do not infer teams from project memberships to avoid "auto-joined" behavior in navbar.
     
     const teams = await Team.find({ _id: { $in: teamIds }, is_active: true })
       .populate('owner_id', 'name email avatar_url');
@@ -83,6 +71,130 @@ exports.getAll = async (req, res, next) => {
     res.json({
       done: true,
       body: formattedTeams
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Get pending team invitations for current user
+ * @route   GET /api/teams/invites
+ * @access  Private
+ */
+exports.getInvites = async (req, res, next) => {
+  try {
+    const pendingInvites = await TeamMember.find({
+      user_id: req.user._id,
+      pending_invitation: true,
+      is_active: false,
+    })
+      .populate('team_id', 'name owner_id')
+      .lean();
+
+    const teamIds = pendingInvites
+      .map(invite => invite.team_id?._id || invite.team_id)
+      .filter(Boolean);
+
+    const unreadNotifications = await Notification.find({
+      user_id: req.user._id,
+      type: 'team_invite',
+      team_id: { $in: teamIds },
+      is_read: false,
+    })
+      .sort({ created_at: -1 })
+      .lean();
+
+    const notificationByTeam = new Map();
+    unreadNotifications.forEach(notification => {
+      const teamId = notification.team_id?.toString();
+      if (teamId && !notificationByTeam.has(teamId)) {
+        notificationByTeam.set(teamId, notification);
+      }
+    });
+
+    const ownerIds = pendingInvites
+      .map(invite => invite.team_id?.owner_id)
+      .filter(Boolean);
+    const owners = await User.find({ _id: { $in: ownerIds } }).select('name').lean();
+    const ownerNameById = new Map(owners.map(owner => [owner._id.toString(), owner.name]));
+
+    const body = pendingInvites
+      .map(invite => {
+        const team = invite.team_id;
+        const teamId = team?._id?.toString() || team?.toString();
+        if (!teamId) return null;
+
+        const notification = notificationByTeam.get(teamId);
+        if (!notification) {
+          // If invite is already read, hide it from unread invitation list.
+          return null;
+        }
+
+        return {
+          id: invite._id.toString(),
+          team_id: teamId,
+          team_member_id: invite._id.toString(),
+          team_name: team.name,
+          team_owner: team.owner_id ? ownerNameById.get(team.owner_id.toString()) || '' : '',
+          notification_id: notification._id.toString(),
+        };
+      })
+      .filter(Boolean);
+
+    return res.json({ done: true, body });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Accept team invitation
+ * @route   PUT /api/teams
+ * @access  Private
+ */
+exports.acceptInvitation = async (req, res, next) => {
+  try {
+    const { team_member_id } = req.body;
+
+    if (!team_member_id) {
+      return res.status(400).json({ done: false, message: 'team_member_id is required' });
+    }
+
+    const membership = await TeamMember.findOne({
+      _id: team_member_id,
+      user_id: req.user._id,
+      pending_invitation: true,
+    });
+
+    if (!membership) {
+      return res.status(404).json({ done: false, message: 'Invitation not found' });
+    }
+
+    membership.is_active = true;
+    membership.pending_invitation = false;
+    membership.joined_at = new Date();
+    await membership.save();
+
+    await User.findByIdAndUpdate(req.user._id, { last_team_id: membership.team_id });
+
+    await Notification.updateMany(
+      {
+        user_id: req.user._id,
+        team_id: membership.team_id,
+        type: 'team_invite',
+        is_read: false,
+      },
+      { is_read: true }
+    );
+
+    return res.json({
+      done: true,
+      body: {
+        id: membership.team_id.toString(),
+        team_id: membership.team_id.toString(),
+        team_member_id: membership._id.toString(),
+      },
     });
   } catch (error) {
     next(error);

@@ -4,6 +4,74 @@ const emailService = require('../services/email.service');
 const crypto = require('crypto');
 const mongoose = require('mongoose');
 
+const normalizeKey = (value = '') => String(value).trim().toLowerCase().replace(/\s+/g, '_');
+
+const pickFirstAllowed = (allowed, preferred = []) => {
+  for (const item of preferred) {
+    if (allowed.includes(item)) return item;
+  }
+  return allowed[0];
+};
+
+const normalizeProjectStatusValue = (input) => {
+  const allowed = Project?.schema?.path('status')?.enumValues || [];
+  if (!allowed.length) return undefined;
+
+  const normalized = normalizeKey(input);
+  const aliases = {
+    cancelled: 'cancelled',
+    blocked: 'blocked',
+    on_hold: 'on_hold',
+    proposed: 'proposed',
+    in_planning: 'in_planning',
+    in_progress: 'in_progress',
+    completed: 'completed',
+    active: 'active',
+  };
+
+  const mapped = aliases[normalized] || normalized;
+  if (allowed.includes(mapped)) return mapped;
+
+  if (mapped === 'proposed') return pickFirstAllowed(allowed, ['proposed', 'active', 'in_progress', 'on_hold']);
+  if (mapped === 'in_planning') return pickFirstAllowed(allowed, ['in_planning', 'on_hold', 'active']);
+  if (mapped === 'in_progress') return pickFirstAllowed(allowed, ['in_progress', 'active']);
+  if (mapped === 'blocked') return pickFirstAllowed(allowed, ['blocked', 'on_hold', 'at_risk', 'active']);
+  return pickFirstAllowed(allowed, ['active', 'in_progress', 'on_hold', 'proposed']);
+};
+
+const normalizeProjectHealthValue = (input) => {
+  const allowed = Project?.schema?.path('health')?.enumValues || [];
+  if (!allowed.length) return undefined;
+
+  const normalized = normalizeKey(input);
+  const aliases = {
+    not_set: 'not_set',
+    needs_attention: 'needs_attention',
+    at_risk: 'at_risk',
+    good: 'good',
+    critical: 'critical',
+    on_track: 'good',
+    off_track: 'at_risk',
+    '1': 'good',
+    '2': 'at_risk',
+    '3': 'critical',
+  };
+
+  const mapped = aliases[normalized] || normalized;
+  if (allowed.includes(mapped)) return mapped;
+
+  if (mapped === 'not_set') return pickFirstAllowed(allowed, ['not_set', 'good', 'at_risk']);
+  if (mapped === 'needs_attention') return pickFirstAllowed(allowed, ['needs_attention', 'at_risk', 'critical']);
+  return pickFirstAllowed(allowed, ['good', 'at_risk', 'critical', 'not_set']);
+};
+
+const extractObjectId = (value) => {
+  if (!value) return null;
+  const id = typeof value === 'object' ? (value.id || value._id) : value;
+  if (!id) return null;
+  return mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : null;
+};
+
 /**
  * @desc    Invite member to project
  * @route   POST /api/projects/:id/invite
@@ -145,7 +213,30 @@ exports.acceptInvite = async (req, res, next) => {
  */
 exports.create = async (req, res, next) => {
   try {
-    const { name, description, key, color_code, start_date, end_date } = req.body;
+    const {
+      name,
+      description,
+      notes,
+      key,
+      color_code,
+      start_date,
+      end_date,
+      status,
+      status_id,
+      health,
+      health_id,
+      category_id,
+      client_id,
+      client_name,
+      project_manager,
+      project_manager_id,
+      working_days,
+      man_days,
+      hours_per_day,
+      use_manual_progress,
+      use_weighted_progress,
+      use_time_progress,
+    } = req.body;
     
     let team_id = req.body.team_id;
     if (!team_id) {
@@ -171,16 +262,35 @@ exports.create = async (req, res, next) => {
     // Generate project key if not provided
     const projectKey = key || name.substring(0, 3).toUpperCase() + Math.floor(Math.random() * 100);
     
+    const normalizedStatus = normalizeProjectStatusValue(status || status_id) || 'active';
+    const normalizedHealth = normalizeProjectHealthValue(health || health_id) || 'good';
+    const normalizedCategoryId = extractObjectId(category_id);
+    const normalizedClientId = extractObjectId(client_id);
+    const normalizedProjectManagerId = extractObjectId(project_manager_id || project_manager);
+
     // Create project
     const project = await Project.create({
       name,
-      description,
+      description: description ?? notes ?? null,
+      notes: notes ?? description ?? null,
       key: projectKey,
       team_id,
       owner_id: req.user._id,
       color_code: color_code || constants.TASK_STATUS_COLORS.TODO,
-      start_date,
-      end_date
+      status: normalizedStatus,
+      health: normalizedHealth,
+      category_id: normalizedCategoryId,
+      client_id: normalizedClientId,
+      client_name: client_name || null,
+      project_manager_id: normalizedProjectManagerId,
+      start_date: start_date || null,
+      end_date: end_date || null,
+      working_days: Number.isFinite(+working_days) ? +working_days : 0,
+      man_days: Number.isFinite(+man_days) ? +man_days : 0,
+      hours_per_day: Number.isFinite(+hours_per_day) ? +hours_per_day : 8,
+      use_manual_progress: !!use_manual_progress,
+      use_weighted_progress: !!use_weighted_progress,
+      use_time_progress: !!use_time_progress,
     });
     
     // Add creator as project member
@@ -302,6 +412,8 @@ exports.getAll = async (req, res, next) => {
     const projects = await Project.find(query)
       .populate('owner_id', 'name email avatar_url')
       .populate('category_id', 'name color_code') // Populate category for grouping display
+      .populate('client_id', 'name')
+      .populate('project_manager_id', 'name email avatar_url')
       .populate('team_id', 'name') // Populate team
       .sort(sort)
       .skip(skip)
@@ -343,6 +455,20 @@ exports.getAll = async (req, res, next) => {
         favorite: member ? member.is_favorite : false,
         category_name: project.category_id ? project.category_id.name : null,
         category_color: project.category_id ? project.category_id.color_code : null,
+        client_name: project.client_name || (project.client_id ? project.client_id.name : null),
+        project_manager:
+          project.project_manager_id && project.project_manager_id._id
+            ? {
+                id: project.project_manager_id._id,
+                name: project.project_manager_id.name,
+                email: project.project_manager_id.email,
+                avatar_url: project.project_manager_id.avatar_url,
+              }
+            : null,
+        project_manager_id:
+          project.project_manager_id && project.project_manager_id._id
+            ? project.project_manager_id._id
+            : null,
         names: names
       };
     }));
@@ -838,6 +964,8 @@ exports.getById = async (req, res, next) => {
   try {
     const project = await Project.findById(req.params.id)
       .populate('owner_id', 'name email avatar_url')
+      .populate('client_id', 'name')
+      .populate('project_manager_id', 'name email avatar_url')
       .populate('team_id', 'name');
     
     if (!project) {
@@ -872,6 +1000,20 @@ exports.getById = async (req, res, next) => {
       body: {
         ...project.toObject(),
         id: project._id,
+        client_name: project.client_name || (project.client_id ? project.client_id.name : null),
+        project_manager:
+          project.project_manager_id && project.project_manager_id._id
+            ? {
+                id: project.project_manager_id._id,
+                name: project.project_manager_id.name,
+                email: project.project_manager_id.email,
+                avatar_url: project.project_manager_id.avatar_url,
+              }
+            : null,
+        project_manager_id:
+          project.project_manager_id && project.project_manager_id._id
+            ? project.project_manager_id._id
+            : null,
         statuses,
         members: members.map(m => ({ ...m.user_id.toObject(), role: m.role })),
         is_favorite: isMember ? isMember.is_favorite : false,
@@ -891,7 +1033,30 @@ exports.getById = async (req, res, next) => {
  */
 exports.update = async (req, res, next) => {
   try {
-    const { name, description, key, color_code, status, health, start_date, end_date } = req.body;
+    const {
+      name,
+      description,
+      notes,
+      key,
+      color_code,
+      status,
+      status_id,
+      health,
+      health_id,
+      category_id,
+      client_id,
+      client_name,
+      project_manager,
+      project_manager_id,
+      start_date,
+      end_date,
+      working_days,
+      man_days,
+      hours_per_day,
+      use_manual_progress,
+      use_weighted_progress,
+      use_time_progress,
+    } = req.body;
     
     const project = await Project.findById(req.params.id);
     
@@ -908,11 +1073,33 @@ exports.update = async (req, res, next) => {
     
     if (name) project.name = name;
     if (description !== undefined) project.description = description;
+    if (notes !== undefined) project.notes = notes;
+    if (description !== undefined && notes === undefined) project.notes = description;
+    if (notes !== undefined && description === undefined) project.description = notes;
+    if (key !== undefined && key !== null && String(key).trim() !== '') {
+      project.key = String(key).trim().toUpperCase();
+    }
     if (color_code) project.color_code = color_code;
-    if (status) project.status = status;
-    if (health) project.health = health;
-    if (start_date) project.start_date = start_date;
-    if (end_date) project.end_date = end_date;
+    if (status || status_id) {
+      project.status = normalizeProjectStatusValue(status || status_id) || project.status;
+    }
+    if (health || health_id) {
+      project.health = normalizeProjectHealthValue(health || health_id) || project.health;
+    }
+    if (category_id !== undefined) project.category_id = extractObjectId(category_id);
+    if (client_id !== undefined) project.client_id = extractObjectId(client_id);
+    if (client_name !== undefined) project.client_name = client_name || null;
+    if (project_manager !== undefined || project_manager_id !== undefined) {
+      project.project_manager_id = extractObjectId(project_manager_id || project_manager);
+    }
+    if (start_date !== undefined) project.start_date = start_date || null;
+    if (end_date !== undefined) project.end_date = end_date || null;
+    if (working_days !== undefined) project.working_days = Number.isFinite(+working_days) ? +working_days : 0;
+    if (man_days !== undefined) project.man_days = Number.isFinite(+man_days) ? +man_days : 0;
+    if (hours_per_day !== undefined) project.hours_per_day = Number.isFinite(+hours_per_day) ? +hours_per_day : 8;
+    if (use_manual_progress !== undefined) project.use_manual_progress = !!use_manual_progress;
+    if (use_weighted_progress !== undefined) project.use_weighted_progress = !!use_weighted_progress;
+    if (use_time_progress !== undefined) project.use_time_progress = !!use_time_progress;
     
     await project.save();
     

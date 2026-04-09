@@ -11,9 +11,10 @@ router.get('/', async (req, res) => {
     res.json({
       done: true,
       body: [
-        { id: '1', name: 'On Track', color_code: '#52c41a' },
-        { id: '2', name: 'At Risk', color_code: '#faad14' },
-        { id: '3', name: 'Off Track', color_code: '#ff4d4f' }
+        { id: 'not_set', name: 'Not Set', color_code: '#a3a3a3' },
+        { id: 'needs_attention', name: 'Needs Attention', color_code: '#f4c542' },
+        { id: 'at_risk', name: 'At Risk', color_code: '#ff6b6b' },
+        { id: 'good', name: 'Good', color_code: '#73d39a', is_default: true }
       ]
     });
   } catch (error) {

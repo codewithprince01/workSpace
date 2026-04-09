@@ -84,7 +84,27 @@ exports.setupAccount = async (req, res, next) => {
       defaultStatusId = createdStatuses.find(status => status.is_default)?._id || createdStatuses[0]?._id;
     }
 
-    // Skip initial task creation for now to avoid validation errors if status_id is missing
+    // Create initial tasks from account setup step
+    if (project && defaultStatusId && Array.isArray(tasks) && tasks.length > 0) {
+      const setupTasks = tasks
+        .map(taskName => (typeof taskName === 'string' ? taskName.trim() : ''))
+        .filter(taskName => taskName.length > 0);
+
+      if (setupTasks.length > 0) {
+        await Task.insertMany(
+          setupTasks.map((taskName, index) => ({
+            name: taskName,
+            project_id: project._id,
+            status_id: defaultStatusId,
+            reporter_id: req.user._id,
+            assignees: [req.user._id],
+            sort_order: index,
+            priority: 'medium',
+            parent_task_id: null
+          }))
+        );
+      }
+    }
 
     // Mark setup as completed for the user
     await req.user.updateOne({ setup_completed: true });

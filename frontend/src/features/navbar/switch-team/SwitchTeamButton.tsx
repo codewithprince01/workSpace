@@ -29,7 +29,7 @@ import CustomAvatar from '@/components/CustomAvatar';
 // Styles
 import { colors } from '@/styles/colors';
 import './switchTeam.css';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 
 const SwitchTeamButton = () => {
   const dispatch = useAppDispatch();
@@ -44,6 +44,37 @@ const SwitchTeamButton = () => {
   // Selectors
   const teamsList = useAppSelector(state => state.teamReducer.teamsList);
   const themeMode = useAppSelector(state => state.themeReducer.mode);
+
+  const normalizeTeamText = (value?: string) => (value || '').trim().toLowerCase();
+
+  const displayTeams = useMemo(() => {
+    if (!teamsList?.length) return [];
+
+    return teamsList.filter(team => {
+      const ownerName = normalizeTeamText(team.owns_by);
+      const teamName = normalizeTeamText(team.name);
+
+      if (!ownerName || !teamName) return true;
+
+      // Hide auto-created "<Owner>'s Team" if a cleaner "<Owner>" org/team exists.
+      const defaultPersonalTeamNames = new Set([
+        `${ownerName}'s team`,
+        `${ownerName}s team`,
+        `${ownerName} team`,
+      ]);
+
+      const isDefaultPersonalTeam = defaultPersonalTeamNames.has(teamName);
+      if (!isDefaultPersonalTeam) return true;
+
+      const hasOwnerNamedTeam = teamsList.some(t => {
+        return (
+          normalizeTeamText(t.owns_by) === ownerName && normalizeTeamText(t.name) === ownerName
+        );
+      });
+
+      return !hasOwnerNamedTeam;
+    });
+  }, [teamsList]);
 
   useEffect(() => {
     dispatch(fetchTeams());
@@ -139,13 +170,13 @@ const SwitchTeamButton = () => {
             }}
           />
         </Flex>
-        {index < teamsList.length - 1 && <Divider style={{ margin: 0 }} />}
+        {index < displayTeams.length - 1 && <Divider style={{ margin: 0 }} />}
       </Flex>
     </Card>
   );
 
   const dropdownItems =
-    teamsList
+    displayTeams
       ?.filter((team): team is typeof team & { id: string } => !!team.id) // Type guard
       .map((team, index) => ({
         key: team.id,
@@ -178,7 +209,19 @@ const SwitchTeamButton = () => {
           <BankOutlined />
           <Typography.Text strong style={{ color: colors.skyBlue, cursor: 'pointer' }}>
             {/* Prioritize Team Name (Workspace Name) */}
-            {teamsList.find(t => t.id === session?.team_id)?.name || session?.team_name}
+            {displayTeams.find(t => t.id === session?.team_id)?.name ||
+              (() => {
+                const activeTeam = teamsList.find(t => t.id === session?.team_id);
+                const ownerName = normalizeTeamText(activeTeam?.owns_by);
+                if (!ownerName) return session?.team_name;
+
+                const ownerNamedTeam = displayTeams.find(
+                  t =>
+                    normalizeTeamText(t.owns_by) === ownerName &&
+                    normalizeTeamText(t.name) === ownerName
+                );
+                return ownerNamedTeam?.name || session?.team_name;
+              })()}
           </Typography.Text>
           <CaretDownFilled />
         </Flex>

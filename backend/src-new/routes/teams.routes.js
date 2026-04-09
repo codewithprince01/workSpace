@@ -21,16 +21,10 @@ router.post('/', teamsController.create);
 router.put('/activate', teamsController.activate);
 
 // GET /api/teams/invites
-router.get('/invites', async (req, res) => {
-  try {
-    res.json({
-      done: true,
-      body: []
-    });
-  } catch (error) {
-    res.status(500).json({ done: false, message: 'Failed to fetch invitations' });
-  }
-});
+router.get('/invites', teamsController.getInvites);
+
+// PUT /api/teams - accept invitation
+router.put('/', teamsController.acceptInvitation);
 
 // PUT /api/teams/:id/members/:userId
 router.put('/:id/members/:userId', teamsController.updateMemberRole);

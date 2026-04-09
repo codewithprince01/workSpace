@@ -125,41 +125,42 @@ router.post('/', async (req, res) => {
                 // Check if already member
                 const existing = await TeamMember.findOne({ team_id: targetTeamId, user_id: user._id });
                 if (existing) {
-                    if (!existing.is_active) {
-                        existing.is_active = true;
+                    if (existing.is_active && !existing.pending_invitation) {
+                        results.push({ email: mail, status: 'Already member', user });
+                    } else {
+                        existing.is_active = false;
+                        existing.pending_invitation = true;
                         existing.role = is_admin ? 'admin' : (role || 'member');
                         if (job_title) existing.job_title = job_title;
                         await existing.save();
-                        results.push({ email: mail, status: 'Re-activated', user });
-                        
-                        // Notify
+                        results.push({ email: mail, status: 'Invited', user });
+
                         if (user._id.toString() !== req.user._id.toString()) {
                              await Notification.create({
                                 user_id: user._id,
                                 team_id: targetTeamId,
                                 type: 'team_invite',
-                                message: `You have been added to team "${teamName}" by ${req.user.name}`
+                                message: `You have been invited to join team "${teamName}" by ${req.user.name}`
                              });
                         }
-                    } else {
-                        results.push({ email: mail, status: 'Already member', user });
                     }
                 } else {
-                    const newMember = await TeamMember.create({
+                    await TeamMember.create({
                         team_id: targetTeamId,
                         user_id: user._id,
                         role: is_admin ? 'admin' : (role || 'member'),
-                        job_title: job_title
+                        job_title: job_title,
+                        is_active: false,
+                        pending_invitation: true
                     });
-                    results.push({ email: mail, status: 'Added', user });
+                    results.push({ email: mail, status: 'Invited', user });
                     
-                    // Notify
                     if (user._id.toString() !== req.user._id.toString()) {
                          await Notification.create({
                             user_id: user._id,
                             team_id: targetTeamId,
                             type: 'team_invite',
-                            message: `You have been added to team "${teamName}" by ${req.user.name}`
+                            message: `You have been invited to join team "${teamName}" by ${req.user.name}`
                          });
                     }
                 }
