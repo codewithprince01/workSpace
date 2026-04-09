@@ -158,8 +158,11 @@ apiClient.interceptors.response.use(
 
     const errorMessage = message || 'An unexpected error occurred';
     const errorTitle = 'Error';
+    const skipErrorAlert =
+      (error.config?.headers as any)?.['X-Skip-Error-Alert'] === 'true' ||
+      (error.config?.headers as any)?.['x-skip-error-alert'] === 'true';
 
-    if (error.code !== 'ERR_NETWORK') {
+    if (error.code !== 'ERR_NETWORK' && !skipErrorAlert) {
       alertService.error(errorTitle, errorMessage);
     }
 
