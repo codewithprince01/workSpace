@@ -93,7 +93,18 @@ const initializeSocket = (server) => {
       console.log('📝 QUICK_TASK event received:', jsonString);
       try {
         const data = JSON.parse(jsonString);
-        const { name, project_id, reporter_id, team_id, end_date } = data;
+        const {
+          name,
+          description,
+          project_id,
+          reporter_id,
+          end_date,
+          start_date,
+          status_id: requestedStatusId,
+          priority_id: requestedPriorityId,
+          priority: requestedPriority,
+          phase_id: requestedPhaseId,
+        } = data;
         
         console.log('📝 Parsed task data:', { name, project_id, reporter_id, end_date });
         
@@ -102,44 +113,74 @@ const initializeSocket = (server) => {
           return;
         }
         
-        // 1. Get Project & Status
-        // Logic similar to TasksController.create
+        // 1. Resolve status (respect requested status when valid)
         let status_id = null;
-        
-        // Try default
-        const defaultStatus = await TaskStatus.findOne({ project_id, is_default: true });
-        if (defaultStatus) {
+
+        if (requestedStatusId) {
+          const requestedStatus = await TaskStatus.findOne({
+            _id: requestedStatusId,
+            project_id,
+          });
+          if (requestedStatus) {
+            status_id = requestedStatus._id;
+          }
+        }
+
+        if (!status_id) {
+          const defaultStatus = await TaskStatus.findOne({ project_id, is_default: true });
+          if (defaultStatus) {
             status_id = defaultStatus._id;
-        } else {
-            // First available
+          } else {
             const firstStatus = await TaskStatus.findOne({ project_id }).sort({ sort_order: 1 });
             if (firstStatus) {
-                status_id = firstStatus._id;
+              status_id = firstStatus._id;
             } else {
-                // Create default
-                const newStatus = await TaskStatus.create({
-                    project_id,
-                    name: 'To Do',
-                    category: 'todo',
-                    color_code: '#87d068',
-                    sort_order: 0,
-                    is_default: true
-                });
-                status_id = newStatus._id;
+              const newStatus = await TaskStatus.create({
+                project_id,
+                name: 'To Do',
+                category: 'todo',
+                color_code: '#87d068',
+                sort_order: 0,
+                is_default: true
+              });
+              status_id = newStatus._id;
             }
+          }
+        }
+
+        // 2. Resolve priority
+        const validPriorities = ['low', 'medium', 'high', 'urgent'];
+        let resolvedPriority = 'medium';
+        const incomingPriority = requestedPriorityId || requestedPriority;
+        if (typeof incomingPriority === 'string') {
+          const normalizedPriority = incomingPriority.toLowerCase();
+          if (validPriorities.includes(normalizedPriority)) {
+            resolvedPriority = normalizedPriority;
+          }
+        }
+
+        // 3. Resolve phase (optional)
+        let resolvedPhaseId = null;
+        if (requestedPhaseId) {
+          const phase = await TaskPhase.findOne({ _id: requestedPhaseId, project_id });
+          if (phase) {
+            resolvedPhaseId = phase._id;
+          }
         }
         
         console.log('📝 Using status_id:', status_id);
         
-        // 2. Create Task
+        // 4. Create Task
         const task = await Task.create({
             name,
+            description: description || '',
             project_id,
             status_id,
+            phase_id: resolvedPhaseId,
             reporter_id: reporter_id || socket.user._id,
             end_date: end_date ? new Date(end_date) : undefined,
-            start_date: new Date(),
-            priority: 'medium'
+            start_date: start_date ? new Date(start_date) : new Date(),
+            priority: resolvedPriority
         });
         
         console.log('✅ Task created:', task._id);
@@ -147,10 +188,19 @@ const initializeSocket = (server) => {
         // Populate for response
         const populatedTask = await Task.findById(task._id)
             .populate('project_id', 'name key color_code')
-            .populate('status_id', 'name color_code category');
+            .populate('status_id', 'name color_code category')
+            .populate('phase_id', 'name color_code');
 
         const taskObj = populatedTask.toObject();
         taskObj.id = task._id;
+        taskObj.status = populatedTask.status_id?._id?.toString() || null;
+        taskObj.status_id = populatedTask.status_id?._id?.toString() || null;
+        taskObj.status_name = populatedTask.status_id?.name || null;
+        taskObj.priority = task.priority || 'medium';
+        taskObj.priority_id = task.priority || 'medium';
+        taskObj.phase_id = populatedTask.phase_id?._id?.toString() || null;
+        taskObj.phase_name = populatedTask.phase_id?.name || null;
+        taskObj.phase_color = populatedTask.phase_id?.color_code || null;
         if (populatedTask.project_id) {
            taskObj.project_name = populatedTask.project_id.name;
            taskObj.project_color = populatedTask.project_id.color_code;
@@ -170,8 +220,8 @@ const initializeSocket = (server) => {
             attribute_type: 'CREATE'
         });
 
-        // Broadcast to project
-        io.to(`project:${project_id}`).emit(SocketEvents.QUICK_TASK.toString(), taskObj);
+        // Broadcast to everyone else in the project room (exclude creator to avoid duplicate event)
+        socket.to(`project:${project_id}`).emit(SocketEvents.QUICK_TASK.toString(), taskObj);
         
       } catch (error) {
         console.error('❌ Socket QUICK_TASK error:', error);

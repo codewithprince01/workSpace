@@ -528,13 +528,19 @@ const taskManagementSlice = createSlice({
     },
     addTask: (state, action: PayloadAction<Task>) => {
       const task = action.payload;
+      // Ignore duplicate socket/API events for the same task
+      if (state.entities[task.id]) return;
       state.ids.push(task.id);
       state.entities[task.id] = task;
     },
     addTaskToGroup: (state, action: PayloadAction<{ task: Task; groupId: string }>) => {
       const { task, groupId } = action.payload;
-      
-      state.ids.push(task.id);
+
+      // Ignore duplicate socket/API events for the same task
+      const alreadyExists = Boolean(state.entities[task.id]);
+      if (!alreadyExists) {
+        state.ids.push(task.id);
+      }
       state.entities[task.id] = task;
       let group = state.groups.find(g => g.id === groupId);
       
@@ -551,8 +557,22 @@ const taskManagementSlice = createSlice({
         state.groups.push(unmappedGroup);
         group = unmappedGroup;
       }
+
+      // Generic fallback: if the group is not found, create a temporary group so task is still visible instantly.
+      if (!group && groupId) {
+        const fallbackGroup = {
+          id: groupId,
+          title: groupId,
+          taskIds: [],
+          type: (state.grouping as 'status' | 'priority' | 'phase' | 'members') || 'status',
+          color: '#cccccc',
+          groupValue: groupId,
+        };
+        state.groups.push(fallbackGroup);
+        group = fallbackGroup;
+      }
       
-      if (group) {
+      if (group && !group.taskIds.includes(task.id)) {
         group.taskIds.push(task.id);
       }
     },

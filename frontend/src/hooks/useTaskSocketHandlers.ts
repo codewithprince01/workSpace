@@ -744,20 +744,33 @@ export const useTaskSocketHandlers = () => {
         );
       } else {
         // Handle regular task creation - transform to Task format and add
+        const priorityValue =
+          typeof data.priority === 'string'
+            ? data.priority.toLowerCase()
+            : typeof data.priority_id === 'string'
+              ? data.priority_id.toLowerCase()
+              : data.priority_value === 3
+                ? 'urgent'
+                : data.priority_value === 2
+                  ? 'high'
+                  : data.priority_value === 1
+                    ? 'medium'
+                    : 'low';
+
+        const statusIdValue =
+          data.status_id?._id ||
+          data.status_id ||
+          data.status ||
+          '';
+
         const task: Task = {
           id: data.id || '',
           task_key: data.task_key || '',
           title: data.name || '',
           description: data.description || '',
-          status: data.status || 'todo',
-          priority: (data.priority_value === 3
-            ? 'critical'
-            : data.priority_value === 2
-              ? 'high'
-              : data.priority_value === 1
-                ? 'medium'
-                : 'low') as 'critical' | 'high' | 'medium' | 'low',
-          phase: data.phase_name || 'Development',
+          status: statusIdValue,
+          priority: priorityValue,
+          phase: data.phase_name || '',
           progress: data.complete_ratio || 0,
           assignees: data.assignees?.map((a: any) => a.team_member_id) || [],
           assignee_names: data.names || [],
@@ -791,16 +804,31 @@ export const useTaskSocketHandlers = () => {
         const grouping = currentGroupingV3 || 'status';
 
         if (grouping === 'status') {
-          // For status grouping, use status field (which contains the status UUID)
-          groupId = data.status;
+          groupId = data.status_id?._id || data.status_id || data.status;
         } else if (grouping === 'priority') {
-          // For priority grouping, use priority field (which contains the priority UUID)
-          groupId = data.priority;
+          groupId = priorityValue;
         } else if (grouping === 'phase') {
-          // For phase grouping, use phase_id, or 'Unmapped' if no phase_id
-          groupId = data.phase_id || 'Unmapped';
+          groupId = data.phase_id?._id || data.phase_id || 'no-phase';
         }
 
+        // Fallback: if exact group id is missing, try title/groupValue matching
+        if (!groupId) {
+          const currentGroups = store.getState().taskManagement.groups || [];
+          if (grouping === 'status' && data.status_name) {
+            const byName = currentGroups.find(
+              g => g.title?.toLowerCase() === String(data.status_name).toLowerCase()
+            );
+            groupId = byName?.id;
+          } else if (grouping === 'priority') {
+            const byPriority = currentGroups.find(
+              g =>
+                g.id?.toLowerCase() === priorityValue.toLowerCase() ||
+                g.groupValue?.toLowerCase() === priorityValue.toLowerCase() ||
+                g.title?.toLowerCase() === priorityValue.toLowerCase()
+            );
+            groupId = byPriority?.id;
+          }
+        }
 
         // Use addTaskToGroup with the actual group UUID
         dispatch(addTaskToGroup({ task, groupId: groupId || '' }));

@@ -40,7 +40,9 @@ const AddTaskListRow = ({ groupId = null, parentTask = null }: IAddTaskListRowPr
   const themeMode = useAppSelector(state => state.themeReducer.mode);
   const customBorderColor = useMemo(() => themeMode === 'dark' && ' border-[#303030]', [themeMode]);
   const projectId = useAppSelector(state => state.projectReducer.projectId);
-  const currentGrouping = useAppSelector(state => state.grouping.currentGrouping);
+  // Use taskReducer.groupBy (the source of truth for this task-list screen).
+  // grouping.currentGrouping belongs to a different flow and can be stale.
+  const currentGrouping = useAppSelector(state => state.taskReducer.groupBy);
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -101,11 +103,13 @@ const AddTaskListRow = ({ groupId = null, parentTask = null }: IAddTaskListRowPr
     };
 
     if (currentGrouping === 'status') {
-      body.status_id = groupId || undefined;
+      // Ignore synthetic/fallback groups; let backend fallback to default if needed.
+      body.status_id =
+        groupId && groupId !== 'unmapped-status' && groupId !== 'all' ? groupId : undefined;
     } else if (currentGrouping === 'priority') {
       body.priority_id = groupId || undefined;
     } else if (currentGrouping === 'phase') {
-      body.phase_id = groupId || undefined;
+      body.phase_id = groupId && groupId !== 'no-phase' ? groupId : undefined;
     }
 
     if (parentTask) {
