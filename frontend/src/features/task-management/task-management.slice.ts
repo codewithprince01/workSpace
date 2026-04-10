@@ -163,15 +163,24 @@ export const fetchTasks = createAsyncThunk(
             task.labels?.map((l: any) => ({
               id: l.id || l.label_id,
               name: l.name,
-              color: l.color || '#1890ff',
+              color: l.color || l.color_code || '#1890ff',
               end: l.end,
               names: l.names,
             })) || [],
-          dueDate: task.dueDate,
-          startDate: task.startDate,
+          dueDate: task.dueDate || task.due_date || task.end_date || undefined,
+          due_date: task.due_date || task.dueDate || task.end_date || undefined,
+          startDate: task.startDate || task.start_date || undefined,
+          start_date: task.start_date || task.startDate || undefined,
           timeTracking: {
-            estimated: convertTimeValue(task.total_time),
-            logged: convertTimeValue(task.time_spent),
+            estimated:
+              convertTimeValue(task.timeTracking?.estimated) ||
+              convertTimeValue(task.estimated_hours) ||
+              convertTimeValue(task.total_time),
+            logged:
+              convertTimeValue(task.timeTracking?.logged) ||
+              convertTimeValue(task.total_logged_time) ||
+              convertTimeValue(task.time_spent),
+            activeTimer: task.timeTracking?.activeTimer ?? task.timer_start_time ?? null,
           },
           customFields: {},
           createdAt: task.createdAt || task.created_at || new Date().toISOString(),
@@ -193,6 +202,7 @@ export const fetchTasks = createAsyncThunk(
           has_dependencies: task.has_dependencies || false,
           schedule_id: task.schedule_id || null,
           reporter: task.reporter || undefined,
+          timer_start_time: task.timer_start_time || null,
         }))
       );
 
@@ -270,7 +280,12 @@ export const fetchTasksV3 = createAsyncThunk(
           status: task.status || 'todo',
           priority: task.priority || 'medium',
           phase: task.phase || 'Development',
-          progress: typeof task.complete_ratio === 'number' ? task.complete_ratio : 0,
+          progress:
+            typeof task.progress === 'number'
+              ? task.progress
+              : typeof task.complete_ratio === 'number'
+                ? task.complete_ratio
+                : 0,
           assignees:
             task.assignees?.map((a: any) => String(a?.team_member_id || a?.id || a?._id || '')) || [],
           assignee_names:
@@ -295,11 +310,22 @@ export const fetchTasksV3 = createAsyncThunk(
             name: l.name,
             color_code: l.color_code || '#1890ff',
           })) || [],
-          dueDate: task.dueDate,
-          startDate: task.startDate,
+          dueDate: task.dueDate || task.due_date || task.end_date || undefined,
+          due_date: task.due_date || task.dueDate || task.end_date || undefined,
+          startDate: task.startDate || task.start_date || undefined,
+          start_date: task.start_date || task.startDate || undefined,
           timeTracking: {
-            estimated: task.timeTracking?.estimated || 0,
-            logged: task.timeTracking?.logged || 0,
+            estimated:
+              task.timeTracking?.estimated ??
+              task.estimated_hours ??
+              task.total_time ??
+              0,
+            logged:
+              task.timeTracking?.logged ??
+              task.total_logged_time ??
+              task.time_spent ??
+              0,
+            activeTimer: task.timeTracking?.activeTimer ?? task.timer_start_time ?? null,
           },
           customFields: {},
           custom_column_values: task.custom_column_values || {},
@@ -307,6 +333,7 @@ export const fetchTasksV3 = createAsyncThunk(
           updatedAt: task.updatedAt || task.updated_at || now,
           created_at: task.createdAt || task.created_at || now,
           updated_at: task.updatedAt || task.updated_at || now,
+          timer_start_time: task.timer_start_time || null,
           order: typeof task.sort_order === 'number' ? task.sort_order : 0,
           sub_tasks: task.sub_tasks || [],
           sub_tasks_count: task.sub_tasks_count || 0,

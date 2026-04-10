@@ -126,9 +126,13 @@ const LabelsSelector: React.FC<LabelsSelectorProps> = ({ task, isDarkMode = fals
   };
 
   const handleLabelToggle = (label: ITaskLabel) => {
+    const labelId = label.id || '';
+    const nextSelectedState = !checkLabelSelected(labelId);
+
     const labelData = {
       task_id: task.id,
-      label_id: label.id,
+      label_id: labelId,
+      is_selected: nextSelectedState,
       parent_task: task.parent_task_id,
       team_id: currentSession?.team_id,
     };

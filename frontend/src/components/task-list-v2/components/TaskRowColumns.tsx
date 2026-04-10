@@ -312,12 +312,13 @@ PhaseColumn.displayName = 'PhaseColumn';
 interface TimeTrackingColumnProps {
   width: string;
   taskId: string;
+  timerStartTime?: string | number | null;
   isDarkMode: boolean;
 }
 
-export const TimeTrackingColumn: React.FC<TimeTrackingColumnProps> = memo(({ width, taskId, isDarkMode }) => (
+export const TimeTrackingColumn: React.FC<TimeTrackingColumnProps> = memo(({ width, taskId, timerStartTime, isDarkMode }) => (
   <div className="flex items-center justify-center px-2 border-r border-gray-200 dark:border-gray-700" style={{ width }}>
-    <TaskTimeTracking taskId={taskId} isDarkMode={isDarkMode} />
+    <TaskTimeTracking taskId={taskId} timerStartTime={timerStartTime} isDarkMode={isDarkMode} />
   </div>
 ));
 

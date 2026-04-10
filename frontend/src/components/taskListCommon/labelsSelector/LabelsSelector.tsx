@@ -40,9 +40,11 @@ const LabelsSelector = ({ task }: LabelsSelectorProps) => {
   const themeMode = useAppSelector(state => state.themeReducer.mode);
 
   const handleLabelChange = (label: ITaskLabel) => {
+    const nextSelectedState = !isLabelSelected(label.id || '', task?.labels);
     const labelData = {
       task_id: task.id,
       label_id: label.id,
+      is_selected: nextSelectedState,
       parent_task: task.parent_task_id,
       team_id: currentSession?.team_id,
     };

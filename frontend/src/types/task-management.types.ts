@@ -51,6 +51,7 @@ export interface Task {
     estimated?: number;
     activeTimer?: number; // Active timer start timestamp
   };
+  timer_start_time?: number | string | null;
   custom_column_values?: Record<string, any>; // Custom column values
   isTemporary?: boolean; // Temporary task indicator
   // Add any other task properties as needed

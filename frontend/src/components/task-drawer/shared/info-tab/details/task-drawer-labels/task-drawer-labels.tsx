@@ -52,9 +52,11 @@ const TaskDrawerLabels = ({ task, t }: TaskDrawerLabelsProps) => {
   const { tab } = useTabSearchParam();
   const handleLabelChange = (label: ITaskLabel) => {
     try {
+      const nextSelectedState = !isLabelSelected(label.id || '', task?.labels as any);
       const labelData = {
         task_id: task.id,
         label_id: label.id,
+        is_selected: nextSelectedState,
         parent_task: task.parent_task_id,
         team_id: currentSession?.team_id,
       };

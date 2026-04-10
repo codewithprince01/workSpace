@@ -551,8 +551,20 @@ const initializeSocket = (server) => {
                 return;
             }
 
+            const currentTask = await Task.findById(task_id).select('labels');
+            if (!currentTask) {
+                console.log('❌ Task not found:', task_id);
+                return;
+            }
+
+            const labelIdString = String(label_id);
+            const alreadySelected = (currentTask.labels || []).some(
+                (l) => String(l) === labelIdString
+            );
+            const shouldSelect = typeof is_selected === 'boolean' ? is_selected : !alreadySelected;
+
             let task;
-            if (is_selected) {
+            if (shouldSelect) {
                 // Add label
                 task = await Task.findByIdAndUpdate(
                     task_id, 
@@ -578,7 +590,7 @@ const initializeSocket = (server) => {
                         done_by: socket.user._id,
                         log_type: 'label',
                         attribute_type: 'LABELS',
-                        log_text: is_selected ? `added label "${label?.name}"` : `removed label "${label?.name}"`
+                        log_text: shouldSelect ? `added label "${label?.name}"` : `removed label "${label?.name}"`
                     });
                 } catch (logError) {
                     console.log('Activity log error:', logError.message);
@@ -587,7 +599,7 @@ const initializeSocket = (server) => {
                 const response = {
                     id: task_id,
                     label_id: label_id,
-                    is_selected: is_selected,
+                    is_selected: shouldSelect,
                     labels: task.labels?.map(l => ({
                         id: l._id.toString(),
                         name: l.name,

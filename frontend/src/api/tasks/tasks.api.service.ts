@@ -184,6 +184,31 @@ export const tasksApiService = {
         avatar_url: a?.avatar_url || '',
       }));
       const labels = Array.isArray(task?.labels) ? task.labels : [];
+      const toNumber = (value: any): number => {
+        if (typeof value === 'number') return value;
+        if (typeof value === 'string') {
+          const parsed = parseFloat(value);
+          return Number.isFinite(parsed) ? parsed : 0;
+        }
+        if (value && typeof value === 'object') {
+          const hours = Number((value as any).hours || 0);
+          const minutes = Number((value as any).minutes || 0);
+          if (Number.isFinite(hours) || Number.isFinite(minutes)) {
+            return (Number.isFinite(hours) ? hours : 0) + (Number.isFinite(minutes) ? minutes : 0) / 60;
+          }
+        }
+        return 0;
+      };
+
+      const estimatedHours =
+        toNumber(task?.timeTracking?.estimated) ||
+        toNumber(task?.estimated_hours) ||
+        toNumber(task?.total_time);
+      const loggedHours =
+        toNumber(task?.timeTracking?.logged) ||
+        toNumber(task?.total_logged_time) ||
+        toNumber(task?.time_spent) ||
+        toNumber(task?.total_minutes_spent) / 60;
 
       return {
         ...task,
@@ -196,6 +221,28 @@ export const tasksApiService = {
         phase_id: String(task?.phase_id?._id ?? task?.phase_id ?? ''),
         phase_name: task?.phase_name || phaseObj?.name || '',
         phase_color: task?.phase_color || phaseObj?.color_code || '',
+        task_key: task?.task_key || task?.key || '',
+        dueDate: task?.dueDate || task?.due_date || task?.end_date || undefined,
+        due_date: task?.due_date || task?.dueDate || task?.end_date || undefined,
+        startDate: task?.startDate || task?.start_date || undefined,
+        start_date: task?.start_date || task?.startDate || undefined,
+        end_date: task?.end_date || task?.due_date || task?.dueDate || undefined,
+        createdAt: task?.createdAt || task?.created_at || undefined,
+        updatedAt: task?.updatedAt || task?.updated_at || undefined,
+        created_at: task?.created_at || task?.createdAt || undefined,
+        updated_at: task?.updated_at || task?.updatedAt || undefined,
+        progress:
+          typeof task?.progress === 'number'
+            ? task.progress
+            : typeof task?.complete_ratio === 'number'
+              ? task.complete_ratio
+              : 0,
+        timer_start_time: task?.timer_start_time || null,
+        timeTracking: {
+          estimated: estimatedHours,
+          logged: loggedHours,
+          activeTimer: task?.timeTracking?.activeTimer ?? task?.timer_start_time ?? null,
+        },
         assignees: normalizedAssignees,
         assignee_names: normalizedAssigneeNames,
         names: normalizedAssigneeNames,

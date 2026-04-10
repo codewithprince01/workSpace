@@ -264,6 +264,7 @@ export const useTaskRowColumns = ({
           <TimeTrackingColumn
             width={width}
             taskId={task.id || ''}
+            timerStartTime={task.timer_start_time ?? task.timeTracking?.activeTimer ?? null}
             isDarkMode={isDarkMode}
           />
         );

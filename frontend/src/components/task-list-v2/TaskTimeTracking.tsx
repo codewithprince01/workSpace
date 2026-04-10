@@ -4,13 +4,14 @@ import { useTaskTimerWithConflictCheck } from '@/hooks/useTaskTimerWithConflictC
 
 interface TaskTimeTrackingProps {
   taskId: string;
+  timerStartTime?: string | number | null;
   isDarkMode: boolean;
 }
 
-const TaskTimeTracking: React.FC<TaskTimeTrackingProps> = React.memo(({ taskId, isDarkMode }) => {
+const TaskTimeTracking: React.FC<TaskTimeTrackingProps> = React.memo(({ taskId, timerStartTime = null, isDarkMode }) => {
   const { started, timeString, handleStartTimer, handleStopTimer } = useTaskTimerWithConflictCheck(
     taskId,
-    null // The hook will get the timer start time from Redux
+    timerStartTime !== undefined && timerStartTime !== null ? String(timerStartTime) : null
   );
 
   return (
