@@ -20,23 +20,31 @@ export const useTaskRowState = (task: Task) => {
   // Memoize task display name
   const taskDisplayName = useMemo(() => getTaskDisplayName(task), [task.title, task.name, task.task_key]);
 
-  // Memoize converted task for AssigneeSelector to prevent recreation
+  // Memoize converted task for AssigneeSelector to prevent recreation.
+  // IMPORTANT: use task.assignees (team_member_id list) as source of truth.
+  // assignee_names may miss team_member_id on initial load and can break checkbox toggles.
   const convertedTask = useMemo(() => ({
     id: task.id,
     name: taskDisplayName,
     task_key: task.task_key || taskDisplayName,
     assignees:
-      task.assignee_names?.map((assignee: InlineMember, index: number) => ({
-        team_member_id: assignee.team_member_id || `assignee-${index}`,
-        id: assignee.team_member_id || `assignee-${index}`,
-        project_member_id: assignee.team_member_id || `assignee-${index}`,
-        name: assignee.name || '',
-      })) || [],
+      (task.assignees || []).map((assigneeId: string, index: number) => {
+        const matchingMember =
+          task.assignee_names?.find((member: InlineMember) => member.team_member_id === assigneeId) ||
+          task.names?.find((member: InlineMember) => member.team_member_id === assigneeId);
+
+        return {
+          team_member_id: assigneeId,
+          id: assigneeId,
+          project_member_id: assigneeId,
+          name: matchingMember?.name || '',
+        };
+      }) || [],
     parent_task_id: task.parent_task_id,
     status_id: undefined,
     project_id: undefined,
     manual_progress: undefined,
-  }), [task.id, taskDisplayName, task.task_key, task.assignee_names, task.parent_task_id]);
+  }), [task.id, taskDisplayName, task.task_key, task.assignees, task.assignee_names, task.names, task.parent_task_id]);
 
   // Memoize formatted dates
   const formattedDates = useMemo(() => ({

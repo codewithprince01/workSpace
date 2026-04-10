@@ -1,4 +1,4 @@
-const { Task, TaskStatus, ActivityLog, ProjectMember, TimeLog } = require('../models');
+const { Task, TaskStatus, ActivityLog, ProjectMember, TimeLog, Project } = require('../models');
 
 exports.getProjectInsights = async (req, res, next) => {
   try {
@@ -30,42 +30,33 @@ exports.getProjectOverviewData = async (req, res, next) => {
     const { archived } = req.query;
     const includeArchived = archived === 'true';
 
-    console.log('=== PROJECT INSIGHTS DEBUG ===');
-    console.log('Project ID:', id);
-    console.log('Include Archived:', includeArchived);
 
     const query = { project_id: id };
     if (!includeArchived) {
       query.is_archived = false;
     }
 
-    console.log('Query:', JSON.stringify(query));
 
     // Get done statuses
     const doneStatuses = await TaskStatus.find({ project_id: id, category: 'done' }).select('_id');
     const doneStatusIds = doneStatuses.map(s => s._id);
-    console.log('Done Status IDs:', doneStatusIds);
 
     // Get todo statuses
     const todoStatuses = await TaskStatus.find({ project_id: id, category: 'todo' }).select('_id');
     const todoStatusIds = todoStatuses.map(s => s._id);
-    console.log('Todo Status IDs:', todoStatusIds);
 
     // Count tasks
     const totalTasks = await Task.countDocuments(query);
-    console.log('Total Tasks:', totalTasks);
 
     const completedTasks = await Task.countDocuments({ 
         ...query, 
         status_id: { $in: doneStatusIds } 
     });
-    console.log('Completed Tasks:', completedTasks);
 
     const todoTasks = await Task.countDocuments({ 
         ...query, 
         status_id: { $in: todoStatusIds } 
     });
-    console.log('Todo Tasks:', todoTasks);
 
     // Count overdue tasks (not done and past due date)
     // Check both end_date and due_date
@@ -79,7 +70,6 @@ exports.getProjectOverviewData = async (req, res, next) => {
     };
     
     const overdueTasks = await Task.countDocuments(overdueQuery);
-    console.log('Overdue Tasks:', overdueTasks);
 
     // Calculate overdue hours (sum of estimates)
     const overdueTaskDocs = await Task.find(overdueQuery).select('estimated_hours');
@@ -88,7 +78,6 @@ exports.getProjectOverviewData = async (req, res, next) => {
     // Calculate total estimated hours
     const tasksWithEstimates = await Task.find(query).select('estimated_hours');
     const totalEstimatedHours = tasksWithEstimates.reduce((sum, task) => sum + (task.estimated_hours || 0), 0);
-    console.log('Total Estimated Hours:', totalEstimatedHours);
 
     // Calculate total logged hours
     let totalLoggedHours = 0;
@@ -107,7 +96,6 @@ exports.getProjectOverviewData = async (req, res, next) => {
       console.error('Error calculating logs:', err);
       totalLoggedHours = 0;
     }
-    console.log('Total Logged Hours:', totalLoggedHours);
 
     // Format hours as string (e.g., "24h" or "2d 4h")
     const formatHours = (hours) => {
@@ -137,8 +125,6 @@ exports.getProjectOverviewData = async (req, res, next) => {
       total_logged_hours_string: formatHours(totalLoggedHours)
     };
 
-    console.log('Response Body:', JSON.stringify(responseBody));
-    console.log('=== END DEBUG ===');
 
     res.json({
       done: true,
@@ -200,12 +186,8 @@ exports.getTaskStatusCounts = async (req, res, next) => {
     const { archived } = req.query;
     const includeArchived = archived === 'true';
 
-    console.log('=== STATUS OVERVIEW DEBUG ===');
-    console.log('Project ID:', id);
-    console.log('Include Archived:', includeArchived);
 
     const statuses = await TaskStatus.find({ project_id: id });
-    console.log('Found Statuses:', statuses.length);
 
     const query = { project_id: id };
     if (!includeArchived) {
@@ -218,8 +200,6 @@ exports.getTaskStatusCounts = async (req, res, next) => {
         return { name: s.name, y: count, color: s.color_code };
     }));
 
-    console.log('Status Counts:', JSON.stringify(counts));
-    console.log('=== END STATUS DEBUG ===');
 
     res.json({ done: true, body: counts });
   } catch (error) {
@@ -234,9 +214,6 @@ exports.getPriorityOverview = async (req, res, next) => {
     const { archived } = req.query;
     const includeArchived = archived === 'true';
 
-    console.log('=== PRIORITY OVERVIEW DEBUG ===');
-    console.log('Project ID:', id);
-    console.log('Include Archived:', includeArchived);
 
     const query = { project_id: id };
     if (!includeArchived) {
@@ -261,8 +238,6 @@ exports.getPriorityOverview = async (req, res, next) => {
         };
     }));
 
-    console.log('Priority Counts:', JSON.stringify(counts));
-    console.log('=== END PRIORITY DEBUG ===');
 
     res.json({ done: true, body: counts });
   } catch (error) {
@@ -456,7 +431,6 @@ exports.getProjectDeadlineStats = async (req, res, next) => {
     const { id } = req.params;
     const { archived } = req.query;
     const includeArchived = archived === 'true';
-    const { Project } = require('../models');
 
     const project = await Project.findById(id);
     const query = { project_id: id };
@@ -531,7 +505,6 @@ exports.getOverloggedTasks = async (req, res, next) => {
     const { archived } = req.query;
     const includeArchived = archived === 'true';
 
-    const { TimeLog } = require('../models');
 
     // Get all tasks with estimated hours
     const tasks = await Task.find({ 

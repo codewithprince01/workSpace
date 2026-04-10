@@ -893,10 +893,14 @@ export const useTaskSocketHandlers = () => {
     [dispatch]
   );
 
-  // Handler for TASK_ASSIGNEES_CHANGE (fallback event with limited data)
-  const handleTaskAssigneesChange = useCallback((data: { assigneeIds: string[] }) => {
-    if (!data || !data.assigneeIds) return;
-  }, []);
+  // Handler for TASK_ASSIGNEES_CHANGE.
+  // Backend may broadcast this event to project room with the same payload shape as QUICK_ASSIGNEES_UPDATE.
+  const handleTaskAssigneesChange = useCallback((data: Partial<ITaskAssigneesUpdateResponse>) => {
+    if (!data) return;
+    if (data.id && Array.isArray(data.assignees)) {
+      handleAssigneesUpdate(data as ITaskAssigneesUpdateResponse);
+    }
+  }, [handleAssigneesUpdate]);
 
   // Handler for timer start events
   const handleTimerStart = useCallback((data: string) => {

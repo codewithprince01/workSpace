@@ -402,25 +402,21 @@ exports.activate = async (req, res, next) => {
     console.log('🔄 [ACTIVATE] Request received:', { teamId: id, userId: req.user._id });
     
     // Validate team exists and user is a member (either direct or via project)
-    const teamFn = require('../models/Team');
-    const teamMemberFn = require('../models/TeamMember');
-    const projectMemberFn = require('../models/ProjectMember');
-    const projectFn = require('../models/Project'); // Add Project model
     
     // 1. Direct membership check
-    const membership = await teamMemberFn.findOne({ team_id: id, user_id: req.user._id, is_active: true });
+    const membership = await TeamMember.findOne({ team_id: id, user_id: req.user._id, is_active: true });
     console.log('🔄 [ACTIVATE] Direct membership:', !!membership);
     
     let hasAccess = !!membership;
     
     // 2. If not direct member, check project membership for projects in this team
     if (!hasAccess) {
-        const projectMemberships = await projectMemberFn.find({ user_id: req.user._id, is_active: true });
+        const projectMemberships = await ProjectMember.find({ user_id: req.user._id, is_active: true });
         const projectIds = projectMemberships.map(pm => pm.project_id);
         
         if (projectIds.length > 0) {
             // Check if any of these projects belong to the target team
-            const validProject = await projectFn.findOne({ 
+            const validProject = await Project.findOne({ 
                 _id: { $in: projectIds },
                 team_id: id 
             });
@@ -449,7 +445,7 @@ exports.activate = async (req, res, next) => {
     console.log('✅ [ACTIVATE] Updated user last_team_id:', updatedUser.last_team_id);
     
     // Get user's team role to return in response
-    const teamMember = await teamMemberFn.findOne({
+    const teamMember = await TeamMember.findOne({
       team_id: id,
       user_id: req.user._id,
       is_active: true

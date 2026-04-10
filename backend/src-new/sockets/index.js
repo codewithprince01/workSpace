@@ -240,10 +240,29 @@ const initializeSocket = (server) => {
            return;
          }
 
-         // Get the team member to find their user_id
-         const teamMember = await TeamMember.findById(team_member_id).populate('user_id', 'name email avatar_url');
+         // Resolve incoming identifier robustly. Frontend may send team_member_id,
+         // user_id, or (rarely) project_member_id.
+         let teamMember = await TeamMember.findById(team_member_id).populate('user_id', 'name email avatar_url');
+
+         if (!teamMember && project_id) {
+           const projectMember = await ProjectMember.findOne({
+             _id: team_member_id,
+             project_id
+           }).select('team_member_id user_id');
+
+           if (projectMember?.team_member_id) {
+             teamMember = await TeamMember.findById(projectMember.team_member_id).populate('user_id', 'name email avatar_url');
+           } else if (projectMember?.user_id) {
+             teamMember = await TeamMember.findOne({ user_id: projectMember.user_id }).populate('user_id', 'name email avatar_url');
+           }
+         }
+
+         if (!teamMember) {
+           teamMember = await TeamMember.findOne({ user_id: team_member_id }).populate('user_id', 'name email avatar_url');
+         }
+
          if (!teamMember || !teamMember.user_id) {
-           console.log('❌ Team member not found:', team_member_id);
+           console.log('❌ Team member not found for incoming id:', team_member_id);
            return;
          }
 
@@ -294,9 +313,20 @@ const initializeSocket = (server) => {
            console.log('Activity log creation failed:', logError.message);
          }
 
-         // Prepare response with assignee data matching frontend expectations
+         // FIX: Look up correct team_member_id for EACH assignee
+         // Previously all assignees got the same team_member_id (the one being changed)
+         // causing checkMemberSelected() on the frontend to show wrong checkbox states
+         const teamMembersForTask = await TeamMember.find({
+           user_id: { $in: task.assignees.map(a => a._id) }
+         }).select('_id user_id');
+
+         const userToTeamMemberMap = {};
+         teamMembersForTask.forEach(tm => {
+           userToTeamMemberMap[tm.user_id.toString()] = tm._id.toString();
+         });
+
          const assignees = task.assignees?.map(a => ({
-           team_member_id: team_member_id, // Keep consistent with frontend
+           team_member_id: userToTeamMemberMap[a._id.toString()] || null,
            id: a._id.toString(),
            name: a.name,
            email: a.email,
@@ -306,20 +336,19 @@ const initializeSocket = (server) => {
          const response = {
            id: task_id,
            assignees: assignees,
-           names: task.assignees?.map(a => ({
-             team_member_id: team_member_id,
+           names: assignees.map(a => ({
+             team_member_id: a.team_member_id,
              name: a.name,
              avatar_url: a.avatar_url
-           })) || [],
+           })),
            parent_task: parent_task
          };
-         
-         console.log('✅ Assignees update response:', response);
-         
+
          // Emit response back to sender
          socket.emit(SocketEvents.QUICK_ASSIGNEES_UPDATE.toString(), response);
          
-         // Broadcast update to project room
+         // Broadcast update to project room (emit both legacy + primary event names for compatibility)
+         io.to(`project:${project_id}`).emit(SocketEvents.QUICK_ASSIGNEES_UPDATE.toString(), response);
          io.to(`project:${project_id}`).emit(SocketEvents.TASK_ASSIGNEES_CHANGE.toString(), response);
 
        } catch (error) {

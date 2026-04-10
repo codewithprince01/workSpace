@@ -173,7 +173,18 @@ interface AssigneesColumnProps {
 export const AssigneesColumn: React.FC<AssigneesColumnProps> = memo(({ width, task, convertedTask, isDarkMode }) => (
   <div className="flex items-center gap-1 px-2 border-r border-gray-200 dark:border-gray-700" style={{ width }}>
     <AvatarGroup
-      members={task.assignee_names || []}
+      members={
+        task.assignee_names?.length
+          ? task.assignee_names
+          : task.names?.length
+            ? task.names
+            : (convertedTask?.assignees || []).map((a: any) => ({
+              team_member_id: a?.team_member_id || a?.id || '',
+              id: a?.id || a?.team_member_id || '',
+              name: a?.name || '',
+              avatar_url: a?.avatar_url || '',
+            }))
+      }
       maxCount={3}
       isDarkMode={isDarkMode}
       size={24}

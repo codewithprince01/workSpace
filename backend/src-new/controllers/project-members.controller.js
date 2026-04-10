@@ -11,11 +11,15 @@ exports.create = async (req, res, next) => {
     console.log('📦 Body:', JSON.stringify(req.body, null, 2));
     console.log('❓ Query:', JSON.stringify(req.query, null, 2));
     
-    const { project_id, user_id, team_member_id, role } = req.body;
+    const { user_id, team_member_id, role } = req.body;
+    let { project_id } = req.body;
+    if (!project_id) project_id = req.query.current_project_id || req.query.project_id;
     let targetUserId = user_id;
 
     // Resolve user_id if not explicitly provided
-    if (!targetUserId && team_member_id) {
+    const mongoose = require('mongoose');
+    const isValidId = (id) => id && mongoose.Types.ObjectId.isValid(id);
+    if (!targetUserId && isValidId(team_member_id)) {
       console.log(`🔍 Resolving user_id from team_member_id: ${team_member_id}`);
       
       // Try finding as TeamMember
@@ -43,7 +47,7 @@ exports.create = async (req, res, next) => {
       });
       return res.status(400).json({ 
         done: false, 
-        message: 'User ID or Team Member ID required', 
+        message: 'Unable to add member: Missing user or project ID.', 
         debug: { team_member_id, user_id } 
       });
     }
@@ -86,7 +90,7 @@ exports.create = async (req, res, next) => {
            is_active: existing.is_active,
            role: existing.role
          });
-         return res.status(400).json({ done: false, message: 'User is already a project member' });
+         return res.status(409).json({ done: false, message: 'User is already a project member' });
     }
     
     console.log('✅ [ADD-MEMBER] Creating new project member');

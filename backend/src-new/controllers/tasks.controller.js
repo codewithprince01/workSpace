@@ -1,4 +1,4 @@
-const { Task, TaskStatus, TaskComment, TaskAttachment, Project, ProjectMember, TeamMember, TaskPhase } = require('../models');
+const { Task, TaskStatus, TaskComment, TaskAttachment, Project, ProjectMember, TeamMember, TaskPhase, ActivityLog, TimeLog, RunningTimer } = require('../models');
 
 /**
  * @desc    Create task
@@ -593,8 +593,6 @@ exports.getTaskListV3 = async (req, res, next) => {
 
     // Get time logs for all tasks to calculate time tracking
     const taskIds = tasks.map(t => t._id);
-    const { TimeLog, RunningTimer } = require('../models');
-    
     // Aggregate time logs
     const timeLogs = await TimeLog.aggregate([
       { $match: { task_id: { $in: taskIds } } },
@@ -615,6 +613,19 @@ exports.getTaskListV3 = async (req, res, next) => {
     const runningTimerMap = {};
     runningTimers.forEach(rt => {
         runningTimerMap[rt.task_id.toString()] = rt.start_time.getTime();
+    });
+
+    // Map user_id -> team_member_id so frontend receives assignable IDs
+    // (checkbox/assignee socket expects team_member_id).
+    const projectMemberLinks = await ProjectMember.find({
+      project_id: projectId,
+      is_active: true
+    }).select('user_id team_member_id');
+    const userToTeamMemberMap = {};
+    projectMemberLinks.forEach(pm => {
+      if (pm?.user_id && pm?.team_member_id) {
+        userToTeamMemberMap[pm.user_id.toString()] = pm.team_member_id.toString();
+      }
     });
 
     const formatTask = (t) => ({
@@ -643,14 +654,14 @@ exports.getTaskListV3 = async (req, res, next) => {
         dueDate: t.end_date || t.due_date || null,
         // Assignees
         assignees: t.assignees?.map(a => ({
-            team_member_id: a._id?.toString(),
+            team_member_id: userToTeamMemberMap[a._id?.toString()] || a._id?.toString(),
             id: a._id?.toString(),
             name: a.name,
             email: a.email,
             avatar_url: a.avatar_url
         })) || [],
         assignee_names: t.assignees?.map(a => ({
-            team_member_id: a._id?.toString(),
+            team_member_id: userToTeamMemberMap[a._id?.toString()] || a._id?.toString(),
             name: a.name,
             avatar_url: a.avatar_url
         })) || [],

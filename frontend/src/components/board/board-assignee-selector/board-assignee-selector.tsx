@@ -54,16 +54,18 @@ const BoardAssigneeSelector = ({ task, groupId = null }: BoardAssigneeSelectorPr
     );
   }, [teamMembers, searchQuery]);
 
+  const getMemberKey = (member: any) => String(member?.team_member_id || member?.id || '');
+
   const handleInviteProjectMemberDrawer = () => {
     dispatch(toggleProjectMemberDrawer());
   };
 
   const handleMembersDropdownOpen = (open: boolean) => {
     if (open) {
-      const assignees = task?.assignees?.map(assignee => assignee.team_member_id);
+      const assignees = task?.assignees?.map(assignee => String(assignee.team_member_id || ''));
       const membersData = (members?.data || []).map(member => ({
         ...member,
-        selected: assignees?.includes(member.id),
+        selected: assignees?.includes(getMemberKey(member)),
       }));
       let sortedMembers = sortTeamMembers(membersData);
 
@@ -117,7 +119,7 @@ const BoardAssigneeSelector = ({ task, groupId = null }: BoardAssigneeSelectorPr
             filteredMembersData.map(member => (
               <List.Item
                 className={`${themeMode === 'dark' ? 'custom-list-item dark' : 'custom-list-item'} ${member.pending_invitation ? 'disabled cursor-not-allowed' : ''}`}
-                key={member.id}
+                key={getMemberKey(member)}
                 style={{
                   display: 'flex',
                   gap: 8,
@@ -126,12 +128,12 @@ const BoardAssigneeSelector = ({ task, groupId = null }: BoardAssigneeSelectorPr
                   border: 'none',
                   cursor: 'pointer',
                 }}
-                onClick={e => handleMemberChange(null, member.id || '')}
+                onClick={e => handleMemberChange(null, getMemberKey(member))}
               >
                 <Checkbox
-                  id={member.id}
-                  checked={checkMemberSelected(member.id || '')}
-                  onChange={e => handleMemberChange(e, member.id || '')}
+                  id={getMemberKey(member)}
+                  checked={checkMemberSelected(getMemberKey(member))}
+                  onChange={e => handleMemberChange(e, getMemberKey(member))}
                   disabled={member.pending_invitation}
                 />
                 <div>

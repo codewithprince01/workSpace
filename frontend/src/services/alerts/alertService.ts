@@ -1,6 +1,6 @@
 import { AlertType } from '@/types/alert.types';
 import DOMPurify from 'dompurify';
-import { notification } from '@/shared/antd-imports';
+import { antdNotification as notification } from '@/utils/antd-static-bridge';
 class AlertService {
   private static instance: AlertService;
   private activeAlerts: Set<string> = new Set();
@@ -34,7 +34,8 @@ class AlertService {
       description: safeMessage,
       duration: duration || 5,
       placement: 'topRight',
-      style: { borderRadius: '4px' },
+      className: 'worklenz-alert-black',
+      style: { borderRadius: '4px', color: '#000000' },
       onClose: () => {
         this.activeAlerts.delete(message);
       },

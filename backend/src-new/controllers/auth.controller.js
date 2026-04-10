@@ -129,32 +129,21 @@ exports.login = async (req, res, next) => {
     }
 
     const { email, password } = req.body;
-    const fs = require('fs');
-    const logData = `[${new Date().toISOString()}] LOGIN REQ:\nHeaders: ${JSON.stringify(req.headers)}\nBody: ${JSON.stringify(req.body)}\n\n`;
-    try { fs.appendFileSync('server_debug.log', logData); } catch(e) {}
 
-    console.log('[LOGIN] Request received.');
-    // Find user
-    console.log(`[LOGIN] Attempting login for: ${email}`);
+    // Find user (never log password or full headers)
     const user = await User.findOne({ email }).select('+password');
     
     if (!user) {
-      console.log('[LOGIN] User not found');
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials'
       });
     }
-    
-    console.log(`[LOGIN] User found: ${user._id}`);
-    
+
     // Check password
-    console.log('[LOGIN] Comparing passwords...');
     const isMatch = await user.comparePassword(password);
-    console.log(`[LOGIN] Password match result: ${isMatch}`);
-    
+
     if (!isMatch) {
-      console.log('[LOGIN] Password mismatch');
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials'
@@ -165,15 +154,14 @@ exports.login = async (req, res, next) => {
     user.last_login = new Date();
     await user.save({ validateBeforeSave: false });
     
-    // Store in session - temporarily disabled for debugging
-    // req.session.userId = user._id;
-    
+    // Store userId in session for session-based auth
+    req.session.userId = user._id;
+
     // Check ownership
     const ownerMembership = await TeamMember.findOne({ user_id: user._id, role: 'owner', is_active: true });
     // Attach to user instance (will be used in sendTokenResponse)
     user.owner = !!ownerMembership;
 
-    console.log('[LOGIN] Sending response...');
     sendTokenResponse(user, 200, res, 'Login successful');
   } catch (error) {
     console.error('Login error:', error);
@@ -289,32 +277,22 @@ exports.verify = async (req, res, next) => {
     const userObj = user.toJSON();
     userObj.owner = !!ownerMembership;
     
-    console.log('🔍 [VERIFY] User last_team_id:', user.last_team_id);
-    
     // Map last_team_id to team_id for frontend compatibility
     if (user.last_team_id) {
         userObj.team_id = user.last_team_id;
-        console.log('✅ [VERIFY] Mapped team_id:', userObj.team_id);
-        
+
         // Get user's TEAM-level role (not project role - that's fetched per-project)
-        // last_team_id is a TEAM ID, not a project ID
         const teamMember = await TeamMember.findOne({
           team_id: user.last_team_id,
           user_id: user._id,
           is_active: true
         });
-        
+
         if (teamMember) {
-          userObj.team_role = teamMember.role; // owner/admin/member at TEAM level
-          console.log('✅ [VERIFY] Team role:', teamMember.role);
-        } else {
-          console.log('⚠️ [VERIFY] No team membership found');
+          userObj.team_role = teamMember.role;
         }
-        
+
         // Note: Project-specific roles are fetched via GET /api/projects/:id/role
-        // when user navigates to a specific project
-    } else {
-        console.log('⚠️ [VERIFY] No last_team_id found');
     }
 
     res.json({

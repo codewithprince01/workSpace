@@ -115,12 +115,7 @@ const TaskGroupWrapper = ({ taskGroups, groupBy }: TaskGroupWrapperProps) => {
   // Memoize socket event handlers
   const handleAssigneesUpdate = useCallback(
     (data: ITaskAssigneesUpdateResponse) => {
-      console.log('📥 [ASSIGNEE-HANDLER] Received QUICK_ASSIGNEES_UPDATE:', data);
-      
-      if (!data) {
-        console.log('❌ [ASSIGNEE-HANDLER] No data received');
-        return;
-      }
+      if (!data) return;
 
       const updatedAssignees =
         data.assignees?.map(assignee => ({
@@ -128,20 +123,29 @@ const TaskGroupWrapper = ({ taskGroups, groupBy }: TaskGroupWrapperProps) => {
           selected: true,
         })) || [];
 
-      console.log('👥 [ASSIGNEE-HANDLER] Updated assignees:', updatedAssignees);
+      // Search in both top-level tasks and sub-tasks to find the group
+      let groupId: string | undefined;
+      let isSubTask = false;
 
-      const groupId = groups?.find(group =>
-        group.tasks?.some(
-          task =>
-            task.id === data.id ||
-            (task.sub_tasks && task.sub_tasks.some(subtask => subtask.id === data.id))
-        )
-      )?.id;
-
-      console.log('🔍 [ASSIGNEE-HANDLER] Found groupId:', groupId, 'for taskId:', data.id);
+      for (const group of groups || []) {
+        // Check top-level tasks
+        const task = group.tasks?.find(t => t.id === data.id);
+        if (task) {
+          groupId = group.id;
+          break;
+        }
+        // Check sub-tasks
+        const parentTask = group.tasks?.find(t =>
+          t.sub_tasks?.some(subtask => subtask.id === data.id)
+        );
+        if (parentTask) {
+          groupId = group.id;
+          isSubTask = true;
+          break;
+        }
+      }
 
       if (groupId) {
-        console.log('✅ [ASSIGNEE-HANDLER] Dispatching updateTaskAssignees');
         dispatch(
           updateTaskAssignees({
             groupId,
@@ -160,10 +164,6 @@ const TaskGroupWrapper = ({ taskGroups, groupBy }: TaskGroupWrapperProps) => {
         if (currentSession?.team_id && !loadingAssignees) {
           dispatch(fetchTaskAssignees(currentSession.team_id));
         }
-        console.log('✅ [ASSIGNEE-HANDLER] All dispatches complete');
-      } else {
-        console.log('❌ [ASSIGNEE-HANDLER] GroupId not found! Cannot update UI');
-        console.log('Available groups:', groups?.map(g => ({ id: g.id, taskCount: g.tasks?.length })));
       }
     },
     [groups, dispatch, currentSession?.team_id, loadingAssignees]

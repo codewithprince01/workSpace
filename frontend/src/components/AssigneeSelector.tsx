@@ -13,10 +13,13 @@ import { sortTeamMembers } from '@/utils/sort-team-members';
 import { useAppDispatch } from '@/hooks/useAppDispatch';
 import { setIsFromAssigner, toggleProjectMemberDrawer } from '@/features/projects/singleProject/members/projectMembersSlice';
 import { updateEnhancedKanbanTaskAssignees } from '@/features/enhanced-kanban/enhanced-kanban.slice';
+import { updateTask } from '@/features/task-management/task-management.slice';
 import useIsProjectManager from '@/hooks/useIsProjectManager';
 import { useAuthStatus } from '@/hooks/useAuthStatus';
-import { projectMembersApiService } from '@/api/project-members/project-members.api.service';
+import apiClient from '@/api/api-client';
+import { API_BASE_URL } from '@/shared/constants';
 import axios from 'axios';
+import { useParams } from 'react-router-dom';
 
 interface AssigneeSelectorProps {
   task: IProjectTask;
@@ -37,11 +40,16 @@ const AssigneeSelector: React.FC<AssigneeSelectorProps> = ({
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
   const [optimisticAssignees, setOptimisticAssignees] = useState<string[]>([]); // For optimistic updates
   const [pendingChanges, setPendingChanges] = useState<Set<string>>(new Set()); // Track pending member changes
+  const selectedRef = useRef<string[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const { projectId } = useSelector((state: RootState) => state.projectReducer);
+  const currentProjectMembers = useSelector(
+    (state: RootState) => state.projectMemberReducer?.currentMembersList || []
+  );
+  const { projectId: routeProjectId } = useParams();
   const members = useSelector((state: RootState) => state.teamMembersReducer.teamMembers);
   const currentSession = useAuthService().getCurrentSession();
   const { socket } = useSocket();
@@ -54,6 +62,24 @@ const AssigneeSelector: React.FC<AssigneeSelectorProps> = ({
       member.name?.toLowerCase().includes(searchQuery.toLowerCase())
     );
   }, [teamMembers, searchQuery]);
+
+  const getMemberKey = (member: any) => String(member?.team_member_id || member?.id || '');
+  const getMemberByKey = (memberKey: string) =>
+    (members?.data || []).find(m => {
+      const teamMemberKey = String((m as any)?.team_member_id || '');
+      const userKey = String((m as any)?.id || '');
+      return memberKey === teamMemberKey || memberKey === userKey;
+    });
+  const resolvedProjectId = String(projectId || (task as any)?.project_id || routeProjectId || '');
+
+  // Sync only when switching to a different task row.
+  // Re-syncing on every assignees prop mutation can override in-flight optimistic selections.
+  useEffect(() => {
+    const ids = normalizeAssigneeIds((task as any)?.assignees || []);
+    selectedRef.current = ids;
+    setOptimisticAssignees(ids);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [task?.id]);
 
   // Update dropdown position
   const updateDropdownPosition = useCallback(() => {
@@ -124,10 +150,12 @@ const AssigneeSelector: React.FC<AssigneeSelectorProps> = ({
       updateDropdownPosition();
 
       // Prepare team members data when opening
-      const assignees = task?.assignees?.map(assignee => assignee.team_member_id);
+      const assignees = selectedRef.current.length
+        ? selectedRef.current
+        : normalizeAssigneeIds((task as any)?.assignees || []);
       const membersData = (members?.data || []).map(member => ({
         ...member,
-        selected: assignees?.includes(member.id),
+        selected: isMemberSelected(getMemberKey(member), assignees),
       }));
       const sortedMembers = sortTeamMembers(membersData);
       setTeamMembers({ data: sortedMembers });
@@ -142,73 +170,155 @@ const AssigneeSelector: React.FC<AssigneeSelectorProps> = ({
     }
   };
 
+  const isAlreadyProjectMember = useCallback(
+    (memberId: string) => {
+      if (!memberId) return false;
+      return (currentProjectMembers || []).some((member: any) => {
+        const projectMemberTeamId = String(member?.team_member_id || '');
+        const projectMemberUserId = String(member?.id || '');
+        return memberId === projectMemberTeamId || memberId === projectMemberUserId;
+      });
+    },
+    [currentProjectMembers]
+  );
+
   const ensureProjectMember = async (memberId: string): Promise<boolean> => {
-    if (!projectId || !memberId) return false;
+    if (!resolvedProjectId || !memberId) return false;
+    if (isAlreadyProjectMember(memberId)) return true;
     try {
-      await projectMembersApiService.createProjectMember({
-        project_id: projectId,
-        team_member_id: memberId,
-      } as any);
+      await apiClient.post(
+        `${API_BASE_URL}/project-members?current_project_id=${encodeURIComponent(resolvedProjectId)}`,
+        {
+          project_id: resolvedProjectId,
+          team_member_id: memberId,
+        },
+        { headers: { 'X-Skip-Error-Alert': 'true' } }
+      );
       return true;
     } catch (error) {
-      // 409 means already a project member, continue assignment flow
-      if (axios.isAxiosError(error) && error.response?.status === 409) {
+      // Non-blocking: assignment should still continue even if this pre-check fails.
+      // 409 => already in project, 403 => caller cannot add members (but may still assign).
+      if (
+        axios.isAxiosError(error) &&
+        [403, 409].includes(error.response?.status || 0)
+      ) {
         return true;
       }
-      console.error('Failed to add member to project before task assignment:', error);
-      return false;
+      console.warn('Could not ensure project member before assignment. Continuing assignment flow.', error);
+      return true;
     }
   };
 
+  const normalizeAssigneeIds = (assignees: any[] = []): string[] => {
+    return assignees
+      .map(a => {
+        if (!a) return '';
+        if (typeof a === 'string') return a;
+        return String(a.team_member_id || a.id || '');
+      })
+      .filter(Boolean);
+  };
+
+  const resolveAssigneeUserId = (selectedKey: string): string | null => {
+    if (!selectedKey) return null;
+
+    // Try current team members cache first
+    const member = getMemberByKey(selectedKey) as any;
+    if (member?.user_id) return String(member.user_id);
+    if (member?.id && String(member.id) === selectedKey) return String(member.id);
+    if (member?.id && String(member.team_member_id || '') === selectedKey) return String(member.id);
+
+    // Fall back to current task assignees mapping (team_member_id -> user id)
+    const taskAssignee = ((task as any)?.assignees || []).find((a: any) => {
+      const teamMemberId = String(a?.team_member_id || '');
+      const userId = String(a?.id || '');
+      return selectedKey === teamMemberId || selectedKey === userId;
+    });
+    if (taskAssignee?.id) return String(taskAssignee.id);
+
+    return null;
+  };
+
+  const toUserAssigneeIds = (ids: string[]): string[] =>
+    Array.from(new Set(ids.map(id => resolveAssigneeUserId(id) || id).filter(Boolean)));
+
+  const isMemberSelected = (memberKey: string, sourceIds?: string[]) => {
+    const selected = sourceIds || optimisticAssignees;
+    const selectedUsers = new Set(toUserAssigneeIds(selected));
+    const memberUserId = resolveAssigneeUserId(memberKey) || memberKey;
+    return selectedUsers.has(memberUserId);
+  };
+
   const handleMemberToggle = async (memberId: string, checked: boolean) => {
-    if (!memberId || !projectId || !task?.id || !currentSession?.id) return;
+    if (!memberId || !task?.id) return;
+    if (pendingChanges.has(memberId)) return;
+    const socketMemberId = String((getMemberByKey(memberId) as any)?.team_member_id || memberId);
+    const memberUserId = resolveAssigneeUserId(memberId) || memberId;
 
     // Add to pending changes for visual feedback
     setPendingChanges(prev => new Set(prev).add(memberId));
 
     // Ensure member exists in this project before assigning task
-    if (checked) {
-      const canAssign = await ensureProjectMember(memberId);
-      if (!canAssign) {
-        setPendingChanges(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(memberId);
-          return newSet;
-        });
-        return;
-      }
-    }
+    if (checked) await ensureProjectMember(socketMemberId);
 
     // OPTIMISTIC UPDATE: Update local state immediately for instant UI feedback
-    const currentAssignees = task?.assignees?.map(a => a.team_member_id) || [];
+    const currentAssignees = toUserAssigneeIds(
+      selectedRef.current.length ? selectedRef.current : normalizeAssigneeIds((task as any)?.assignees || [])
+    );
     let newAssigneeIds: string[];
 
     if (checked) {
       // Adding assignee
-      newAssigneeIds = [...currentAssignees, memberId];
+      newAssigneeIds = currentAssignees.includes(memberUserId)
+        ? currentAssignees
+        : [...currentAssignees, memberUserId];
     } else {
       // Removing assignee
-      newAssigneeIds = currentAssignees.filter(id => id !== memberId);
+      newAssigneeIds = currentAssignees.filter(id => id !== memberUserId);
     }
 
     // Update optimistic state for immediate UI feedback in dropdown
+    selectedRef.current = newAssigneeIds;
     setOptimisticAssignees(newAssigneeIds);
+
+    const updatedAssigneeNames = newAssigneeIds
+      .map(id => {
+        const member = getMemberByKey(id);
+        if (!member) return null;
+        return {
+          team_member_id: id,
+          name: member.name || '',
+          avatar_url: member.avatar_url || '',
+        };
+      })
+      .filter(Boolean) as Array<{ team_member_id: string; name: string; avatar_url: string }>;
+
+    // Immediate global UI update for Task List V2 row
+    dispatch(
+      updateTask({
+        ...(task as any),
+        id: task.id as string,
+        assignees: newAssigneeIds,
+        assignee_names: updatedAssigneeNames,
+        updatedAt: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+    );
 
     // Update local team members state for dropdown UI
     setTeamMembers(prev => ({
       ...prev,
-      data: (prev.data || []).map(member =>
-        member.id === memberId
-          ? { ...member, selected: checked }
-          : member
-      )
+      data: (prev.data || []).map(member => ({
+        ...member,
+        selected: isMemberSelected(getMemberKey(member), newAssigneeIds),
+      }))
     }));
 
     const body = {
-      team_member_id: memberId,
-      project_id: projectId,
+      team_member_id: socketMemberId,
+      project_id: resolvedProjectId || undefined,
       task_id: task.id,
-      reporter_id: currentSession.id,
+      reporter_id: currentSession?.id || undefined,
       mode: checked ? 0 : 1,
       parent_task: task.parent_task_id,
     };
@@ -222,6 +332,20 @@ const AssigneeSelector: React.FC<AssigneeSelectorProps> = ({
       }
     );
 
+    // REST fallback: persist assignment even if socket update is missed
+    try {
+      const assigneeUserIds = newAssigneeIds
+        .map(id => resolveAssigneeUserId(id))
+        .filter(Boolean);
+
+      await apiClient.put(`${API_BASE_URL}/tasks/${task.id}`, {
+        assignees: assigneeUserIds,
+      });
+    } catch (error) {
+      // Keep socket-first flow; API fallback failure should not break UX
+      console.warn('Task assignee REST fallback failed:', error);
+    }
+
     // Remove from pending changes after a short delay (optimistic)
     setTimeout(() => {
       setPendingChanges(prev => {
@@ -234,11 +358,7 @@ const AssigneeSelector: React.FC<AssigneeSelectorProps> = ({
 
   const checkMemberSelected = (memberId: string) => {
     if (!memberId) return false;
-    // Use optimistic assignees if available, otherwise fall back to task assignees
-    const assignees = optimisticAssignees.length > 0
-      ? optimisticAssignees
-      : task?.assignees?.map(assignee => assignee.team_member_id) || [];
-    return assignees.includes(memberId);
+    return isMemberSelected(memberId);
   };
 
   const handleInviteProjectMemberDrawer = () => {
@@ -308,7 +428,7 @@ const AssigneeSelector: React.FC<AssigneeSelectorProps> = ({
             {filteredMembers && filteredMembers.length > 0 ? (
               filteredMembers.map((member) => (
                 <div
-                  key={member.id}
+                  key={getMemberKey(member)}
                   className={`
                     flex items-center gap-2 p-2 cursor-pointer transition-colors
                     ${member.pending_invitation
@@ -320,8 +440,10 @@ const AssigneeSelector: React.FC<AssigneeSelectorProps> = ({
                   `}
                   onClick={() => {
                     if (!member.pending_invitation) {
-                      const isSelected = checkMemberSelected(member.id || '');
-                      handleMemberToggle(member.id || '', !isSelected);
+                      const memberKey = getMemberKey(member);
+                      if (pendingChanges.has(memberKey)) return;
+                      const isSelected = checkMemberSelected(memberKey);
+                      handleMemberToggle(memberKey, !isSelected);
                     }
                   }}
                   style={{
@@ -332,13 +454,13 @@ const AssigneeSelector: React.FC<AssigneeSelectorProps> = ({
                   <div className="relative">
                     <span onClick={e => e.stopPropagation()}>
                       <Checkbox
-                        checked={checkMemberSelected(member.id || '')}
-                        onChange={(checked) => handleMemberToggle(member.id || '', checked)}
-                        disabled={member.pending_invitation || pendingChanges.has(member.id || '')}
+                        checked={checkMemberSelected(getMemberKey(member))}
+                        onChange={(checked) => handleMemberToggle(getMemberKey(member), checked)}
+                        disabled={member.pending_invitation || pendingChanges.has(getMemberKey(member))}
                         isDarkMode={isDarkMode}
                       />
                     </span>
-                    {pendingChanges.has(member.id || '') && (
+                    {pendingChanges.has(getMemberKey(member)) && (
                       <div className={`absolute inset-0 flex items-center justify-center ${isDarkMode ? 'bg-gray-800/50' : 'bg-white/50'
                         }`}>
                         <div className={`w-3 h-3 border border-t-transparent rounded-full animate-spin ${isDarkMode ? 'border-blue-400' : 'border-blue-600'

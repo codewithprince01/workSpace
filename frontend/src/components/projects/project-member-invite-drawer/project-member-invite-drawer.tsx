@@ -1,4 +1,17 @@
-import { Drawer, Flex, Form, Select, Typography, List, Button, Modal, Divider, message } from 'antd/es';
+import { 
+  Drawer, 
+  Flex, 
+  Form, 
+  Select, 
+  Typography, 
+  List, 
+  Button, 
+  Modal, 
+  Divider, 
+  message, 
+  DeleteOutlined, 
+  MailOutlined 
+} from '@/shared/antd-imports';
 import { useTranslation } from 'react-i18next';
 import { useEffect, useState } from 'react';
 
@@ -12,7 +25,7 @@ import {
   toggleProjectMemberDrawer,
 } from '@/features/projects/singleProject/members/projectMembersSlice';
 import SingleAvatar from '@/components/common/single-avatar/single-avatar';
-import { DeleteOutlined, MailOutlined } from '@/shared/antd-imports';
+
 import { getTeamMembers } from '@/features/team-members/team-members.slice';
 import logger from '@/utils/errorLogger';
 import { validateEmail } from '@/utils/validateEmail';

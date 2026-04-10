@@ -10,7 +10,7 @@ import List from 'antd/es/list';
 import Typography from 'antd/es/typography';
 import Button from 'antd/es/button';
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppSelector } from '@/hooks/useAppSelector';
 import { useAppDispatch } from '@/hooks/useAppDispatch';
 import { toggleProjectMemberDrawer } from '../../../features/projects/singleProject/members/projectMembersSlice';
@@ -26,6 +26,9 @@ import { useAuthService } from '@/hooks/useAuth';
 import { useSocket } from '@/socket/socketContext';
 import { SocketEvents } from '@/shared/socket-events';
 import { getTeamMembers } from '@/features/team-members/team-members.slice';
+import apiClient from '@/api/api-client';
+import { API_BASE_URL } from '@/shared/constants';
+import { useParams } from 'react-router-dom';
 
 interface AssigneeSelectorProps {
   task: IProjectTask;
@@ -34,9 +37,13 @@ interface AssigneeSelectorProps {
 
 const AssigneeSelector = ({ task, groupId = null }: AssigneeSelectorProps) => {
   const membersInputRef = useRef<InputRef>(null);
+  const lastToggleRef = useRef<Record<string, number>>({});
+  const selectedRef = useRef<string[]>([]);
 
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [teamMembers, setTeamMembers] = useState<ITeamMembersViewModel>({ data: [], total: 0 });
+  const [optimisticAssigneeIds, setOptimisticAssigneeIds] = useState<string[]>([]);
+  const { projectId: routeProjectId } = useParams();
   const { projectId } = useAppSelector(state => state.projectReducer);
   const currentSession = useAuthService().getCurrentSession();
   const { socket } = useSocket();
@@ -55,16 +62,66 @@ const AssigneeSelector = ({ task, groupId = null }: AssigneeSelectorProps) => {
     );
   }, [teamMembers, searchQuery]);
 
+  const getMemberKey = (member: any) => String(member?.team_member_id || member?.id || '');
+  const getMemberByAnyKey = (memberKey: string) =>
+    (members?.data || []).find(m => {
+      const teamMemberKey = String((m as any)?.team_member_id || '');
+      const userKey = String((m as any)?.id || '');
+      return memberKey === teamMemberKey || memberKey === userKey;
+    });
+
+  const getTaskAssigneeIds = () =>
+    (task?.assignees || [])
+      .map((assignee: any) => String(assignee?.id || assignee?.team_member_id || ''))
+      .filter(Boolean);
+
+  const resolvedProjectId = String(projectId || task?.project_id || routeProjectId || '');
+
+  const resolveAssigneeUserId = (selectedKey: string): string | null => {
+    if (!selectedKey) return null;
+
+    const member = getMemberByAnyKey(selectedKey) as any;
+    if (member?.user_id) return String(member.user_id);
+    if (member?.id && String(member.id) === selectedKey) return String(member.id);
+    if (member?.id && String(member.team_member_id || '') === selectedKey) return String(member.id);
+
+    const taskAssignee = (task?.assignees || []).find((a: any) => {
+      const teamMemberId = String(a?.team_member_id || '');
+      const userId = String(a?.id || '');
+      return selectedKey === teamMemberId || selectedKey === userId;
+    });
+    if (taskAssignee?.id) return String(taskAssignee.id);
+    return null;
+  };
+
+  const toUserAssigneeIds = (ids: string[]): string[] =>
+    Array.from(new Set(ids.map(id => resolveAssigneeUserId(id) || id).filter(Boolean)));
+
+  const isMemberSelected = (memberKey: string, sourceIds?: string[]) => {
+    const selected = sourceIds || optimisticAssigneeIds;
+    const selectedUsers = new Set(toUserAssigneeIds(selected));
+    const memberUserId = resolveAssigneeUserId(memberKey) || memberKey;
+    return selectedUsers.has(memberUserId);
+  };
+
+  useEffect(() => {
+    const ids = getTaskAssigneeIds();
+    selectedRef.current = ids;
+    setOptimisticAssigneeIds(ids);
+    // Only reset on task change; do not reset on every assignees prop churn
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [task?.id]);
+
   const handleInviteProjectMemberDrawer = () => {
     dispatch(toggleProjectMemberDrawer());
   };
 
   const handleMembersDropdownOpen = (open: boolean) => {
     if (open) {
-      const assignees = task?.assignees?.map(assignee => assignee.team_member_id);
+      const assignees = toUserAssigneeIds(getTaskAssigneeIds());
       const membersData = (members?.data || []).map(member => ({
         ...member,
-        selected: assignees?.includes(member.id),
+        selected: isMemberSelected(getMemberKey(member), assignees),
       }));
       let sortedMembers = sortTeamMembers(membersData);
 
@@ -78,41 +135,68 @@ const AssigneeSelector = ({ task, groupId = null }: AssigneeSelectorProps) => {
     }
   };
 
-  const handleMemberChange = (e: CheckboxChangeEvent | null, memberId: string) => {
-    console.log('👥 [ASSIGNEE] handleMemberChange called:', { memberId, taskId: task?.id });
-    
-    if (!memberId || !projectId || !task?.id || !currentSession?.id) {
-      console.log('❌ [ASSIGNEE] Missing required fields:', { 
-        memberId: !!memberId, 
-        projectId: !!projectId, 
-        taskId: !!task?.id, 
-        sessionId: !!currentSession?.id 
-      });
-      return;
-    }
-    
+  const handleMemberChange = async (e: CheckboxChangeEvent | null, memberId: string) => {
+    if (!memberId || !task?.id) return;
+    const socketMemberId = String((getMemberByAnyKey(memberId) as any)?.team_member_id || memberId);
+    const memberUserId = resolveAssigneeUserId(memberId) || memberId;
+
+    const now = Date.now();
+    const lastAt = lastToggleRef.current[memberId] || 0;
+    if (now - lastAt < 180) return;
+    lastToggleRef.current[memberId] = now;
+
+    const currentAssignees = toUserAssigneeIds(
+      selectedRef.current.length
+        ? selectedRef.current
+        : optimisticAssigneeIds.length
+          ? optimisticAssigneeIds
+          : getTaskAssigneeIds()
+    );
+
     const checked =
-      e?.target.checked ||
-      !task?.assignees?.some(assignee => assignee.team_member_id === memberId) ||
-      false;
+      e?.target.checked ??
+      !currentAssignees.includes(memberUserId);
+
+    const source = selectedRef.current.length ? selectedRef.current : currentAssignees;
+    const nextAssignees = checked
+      ? source.includes(memberUserId)
+        ? source
+        : [...source, memberUserId]
+      : source.filter(id => id !== memberUserId);
+
+    // Instant UI response
+    selectedRef.current = nextAssignees;
+    setOptimisticAssigneeIds(nextAssignees);
 
     const body = {
-      team_member_id: memberId,
-      project_id: projectId,
+      team_member_id: socketMemberId,
+      project_id: resolvedProjectId || undefined,
       task_id: task.id,
-      reporter_id: currentSession?.id,
+      reporter_id: currentSession?.id || undefined,
       mode: checked ? 0 : 1,
       parent_task: task.parent_task_id,
     };
 
-    console.log('📤 [ASSIGNEE] Emitting QUICK_ASSIGNEES_UPDATE:', body);
     socket?.emit(SocketEvents.QUICK_ASSIGNEES_UPDATE.toString(), JSON.stringify(body));
+
+    // REST fallback: persist assignment even when socket response is delayed/missed
+    try {
+      const assigneeUserIds = nextAssignees
+        .map(memberKey => resolveAssigneeUserId(memberKey))
+        .filter(Boolean);
+
+      await apiClient.put(`${API_BASE_URL}/tasks/${task.id}`, {
+        assignees: assigneeUserIds,
+      });
+    } catch (error) {
+      // keep optimistic state; socket/live refresh will reconcile
+      console.warn('Task assignee REST fallback failed:', error);
+    }
   };
 
   const checkMemberSelected = (memberId: string) => {
     if (!memberId) return false;
-    const assignees = task?.assignees?.map(assignee => assignee.team_member_id);
-    return assignees?.includes(memberId);
+    return isMemberSelected(memberId);
   };
 
   const membersDropdownContent = (
@@ -130,7 +214,7 @@ const AssigneeSelector = ({ task, groupId = null }: AssigneeSelectorProps) => {
             filteredMembersData.map(member => (
               <List.Item
                 className={`${themeMode === 'dark' ? 'custom-list-item dark' : 'custom-list-item'} ${member.pending_invitation ? 'disabled cursor-not-allowed' : ''}`}
-                key={member.id}
+                key={getMemberKey(member)}
                 style={{
                   display: 'flex',
                   gap: 8,
@@ -142,19 +226,23 @@ const AssigneeSelector = ({ task, groupId = null }: AssigneeSelectorProps) => {
                 onClick={(e) => {
                   if (!member.pending_invitation) {
                     e.stopPropagation();
-                    handleMemberChange(null, member.id || '');
+                    handleMemberChange(null, getMemberKey(member));
                   }
                 }}
               >
                 <Checkbox
-                  id={member.id}
-                  checked={checkMemberSelected(member.id || '')}
+                  id={getMemberKey(member)}
+                  checked={checkMemberSelected(getMemberKey(member))}
                   onChange={e => {
                     e.stopPropagation();
-                    handleMemberChange(e, member.id || '');
+                    handleMemberChange(e, getMemberKey(member));
                   }}
                   disabled={member.pending_invitation}
-                  onClick={e => e.stopPropagation()}
+                  onClick={e => {
+                    e.stopPropagation();
+                    // Fallback path: some builds fail to trigger onChange consistently in this dropdown.
+                    handleMemberChange(null, getMemberKey(member));
+                  }}
                 />
                 <div>
                   <SingleAvatar

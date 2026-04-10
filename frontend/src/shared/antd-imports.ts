@@ -11,7 +11,9 @@
 import React from 'react';
 
 // Import Ant Design components using the standard method for better context sharing
+import { antdMessage as message, antdNotification as notification } from '../utils/antd-static-bridge';
 import {
+  theme,
   AutoComplete,
   Button,
   Input,
@@ -48,9 +50,6 @@ import {
   Col,
   Layout,
   Drawer,
-  message,
-  notification,
-  theme,
   Statistic,
   Segmented,
   Switch,
@@ -65,7 +64,8 @@ import {
   Timeline,
   Mentions,
   Radio,
-  Steps
+  Steps,
+  App as AntdApp
 } from 'antd/es';
 
 // Icons - Import commonly used ones
@@ -243,7 +243,8 @@ export {
   Timeline,
   Mentions,
   Radio,
-  Steps
+  Steps,
+  AntdApp
 };
 
 // TypeScript Types - Import commonly used ones

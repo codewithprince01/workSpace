@@ -13,6 +13,9 @@ import { ITaskFormViewModel, ITaskViewModel } from '@/types/tasks/task.types';
 import { InlineMember } from '@/types/teamMembers/inlineMember.types';
 
 const rootUrl = `${API_BASE_URL}/tasks`;
+// This backend instance may not expose /list/v3 or /list/v2 consistently.
+// Start from generic to avoid noisy 404 retries in console.
+let preferredTaskListEndpoint: 'v3' | 'v2' | 'generic' = 'generic';
 
 export interface ITaskListConfigV2 {
   id: string;
@@ -51,9 +54,18 @@ export interface ITaskListV3Response {
 
 export const tasksApiService = {
   getTaskList: async (config: ITaskListConfigV2): Promise<IServerResponse<ITaskListGroup[]>> => {
-    const q = toQueryString(config);
-    const response = await apiClient.get(`${rootUrl}/list/v2/${config.id}${q}`);
-    return response.data;
+    const response = await tasksApiService.getTaskListV3(config);
+    const groups = (response?.body?.groups || []).map((group: any) => ({
+      ...group,
+      name: group?.title || group?.name || '',
+    }));
+
+    return {
+      done: Boolean(response?.done ?? true),
+      title: response?.title,
+      message: response?.message,
+      body: groups,
+    } as IServerResponse<ITaskListGroup[]>;
   },
 
   fetchTaskAssignees: async (
@@ -155,6 +167,22 @@ export const tasksApiService = {
       const phaseObj =
         task?.phase_id && typeof task.phase_id === 'object' ? task.phase_id : undefined;
       const assignees = Array.isArray(task?.assignees) ? task.assignees : [];
+      const normalizedAssignees = assignees.map((a: any) => ({
+        ...a,
+        id: String(a?.id ?? a?._id ?? a?.team_member_id ?? ''),
+        team_member_id: String(a?.team_member_id ?? a?.id ?? a?._id ?? ''),
+        name: a?.name || '',
+        avatar_url: a?.avatar_url || '',
+      }));
+      const normalizedAssigneeNames = (Array.isArray(task?.assignee_names) && task.assignee_names.length
+        ? task.assignee_names
+        : normalizedAssignees
+      ).map((a: any) => ({
+        team_member_id: String(a?.team_member_id ?? a?.id ?? a?._id ?? ''),
+        id: String(a?.id ?? a?._id ?? a?.team_member_id ?? ''),
+        name: a?.name || '',
+        avatar_url: a?.avatar_url || '',
+      }));
       const labels = Array.isArray(task?.labels) ? task.labels : [];
 
       return {
@@ -168,13 +196,9 @@ export const tasksApiService = {
         phase_id: String(task?.phase_id?._id ?? task?.phase_id ?? ''),
         phase_name: task?.phase_name || phaseObj?.name || '',
         phase_color: task?.phase_color || phaseObj?.color_code || '',
-        assignees: assignees.map((a: any) => ({
-          ...a,
-          id: String(a?.id ?? a?._id ?? a?.team_member_id ?? ''),
-          team_member_id: String(a?.team_member_id ?? a?.id ?? a?._id ?? ''),
-          name: a?.name || '',
-          avatar_url: a?.avatar_url || '',
-        })),
+        assignees: normalizedAssignees,
+        assignee_names: normalizedAssigneeNames,
+        names: normalizedAssigneeNames,
         labels: labels.map((l: any) => ({
           ...l,
           id: String(l?.id ?? l?._id ?? ''),
@@ -311,11 +335,90 @@ export const tasksApiService = {
       }));
     };
 
+    const normalizeFallbackListData = (fallbackData: IServerResponse<any>) => {
+      if (fallbackData?.body && !Array.isArray(fallbackData.body) && fallbackData.body.groups) {
+        return fallbackData as IServerResponse<ITaskListV3Response>;
+      }
+
+      const fallbackGroups = Array.isArray(fallbackData?.body) ? fallbackData.body : [];
+      const normalizedGroups = fallbackGroups.map((group: any) => {
+        const tasks = Array.isArray(group?.tasks) ? group.tasks.map(normalizeTask) : [];
+        return {
+          id: String(group?.id ?? group?._id ?? ''),
+          title: String(group?.title ?? group?.name ?? 'Tasks'),
+          groupType: (config.group as 'status' | 'priority' | 'phase') || 'status',
+          groupValue: String(group?.id ?? group?._id ?? ''),
+          collapsed: false,
+          tasks,
+          taskIds: tasks.map((task: any) => String(task?.id ?? task?._id ?? '')),
+          color: String(group?.color ?? group?.color_code ?? '#cccccc'),
+        };
+      });
+
+      const allTasks = normalizedGroups.flatMap((group: any) => group.tasks || []);
+
+      return {
+        done: Boolean(fallbackData?.done ?? true),
+        title: fallbackData?.title,
+        message: fallbackData?.message,
+        body: {
+          groups: normalizedGroups,
+          allTasks,
+          grouping: config.group || 'status',
+          totalTasks: allTasks.length,
+        },
+      };
+    };
+
+    const fetchGenericAndBuild = async () => {
+      const genericQuery = toQueryString({
+        project_id: config.id,
+        search: config.search || '',
+        parent_task_id: config.parent_task || '',
+      });
+      const genericResponse = await apiClient.get(`${rootUrl}${genericQuery}`, silentErrorConfig);
+      const genericData = genericResponse.data as IServerResponse<any[]>;
+      const tasks = Array.isArray(genericData?.body) ? genericData.body : [];
+      const groups = await buildGroupsFromTasks(tasks);
+      const allTasks = groups.flatMap(group => group.tasks);
+
+      return {
+        done: Boolean(genericData?.done ?? true),
+        title: genericData?.title,
+        message: genericData?.message,
+        body: {
+          groups,
+          allTasks,
+          grouping: config.group || 'status',
+          totalTasks: allTasks.length,
+        },
+      };
+    };
+
+    // Force generic endpoint in this environment to avoid repeated v3/v2 404 noise.
+    return fetchGenericAndBuild();
+
+    if (preferredTaskListEndpoint === 'generic') {
+      return fetchGenericAndBuild();
+    }
+
+    if (preferredTaskListEndpoint === 'v2') {
+      try {
+        const response = await apiClient.get(`${rootUrl}/list/v2/${config.id}${q}`, silentErrorConfig);
+        return normalizeFallbackListData(response.data as IServerResponse<any>);
+      } catch (error) {
+        if (!axios.isAxiosError(error) || error.response?.status !== 404) throw error;
+        preferredTaskListEndpoint = 'generic';
+        return fetchGenericAndBuild();
+      }
+    }
+
+    // Default path: try v3 first, then fallback and remember working endpoint.
     try {
       const response = await apiClient.get(`${rootUrl}/list/v3/${config.id}${q}`, silentErrorConfig);
+      preferredTaskListEndpoint = 'v3';
       return response.data;
     } catch (error) {
-      // Backward compatibility: some running backends expose only v2.
       if (!axios.isAxiosError(error) || error.response?.status !== 404) {
         throw error;
       }
@@ -324,69 +427,14 @@ export const tasksApiService = {
           `${rootUrl}/list/v2/${config.id}${q}`,
           silentErrorConfig
         );
-        const fallbackData = fallbackResponse.data as IServerResponse<any>;
-
-        if (fallbackData?.body && !Array.isArray(fallbackData.body) && fallbackData.body.groups) {
-          return fallbackData as IServerResponse<ITaskListV3Response>;
-        }
-
-        const fallbackGroups = Array.isArray(fallbackData?.body) ? fallbackData.body : [];
-        const normalizedGroups = fallbackGroups.map((group: any) => {
-          const tasks = Array.isArray(group?.tasks) ? group.tasks.map(normalizeTask) : [];
-          return {
-            id: String(group?.id ?? group?._id ?? ''),
-            title: String(group?.title ?? group?.name ?? 'Tasks'),
-            groupType: (config.group as 'status' | 'priority' | 'phase') || 'status',
-            groupValue: String(group?.id ?? group?._id ?? ''),
-            collapsed: false,
-            tasks,
-            taskIds: tasks.map((task: any) => String(task?.id ?? task?._id ?? '')),
-            color: String(group?.color ?? group?.color_code ?? '#cccccc'),
-          };
-        });
-
-        const allTasks = normalizedGroups.flatMap((group: any) => group.tasks || []);
-
-        return {
-          done: Boolean(fallbackData?.done ?? true),
-          title: fallbackData?.title,
-          message: fallbackData?.message,
-          body: {
-            groups: normalizedGroups,
-            allTasks,
-            grouping: config.group || 'status',
-            totalTasks: allTasks.length,
-          },
-        };
+        preferredTaskListEndpoint = 'v2';
+        return normalizeFallbackListData(fallbackResponse.data as IServerResponse<any>);
       } catch (v2Error) {
         if (!axios.isAxiosError(v2Error) || v2Error.response?.status !== 404) {
           throw v2Error;
         }
-
-        // Final fallback for older/misaligned backends:
-        // use generic tasks endpoint and construct grouped response client-side.
-        const genericQuery = toQueryString({
-          project_id: config.id,
-          search: config.search || '',
-          parent_task_id: config.parent_task || '',
-        });
-        const genericResponse = await apiClient.get(`${rootUrl}${genericQuery}`, silentErrorConfig);
-        const genericData = genericResponse.data as IServerResponse<any[]>;
-        const tasks = Array.isArray(genericData?.body) ? genericData.body : [];
-        const groups = await buildGroupsFromTasks(tasks);
-        const allTasks = groups.flatMap(group => group.tasks);
-
-        return {
-          done: Boolean(genericData?.done ?? true),
-          title: genericData?.title,
-          message: genericData?.message,
-          body: {
-            groups,
-            allTasks,
-            grouping: config.group || 'status',
-            totalTasks: allTasks.length,
-          },
-        };
+        preferredTaskListEndpoint = 'generic';
+        return fetchGenericAndBuild();
       }
     }
   },

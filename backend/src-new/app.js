@@ -9,6 +9,7 @@ const session = require('express-session');
 const MongoStore = require('connect-mongo');
 const passport = require('passport');
 const path = require('path');
+const fs = require('fs');
 
 const constants = require('./config/constants');
 const errorMiddleware = require('./middlewares/error.middleware');
@@ -17,14 +18,6 @@ const errorMiddleware = require('./middlewares/error.middleware');
 const routes = require('./routes');
 
 const app = express();
-
-// Global request logging
-app.use((req, res, next) => {
-  const fs = require('fs');
-  const log = `[${new Date().toISOString()}] ${req.method} ${req.url}\n`;
-  try { fs.appendFileSync('request.log', log); } catch(e) {}
-  next();
-});
 
 // Trust proxy (for rate limiting behind reverse proxy)
 app.set('trust proxy', 1);
@@ -38,9 +31,19 @@ app.use(helmet({
 // Compression
 app.use(compression());
 
-// Logging
+// HTTP request logging (async write stream – does NOT block event loop)
 if (process.env.NODE_ENV !== 'test') {
-  app.use(morgan('dev'));
+  if (process.env.NODE_ENV === 'production') {
+    // Async combined log for production
+    const accessLogStream = fs.createWriteStream(
+      path.join(__dirname, '../../request.log'),
+      { flags: 'a' }
+    );
+    app.use(morgan('combined', { stream: accessLogStream }));
+  } else {
+    // Pretty console logging for development
+    app.use(morgan('dev'));
+  }
 }
 
 // Body parsing
@@ -61,11 +64,19 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(null, true); // Allow all in development
+    // Allow requests with no origin (mobile apps, Postman, curl, server-to-server)
+    if (!origin) return callback(null, true);
+
+    if (process.env.NODE_ENV !== 'production') {
+      // Development: allow all origins
+      return callback(null, true);
     }
+
+    // Production: enforce whitelist
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error(`CORS: Origin '${origin}' not allowed`), false);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],

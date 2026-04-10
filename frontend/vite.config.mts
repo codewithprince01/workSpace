@@ -157,8 +157,6 @@ export default defineConfig(({ command, mode }) => {
       exclude: [
         // Add any packages that should not be pre-bundled
       ],
-      // Force pre-bundling to avoid runtime issues
-      force: true,
     },
 
     // **Define global constants**

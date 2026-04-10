@@ -143,6 +143,12 @@ Not supports in Firefox and IE */
   opacity: 0;
   transition: opacity 0.1s ease-in-out;
 }
+
+/* Force alert toasts text to black for readability */
+.worklenz-alert-black .ant-notification-notice-message,
+.worklenz-alert-black .ant-notification-notice-description {
+  color: #000000 !important;
+}
 tr:hover .action-buttons {
   opacity: 1;
 }

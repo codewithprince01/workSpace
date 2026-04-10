@@ -1,4 +1,4 @@
-const { Project, ProjectMember, TaskStatus, Task, ProjectInvitation, Notification, User } = require('../models');
+const { Project, ProjectMember, TaskStatus, Task, ProjectInvitation, Notification, User, TeamMember } = require('../models');
 const constants = require('../config/constants');
 const emailService = require('../services/email.service');
 const crypto = require('crypto');
@@ -82,7 +82,6 @@ exports.inviteMember = async (req, res, next) => {
     const { id } = req.params;
     const { email, role } = req.body; // role: 'admin' or 'member'
 
-    console.log('Invite Member Request:', { id, email, role });
     // Validate inputs
     if (!email || !role) {
       return res.status(400).json({ success: false, message: 'Email and role are required' });
@@ -91,7 +90,6 @@ exports.inviteMember = async (req, res, next) => {
     // Check project exists
     const project = await Project.findById(id);
     if (!project) return res.status(404).json({ success: false, message: 'Project not found' });
-    console.log('Project found:', project.name);
 
     // Check if user is already a member
     const existingUser = await User.findOne({ email });
@@ -255,7 +253,6 @@ exports.create = async (req, res, next) => {
     let team_id = req.body.team_id;
     if (!team_id) {
         // Find user's team - team should already exist from signup
-        const { TeamMember } = require('../models');
         
         // Find any active team where user is a member
         const membership = await TeamMember.findOne({ 
@@ -349,11 +346,10 @@ exports.create = async (req, res, next) => {
 exports.getAll = async (req, res, next) => {
   try {
     const { team_id, status, search, index, size, field, order, archived, starred, group_by } = req.query;
-    console.log('GET PROJECTS QUERY:', JSON.stringify(req.query));
-    
+
     // Default limit
     const page = parseInt(index) || 1;
-    const limit = parseInt(size) || 20; // Or standard default
+    const limit = parseInt(size) || 20;
     const skip = (page - 1) * limit;
 
     // Filter project memberships
@@ -382,20 +378,14 @@ exports.getAll = async (req, res, next) => {
     
     // CRITICAL: Filter by team_id to show only current team's projects
     if (team_id) {
-        // Ensure team_id is a valid ObjectId before querying
         if (mongoose.Types.ObjectId.isValid(team_id)) {
              query.team_id = new mongoose.Types.ObjectId(team_id);
-             console.log('🔍 [PROJECTS] Filtering by team_id:', team_id);
         } else {
-             query.team_id = team_id; // Fallback
+             query.team_id = team_id;
         }
     } else {
-        // Fallback: Use user's last_team_id if no team_id in query
         const userTeamId = req.user.last_team_id;
-        if (userTeamId) {
-            query.team_id = userTeamId;
-            console.log('🔍 [PROJECTS] Using user last_team_id:', userTeamId);
-        }
+        if (userTeamId) query.team_id = userTeamId;
     }
     if (status) query.status = status; // Filter by specific status like 'active', 'on_hold'
     if (search) query.name = { $regex: search, $options: 'i' };
@@ -422,72 +412,128 @@ exports.getAll = async (req, res, next) => {
     }
 
     const total = await Project.countDocuments(query);
-    
-    const projects = await Project.find(query)
-      .populate('owner_id', 'name email avatar_url')
-      .populate('category_id', 'name color_code') // Populate category for grouping display
-      .populate('client_id', 'name')
-      .populate('project_manager_id', 'name email avatar_url')
-      .populate('team_id', 'name') // Populate team
-      .sort(sort)
-      .skip(skip)
-      .limit(limit);
 
-    // Attach computed fields
-    const projectsWithCounts = await Promise.all(projects.map(async (project) => {
-      const totalTasks = await Task.countDocuments({ project_id: project._id, is_archived: false });
-      const completedTasks = await Task.countDocuments({ 
-        project_id: project._id, 
-        is_archived: false,
-        status_id: { $in: await TaskStatus.find({ project_id: project._id, category: 'done' }).select('_id') }
-      });
-      
-       const member = await ProjectMember.findOne({ project_id: project._id, user_id: req.user._id });
-
-       // Fetch members for avatars
-       const projectMembers = await ProjectMember.find({ project_id: project._id, is_active: true })
-            .populate('user_id', 'name avatar_url color_code')
-            .limit(5); // Limit to 5 for display
-       
-       const names = projectMembers.map(pm => {
-           const u = pm.user_id;
-           return u ? {
-               id: u._id,
-               name: u.name,
-               avatar_url: u.avatar_url,
-               color_code: u.color_code
-           } : null;
-       }).filter(Boolean);
-
-      return {
-        ...project.toObject(),
-        id: project._id,
-        category_id: project.category_id ? project.category_id._id : null,
-        client_id: project.client_id ? project.client_id._id : null,
-        total_tasks: totalTasks,
-        completed_tasks: completedTasks,
-        progress: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
-        is_favorite: member ? member.is_favorite : false,
-        favorite: member ? member.is_favorite : false,
-        category_name: project.category_id ? project.category_id.name : null,
-        category_color: project.category_id ? project.category_id.color_code : null,
-        client_name: project.client_name || (project.client_id ? project.client_id.name : null),
-        project_manager:
-          project.project_manager_id && project.project_manager_id._id
-            ? {
-                id: project.project_manager_id._id,
-                name: project.project_manager_id.name,
-                email: project.project_manager_id.email,
-                avatar_url: project.project_manager_id.avatar_url,
+    // ── Single aggregation pipeline replaces N+1 query loop ──────────────────
+    const projectsWithCounts = await Project.aggregate([
+      { $match: query },
+      { $sort: Object.keys(sort).length ? sort : { updated_at: -1 } },
+      { $skip: skip },
+      { $limit: limit },
+      // Join task_statuses to get 'done' category status IDs per project
+      {
+        $lookup: {
+          from: 'taskstatuses',
+          let: { pid: '$_id' },
+          pipeline: [
+            { $match: { $expr: { $and: [{ $eq: ['$project_id', '$$pid'] }, { $eq: ['$category', 'done'] }] } } },
+            { $project: { _id: 1 } }
+          ],
+          as: 'done_statuses'
+        }
+      },
+      // Count all tasks
+      {
+        $lookup: {
+          from: 'tasks',
+          let: { pid: '$_id' },
+          pipeline: [
+            { $match: { $expr: { $and: [{ $eq: ['$project_id', '$$pid'] }, { $eq: ['$is_archived', false] }] } } },
+            { $count: 'count' }
+          ],
+          as: 'task_count'
+        }
+      },
+      // Count completed tasks
+      {
+        $lookup: {
+          from: 'tasks',
+          let: { pid: '$_id', doneIds: '$done_statuses._id' },
+          pipeline: [
+            { $match: { $expr: { $and: [
+              { $eq: ['$project_id', '$$pid'] },
+              { $eq: ['$is_archived', false] },
+              { $in: ['$status_id', '$$doneIds'] }
+            ] } } },
+            { $count: 'count' }
+          ],
+          as: 'completed_count'
+        }
+      },
+      // Get up to 5 project members with user info
+      {
+        $lookup: {
+          from: 'projectmembers',
+          let: { pid: '$_id' },
+          pipeline: [
+            { $match: { $expr: { $and: [{ $eq: ['$project_id', '$$pid'] }, { $eq: ['$is_active', true] }] } } },
+            { $limit: 5 },
+            {
+              $lookup: {
+                from: 'users',
+                localField: 'user_id',
+                foreignField: '_id',
+                pipeline: [{ $project: { name: 1, avatar_url: 1, color_code: 1 } }],
+                as: 'user'
               }
-            : null,
-        project_manager_id:
-          project.project_manager_id && project.project_manager_id._id
-            ? project.project_manager_id._id
-            : null,
-        names: names
-      };
-    }));
+            },
+            { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } }
+          ],
+          as: 'member_docs'
+        }
+      },
+      // Get current user's membership
+      {
+        $lookup: {
+          from: 'projectmembers',
+          let: { pid: '$_id' },
+          pipeline: [
+            { $match: { $expr: { $and: [
+              { $eq: ['$project_id', '$$pid'] },
+              { $eq: ['$user_id', new mongoose.Types.ObjectId(req.user._id)] }
+            ] } } },
+            { $project: { is_favorite: 1 } }
+          ],
+          as: 'my_membership'
+        }
+      },
+      // Populate owner
+      { $lookup: { from: 'users', localField: 'owner_id', foreignField: '_id', pipeline: [{ $project: { name: 1, email: 1, avatar_url: 1 } }], as: 'owner_doc' } },
+      { $unwind: { path: '$owner_doc', preserveNullAndEmptyArrays: true } },
+      // Populate category
+      { $lookup: { from: 'projectcategories', localField: 'category_id', foreignField: '_id', pipeline: [{ $project: { name: 1, color_code: 1 } }], as: 'category_doc' } },
+      { $unwind: { path: '$category_doc', preserveNullAndEmptyArrays: true } },
+      // Shape output
+      {
+        $addFields: {
+          id: '$_id',
+          total_tasks: { $ifNull: [{ $arrayElemAt: ['$task_count.count', 0] }, 0] },
+          completed_tasks: { $ifNull: [{ $arrayElemAt: ['$completed_count.count', 0] }, 0] },
+          is_favorite: { $ifNull: [{ $arrayElemAt: ['$my_membership.is_favorite', 0] }, false] },
+          favorite: { $ifNull: [{ $arrayElemAt: ['$my_membership.is_favorite', 0] }, false] },
+          category_name: '$category_doc.name',
+          category_color: '$category_doc.color_code',
+          names: {
+            $map: {
+              input: '$member_docs',
+              as: 'm',
+              in: { id: '$$m.user._id', name: '$$m.user.name', avatar_url: '$$m.user.avatar_url', color_code: '$$m.user.color_code' }
+            }
+          }
+        }
+      },
+      {
+        $addFields: {
+          progress: {
+            $cond: [
+              { $gt: ['$total_tasks', 0] },
+              { $round: [{ $multiply: [{ $divide: ['$completed_tasks', '$total_tasks'] }, 100] }, 0] },
+              0
+            ]
+          }
+        }
+      },
+      { $project: { done_statuses: 0, task_count: 0, completed_count: 0, member_docs: 0, my_membership: 0, owner_doc: 0, category_doc: 0 } }
+    ]);
 
     // Calculate global counts for Tabs
     const allMemberships = await ProjectMember.find({ user_id: req.user._id, is_active: true });
@@ -1218,7 +1264,6 @@ exports.getOverview = async (req, res, next) => {
 exports.addMember = async (req, res, next) => {
   try {
     const { email, role } = req.body;
-    const { User } = require('../models');
 
     const user = await User.findOne({ email });
     if (!user) {

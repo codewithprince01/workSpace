@@ -1,5 +1,4 @@
 // Core dependencies
-import './test-load'; // 🔥 TEST - Remove this later
 import React, { Suspense, useEffect, memo, useMemo, useCallback } from 'react';
 import { RouterProvider } from 'react-router-dom';
 import i18next from 'i18next';
@@ -29,6 +28,8 @@ import { CSSPerformanceMonitor, LayoutStabilizer, CriticalCSSManager } from './u
 
 // Service Worker
 import { registerSW } from './utils/serviceWorkerRegistration';
+import AntdStaticBridge from './utils/antd-static-bridge';
+import { AntdApp } from './shared/antd-imports';
 
 /**
  * Main App Component - Performance Optimized
@@ -163,18 +164,21 @@ const App: React.FC = memo(() => {
   return (
     <Suspense fallback={<SuspenseFallback />}>
       <ThemeWrapper>
-        <ProjectRoleProvider>
-          <UpdateNotificationProvider enableAutoCheck={false}>
-            <ModuleErrorBoundary>
-              <RouterProvider
-                router={router}
-                future={{
-                  v7_startTransition: true,
-                }}
-              />
-            </ModuleErrorBoundary>
-          </UpdateNotificationProvider>
-        </ProjectRoleProvider>
+        <AntdApp>
+          <AntdStaticBridge />
+          <ProjectRoleProvider>
+            <UpdateNotificationProvider enableAutoCheck={false}>
+              <ModuleErrorBoundary>
+                <RouterProvider
+                  router={router}
+                  future={{
+                    v7_startTransition: true,
+                  }}
+                />
+              </ModuleErrorBoundary>
+            </UpdateNotificationProvider>
+          </ProjectRoleProvider>
+        </AntdApp>
       </ThemeWrapper>
     </Suspense>
   );

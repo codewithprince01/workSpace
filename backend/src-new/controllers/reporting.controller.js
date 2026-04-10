@@ -1,4 +1,4 @@
-const { Project, Task, ProjectMember, Team, TeamMember } = require('../models');
+const { Project, Task, TaskStatus, TimeLog, ActivityLog, ProjectComment, ProjectCategory, ProjectMember, Team, TeamMember } = require('../models');
 const mongoose = require('mongoose');
 
 /**
@@ -137,7 +137,6 @@ exports.getProjectsReports = async (req, res, next) => {
     // Enrich data
     const enrichedProjects = await Promise.all(projects.map(async (p) => {
         // 1. Task Stats & Hours (Aggregation)
-        const { Task, TaskStatus, ActivityLog, ProjectComment } = require('../models');
 
         // Fetch valid status IDs for this project mapped by category
         const statusMap = { todo: [], doing: [], done: [] };
@@ -258,11 +257,9 @@ exports.getAllocationData = async (req, res, next) => {
     const { teams, projects: projectIds, categories, duration, date_range, archived, billable } = req.body;
     const { archived: archivedQuery } = req.query; 
 
-    console.log('--- getAllocationData Request ---');
     console.log('User:', req.user._id, req.user.name);
     console.log('Body:', JSON.stringify(req.body));
 
-    const { Task, TimeLog, Project, ProjectMember } = require('../models');
 
     // 1. Build Project Filter
     const projectQuery = {};
@@ -313,7 +310,6 @@ exports.getAllocationData = async (req, res, next) => {
         }
     }
 
-    console.log('Project query:', JSON.stringify(projectQuery));
     
     const projects = await Project.find(projectQuery)
         .populate('status_id', 'icon color_code') 
@@ -521,7 +517,6 @@ exports.getMembersReports = async (req, res, next) => {
         // We need status category for each task.
         // Optimization: Get all status IDs for these tasks and map them.
         const statusIds = tasks.map(t => t.status_id).filter(Boolean);
-        const { TaskStatus } = require('../models');
         const statuses = await TaskStatus.find({ _id: { $in: statusIds } });
         const statusMap = {}; // ID -> category
         statuses.forEach(s => statusMap[s._id.toString()] = s.category);
@@ -588,7 +583,6 @@ exports.getAllocationCategories = async (req, res, next) => {
         return res.json({ done: true, body: [] });
     }
     
-    const { ProjectCategory } = require('../models');
     const categories = await ProjectCategory.find({ team_id: { $in: teamIds }, is_archived: false })
         .select('name color_code');
 
@@ -650,11 +644,8 @@ exports.getAllocationProjects = async (req, res, next) => {
  */
 exports.getTimeReportsProjects = async (req, res, next) => {
  try {
-    console.log('--- getTimeReportsProjects Request ---');
     const { teams, projects: projectIds, categories, duration, date_range, archived, billable } = req.body;
-    console.log('Request body:', JSON.stringify(req.body));
 
-    const { Task, TimeLog, Project, ProjectMember } = require('../models');
 
     // Reuse filter logic (simplifying here for speed, ideally shared helper)
     const projectQuery = {};
@@ -669,7 +660,6 @@ exports.getTimeReportsProjects = async (req, res, next) => {
     if (Array.isArray(categories) && categories.length > 0) projectQuery.category_id = { $in: categories };
     if (Array.isArray(teams) && teams.length > 0) projectQuery.team_id = { $in: teams };
     
-    console.log('Project query:', JSON.stringify(projectQuery));
     const projects = await Project.find(projectQuery).select('name color_code');
     console.log(`Found ${projects.length} projects`);
     const pIds = projects.map(p => p._id);
@@ -742,7 +732,6 @@ exports.getTimeReportsMembers = async (req, res, next) => {
     // Members time sheet usually shows all members in team/project scope.
     
     // ... logic similar to projects but group by User ID.
-    const { TimeLog, Task, Project } = require('../models');
 
     // 1. Find Tasks of relevant projects
     const projectQuery = { is_archived: { $ne: true } };
@@ -799,17 +788,13 @@ exports.getTimeReportsMembers = async (req, res, next) => {
  */
 exports.getEstimatedVsActual = async (req, res, next) => {
  try {
-    console.log('--- getEstimatedVsActual Request ---');
     const { teams, projects: projectIds, categories, duration, date_range, archived } = req.body;
-    console.log('Request body:', JSON.stringify(req.body));
-    const { TimeLog, Task, Project } = require('../models');
 
     const projectQuery = { is_archived: archived === true ? true : { $ne: true } };
     if (Array.isArray(projectIds) && projectIds.length) projectQuery._id = { $in: projectIds };
     if (Array.isArray(categories) && categories.length) projectQuery.category_id = { $in: categories };
     if (Array.isArray(teams) && teams.length) projectQuery.team_id = { $in: teams };
 
-    console.log('Project query:', JSON.stringify(projectQuery));
     const projects = await Project.find(projectQuery).select('name estimated_hours actual_hours color_code');
     console.log(`Found ${projects.length} projects`);
     
@@ -873,7 +858,6 @@ exports.getEstimatedVsActual = async (req, res, next) => {
 async function getStatusIdsByCategory(projectId, category) {
    // This would be expensive in loop. Better to fetch all statuses once or use aggregation.
    // For now, simple return [] to avoid crash, or fetch all TaskStatus with category.
-   const { TaskStatus } = require('../models');
    const statuses = await TaskStatus.find({ project_id: projectId, category: category }).select('_id');
    return statuses.map(s => s._id);
 }

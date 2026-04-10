@@ -7,17 +7,12 @@ const connectDB = async () => {
     console.log('🔗 Attempting to connect to MongoDB...');
     
     const conn = await mongoose.connect(mongoURI, {
-      serverSelectionTimeoutMS: 5000, // Reduced timeout for faster fallback
+      serverSelectionTimeoutMS: 10000,
       socketTimeoutMS: 45000,
       family: 4, // Use IPv4, skip trying IPv6
       maxPoolSize: 10,
-      minPoolSize: 5,
-      maxIdleTimeMS: 30000,
-      serverApi: {
-        version: '1',
-        strict: true,
-        deprecationErrors: true
-      }
+      minPoolSize: 2,
+      maxIdleTimeMS: 30000
     });
     
     console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
