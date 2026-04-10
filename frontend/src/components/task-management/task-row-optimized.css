@@ -143,7 +143,7 @@
 }
 
 .task-row-optimized.task-row-virtualized {
-  contain: strict;
+  contain: layout style;
   will-change: transform;
 }
 
@@ -153,7 +153,7 @@
 
 /* PERFORMANCE OPTIMIZATION: Progressive loading states */
 .task-row-optimized.initial-load {
-  contain: strict;
+  contain: layout style;
   will-change: auto;
 }
 
@@ -230,7 +230,7 @@
 
 /* Virtualization specific optimizations */
 .task-row-virtualized {
-  contain: strict;
+  contain: layout style;
   will-change: transform;
 }
 
@@ -281,7 +281,7 @@
 
 .task-row-optimized.intersection-observed.hidden {
   will-change: auto;
-  contain: strict;
+  contain: layout style;
 }
 
 /* Dark mode optimizations */
@@ -334,7 +334,7 @@
 }
 
 .task-list-container.large-list {
-  contain: strict;
+  contain: layout style;
 }
 
 /* PERFORMANCE OPTIMIZATION: Simplified GPU acceleration */
@@ -380,12 +380,12 @@
 /* Optimize for mobile devices */
 @media (max-width: 768px) {
   .task-row-optimized {
-    contain: strict;
+    contain: layout style;
     will-change: auto;
   }
 
   .task-row-optimized.initial-load {
-    contain: strict;
+    contain: layout style;
   }
 }
 

@@ -211,7 +211,7 @@ const AssigneeSelector: React.FC<AssigneeSelectorProps> = ({
       await apiClient.post(
         `${API_BASE_URL}/project-members?current_project_id=${encodeURIComponent(resolvedProjectId)}`,
         payload,
-        { headers: { 'X-Skip-Error-Alert': 'true' } }
+        { skipErrorAlert: true } as any
       );
       return true;
     } catch (error) {

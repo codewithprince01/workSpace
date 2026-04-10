@@ -87,13 +87,19 @@ const TaskDetailsForm = ({ taskFormViewModel = null }: TaskDetailsFormProps) => 
     }
 
     const { task } = taskFormViewModel;
+    const estimatedHoursRaw = Number(task?.total_hours ?? 0);
+    const estimatedMinutesRaw = Number(task?.total_minutes ?? 0);
+    const fallbackEstimated = Number((task as any)?.estimated_hours ?? 0);
+    const fallbackHours = Math.floor(fallbackEstimated);
+    const fallbackMinutes = Math.round((fallbackEstimated - fallbackHours) * 60);
+
     form.setFieldsValue({
       taskId: task?.id,
       phase: task?.phase_id,
       assignees: task?.assignees,
-      dueDate: task?.end_date ?? null,
-      hours: task?.total_hours || 0,
-      minutes: task?.total_minutes || 0,
+      dueDate: task?.end_date ?? task?.due_date ?? null,
+      hours: estimatedHoursRaw || fallbackHours || 0,
+      minutes: estimatedMinutesRaw || fallbackMinutes || 0,
       priority: task?.priority || 'medium',
       labels: task?.labels || [],
       billable: task?.billable || false,

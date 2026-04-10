@@ -80,7 +80,14 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token', 'Accept'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-CSRF-Token',
+    'Accept',
+    'X-Skip-Error-Alert',
+    'x-skip-error-alert',
+  ],
   exposedHeaders: ['Set-Cookie']
 }));
 
@@ -146,7 +153,7 @@ app.use('/secure', routes); // Legacy route support
 app.use((req, res, next) => {
   res.status(404).json({
     success: false,
-    message: `Route ${req.method} ${req.path} not found`
+    message: `DEBUG: Route ${req.method} ${req.originalUrl} not found in this app`
   });
 });
 

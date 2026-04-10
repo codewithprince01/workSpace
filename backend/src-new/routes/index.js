@@ -11,6 +11,8 @@ const surveysRoutes = require('./surveys.routes');
 const settingsRoutes = require('./settings.routes');
 const projectTemplatesRoutes = require('./project-templates.routes');
 const timeLogsRoutes = require('./time-logs.routes');
+const subTasksRoutes = require('./sub-tasks.routes');
+const taskDependenciesRoutes = require('./task-dependencies.routes');
 router.use('/time-logs', timeLogsRoutes);
 const taskTimeLogsRoutes = require('./task-time-logs.routes');
 router.use('/task-time-log', taskTimeLogsRoutes);
@@ -49,6 +51,8 @@ router.use('/surveys', surveysRoutes);
 router.use('/settings', settingsRoutes);
 router.use('/project-templates', projectTemplatesRoutes);
 router.use('/reporting', reportingRoutes);
+router.use('/sub-tasks', subTasksRoutes);
+router.use('/task-dependencies', taskDependenciesRoutes);
 
 // Mount stub routes
 router.use('/statuses', projectStatusesRoutes);

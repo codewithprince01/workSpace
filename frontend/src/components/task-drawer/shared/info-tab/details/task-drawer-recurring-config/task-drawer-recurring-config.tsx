@@ -84,14 +84,11 @@ const TaskDrawerRecurringConfig = ({ task }: { task: ITaskViewModel }) => {
   const handleChange = (checked: boolean) => {
     if (!task.id) return;
 
-    socket?.emit(SocketEvents.TASK_RECURRING_CHANGE.toString(), {
-      task_id: task.id,
-      schedule_id: task.schedule_id,
-    });
-
-    socket?.once(
-      SocketEvents.TASK_RECURRING_CHANGE.toString(),
-      (schedule: ITaskRecurringScheduleData) => {
+    const eventName = SocketEvents.TASK_RECURRING_CHANGE.toString();
+    const handler = (schedule: ITaskRecurringScheduleData) => {
+        if (!schedule || String(schedule?.task_id || task.id) !== String(task.id)) {
+          return;
+        }
         if (schedule.id && schedule.schedule_type) {
           const selected = repeatOptions.find(e => e.value == schedule.schedule_type);
           if (selected) setRepeatOption(selected);
@@ -111,8 +108,13 @@ const TaskDrawerRecurringConfig = ({ task }: { task: ITaskViewModel }) => {
 
         setRecurring(checked);
         if (!checked) setShowConfig(false);
-      }
-    );
+        socket?.off(eventName, handler);
+      };
+    socket?.on(eventName, handler);
+    socket?.emit(eventName, {
+      task_id: task.id,
+      schedule_id: task.schedule_id,
+    });
   };
 
   const configVisibleChange = (visible: boolean) => {
@@ -194,9 +196,10 @@ const TaskDrawerRecurringConfig = ({ task }: { task: ITaskViewModel }) => {
     }
   };
 
-  const updateDaysOfWeek = () => {
+  const updateDaysOfWeek = (source?: ITaskRecurringSchedule) => {
+    const data = source || scheduleData;
     for (let i = 0; i < daysOfWeek.length; i++) {
-      daysOfWeek[i].checked = scheduleData.days_of_week?.includes(daysOfWeek[i].value) ?? false;
+      daysOfWeek[i].checked = data?.days_of_week?.includes(daysOfWeek[i].value) ?? false;
     }
   };
 
@@ -213,14 +216,14 @@ const TaskDrawerRecurringConfig = ({ task }: { task: ITaskViewModel }) => {
           const selected = repeatOptions.find(e => e.value == res.body.schedule_type);
           if (selected) {
             setRepeatOption(selected);
-            setSelectedMonthlyDate(scheduleData.date_of_month || 1);
-            setSelectedMonthlyDay(scheduleData.day_of_month || 0);
-            setSelectedMonthlyWeek(scheduleData.week_of_month || 0);
-            setIntervalDays(scheduleData.interval_days || 1);
-            setIntervalWeeks(scheduleData.interval_weeks || 1);
-            setIntervalMonths(scheduleData.interval_months || 1);
-            setMonthlyOption(selectedMonthlyDate ? 'date' : 'day');
-            updateDaysOfWeek();
+            setSelectedMonthlyDate(res.body.date_of_month || 1);
+            setSelectedMonthlyDay(res.body.day_of_month || 0);
+            setSelectedMonthlyWeek(res.body.week_of_month || 0);
+            setIntervalDays(res.body.interval_days || 1);
+            setIntervalWeeks(res.body.interval_weeks || 1);
+            setIntervalMonths(res.body.interval_months || 1);
+            setMonthlyOption(res.body.date_of_month ? 'date' : 'day');
+            updateDaysOfWeek(res.body);
           }
         }
       }
@@ -240,8 +243,13 @@ const TaskDrawerRecurringConfig = ({ task }: { task: ITaskViewModel }) => {
 
     if (task) setRecurring(!!task.schedule_id);
     if (task.schedule_id) void getScheduleData();
-    socket?.on(SocketEvents.TASK_RECURRING_CHANGE.toString(), handleResponse);
-  }, [task?.schedule_id]);
+    const eventName = SocketEvents.TASK_RECURRING_CHANGE.toString();
+    socket?.on(eventName, handleResponse);
+
+    return () => {
+      socket?.off(eventName, handleResponse);
+    };
+  }, [socket, task?.id, task?.schedule_id]);
 
   return (
     <div>

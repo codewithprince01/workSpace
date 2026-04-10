@@ -31,19 +31,13 @@ const PriorityDropdown = ({ task }: PriorityDropdownProps) => {
   const { tab } = useTabSearchParam();
 
   const handlePriorityChange = (priorityId: string) => {
-    if (!task.id || !priorityId) return;
+    if (!task?.id || !priorityId) return;
 
-    socket?.emit(
-      SocketEvents.TASK_PRIORITY_CHANGE.toString(),
-      JSON.stringify({
-        task_id: task.id,
-        priority_id: priorityId,
-        team_id: currentSession?.team_id,
-      })
-    );
-    socket?.once(
-      SocketEvents.TASK_PRIORITY_CHANGE.toString(),
-      (data: ITaskListPriorityChangeResponse) => {
+    const eventName = SocketEvents.TASK_PRIORITY_CHANGE.toString();
+    const handler = (data: ITaskListPriorityChangeResponse) => {
+        if (!data || String((data as any).id || '') !== String(task.id)) {
+          return;
+        }
         dispatch(setTaskPriority(data));
         if (tab === 'tasks-list') {
           dispatch(updateTasksListTaskPriority(data));
@@ -51,7 +45,16 @@ const PriorityDropdown = ({ task }: PriorityDropdownProps) => {
         if (tab === 'board') {
           dispatch(updateEnhancedKanbanTaskPriority(data));
         }
-      }
+        socket?.off(eventName, handler);
+      };
+    socket?.on(eventName, handler);
+    socket?.emit(
+      eventName,
+      JSON.stringify({
+        task_id: task?.id,
+        priority_id: priorityId,
+        team_id: currentSession?.team_id,
+      })
     );
   };
 

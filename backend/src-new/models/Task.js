@@ -31,6 +31,10 @@ const taskSchema = new Schema({
     type: Schema.Types.ObjectId,
     ref: 'User'
   }],
+  subscribers: [{
+    type: Schema.Types.ObjectId,
+    ref: 'User'
+  }],
   reporter_id: {
     type: Schema.Types.ObjectId,
     ref: 'User'
@@ -57,6 +61,12 @@ const taskSchema = new Schema({
     max: 100,
     default: 0
   },
+  weight: {
+    type: Number,
+    min: 0,
+    max: 100,
+    default: null
+  },
   sort_order: {
     type: Number,
     default: 0
@@ -78,7 +88,16 @@ const taskSchema = new Schema({
     type: Schema.Types.Mixed,
     default: {}
   },
-  completed_at: Date
+  completed_at: Date,
+  billable: {
+    type: Boolean,
+    default: false
+  },
+  schedule_id: {
+    type: Schema.Types.ObjectId,
+    ref: 'RecurringSchedule',
+    default: null
+  }
 }, {
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
   toObject: { virtuals: true },

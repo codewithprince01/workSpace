@@ -158,10 +158,17 @@ export const tasksApiService = {
     config: ITaskListConfigV2
   ): Promise<IServerResponse<ITaskListV3Response>> => {
     const q = toQueryString({ ...config, include_empty: 'true' });
-    const silentErrorConfig = { headers: { 'X-Skip-Error-Alert': 'true' } };
+    const silentErrorConfig = { skipErrorAlert: true } as any;
 
     const normalizeTask = (task: any) => {
       const taskId = String(task?.id ?? task?._id ?? '');
+      const rawParentTaskId = task?.parent_task_id ?? task?.parentTaskId ?? task?.parent_task ?? null;
+      const normalizedParentTaskId =
+        rawParentTaskId && typeof rawParentTaskId === 'object'
+          ? String(rawParentTaskId?._id ?? rawParentTaskId?.id ?? '')
+          : rawParentTaskId
+            ? String(rawParentTaskId)
+            : null;
       const statusObj =
         task?.status_id && typeof task.status_id === 'object' ? task.status_id : undefined;
       const phaseObj =
@@ -213,6 +220,8 @@ export const tasksApiService = {
       return {
         ...task,
         id: taskId,
+        parent_task_id: normalizedParentTaskId,
+        parent_task: normalizedParentTaskId,
         title: task?.title || task?.name || 'Untitled Task',
         status: String(task?.status ?? statusObj?._id ?? task?.status_id ?? ''),
         status_id: String(task?.status_id?._id ?? task?.status_id ?? ''),
@@ -445,37 +454,67 @@ export const tasksApiService = {
       };
     };
 
+    const fetchV3 = async () => {
+      const response = await apiClient.get(`${rootUrl}/list/v3/${config.id}${q}`, silentErrorConfig);
+      return response.data as IServerResponse<ITaskListV3Response>;
+    };
+
+    const fetchV2 = async () => {
+      const response = await apiClient.get(`${rootUrl}/list/v2/${config.id}${q}`, silentErrorConfig);
+      return normalizeFallbackListData(response.data as IServerResponse<any>);
+    };
+
     if (preferredTaskListEndpoint === 'generic') {
-      return fetchGenericAndBuild();
+      try {
+        return await fetchGenericAndBuild();
+      } catch (error) {
+        if (!axios.isAxiosError(error) || error.response?.status !== 404) throw error;
+        try {
+          const v3 = await fetchV3();
+          preferredTaskListEndpoint = 'v3';
+          return v3;
+        } catch (v3Error) {
+          if (!axios.isAxiosError(v3Error) || v3Error.response?.status !== 404) throw v3Error;
+          const v2 = await fetchV2();
+          preferredTaskListEndpoint = 'v2';
+          return v2;
+        }
+      }
     }
 
     if (preferredTaskListEndpoint === 'v2') {
       try {
-        const response = await apiClient.get(`${rootUrl}/list/v2/${config.id}${q}`, silentErrorConfig);
-        return normalizeFallbackListData(response.data as IServerResponse<any>);
+        return await fetchV2();
       } catch (error) {
         if (!axios.isAxiosError(error) || error.response?.status !== 404) throw error;
-        preferredTaskListEndpoint = 'generic';
-        return fetchGenericAndBuild();
+        try {
+          const generic = await fetchGenericAndBuild();
+          preferredTaskListEndpoint = 'generic';
+          return generic;
+        } catch (genericError) {
+          if (!axios.isAxiosError(genericError) || genericError.response?.status !== 404) {
+            throw genericError;
+          }
+          const v3 = await fetchV3();
+          preferredTaskListEndpoint = 'v3';
+          return v3;
+        }
       }
     }
 
     // Default path: try v3 first, then fallback and remember working endpoint.
     try {
-      const response = await apiClient.get(`${rootUrl}/list/v3/${config.id}${q}`, silentErrorConfig);
+      const response = await fetchV3();
       preferredTaskListEndpoint = 'v3';
-      return response.data;
+      return response;
     } catch (error) {
       if (!axios.isAxiosError(error) || error.response?.status !== 404) {
         throw error;
       }
       try {
-        const fallbackResponse = await apiClient.get(
-          `${rootUrl}/list/v2/${config.id}${q}`,
-          silentErrorConfig
-        );
+        const fallbackResponse = await fetchV2();
         preferredTaskListEndpoint = 'v2';
-        return normalizeFallbackListData(fallbackResponse.data as IServerResponse<any>);
+        return fallbackResponse;
       } catch (v2Error) {
         if (!axios.isAxiosError(v2Error) || v2Error.response?.status !== 404) {
           throw v2Error;

@@ -33,23 +33,29 @@ router.get('/tasks/:taskId', async (req, res) => {
     }
 });
 
-// POST /api/attachments/tasks - Create attachment entry (after upload)
+// POST /api/attachments/tasks - Create attachment entry
 router.post('/tasks', async (req, res) => {
     try {
-        const { task_id, file_name, file_key, file_size, file_type, url } = req.body;
+        const { task_id, file_name, file_key, file_size, file_type, url, file, size } = req.body;
 
-        if (!task_id || !file_name || !file_key) {
-            return res.status(400).json({ done: false, message: 'Missing required fields' });
+        if (!task_id || !file_name) {
+            return res.status(400).json({ done: false, message: 'Missing task_id or file_name' });
         }
+
+        // Handle case where frontend sends "file" (base64) and "size" instead of key/url
+        const finalKey = file_key || `task-files/${Date.now()}-${file_name}`;
+        const finalUrl = url || file; // In a real app, this would be an S3 URL
+        const finalSize = file_size || size || 0;
+        const finalType = file_type || (file_name.split('.').pop() || 'file');
 
         const attachment = await TaskAttachment.create({
             task_id,
             user_id: req.user._id,
             file_name,
-            file_key,
-            file_size,
-            file_type,
-            url
+            file_key: finalKey,
+            file_size: finalSize,
+            file_type: finalType,
+            url: finalUrl
         });
 
         const populated = await TaskAttachment.findById(attachment._id)

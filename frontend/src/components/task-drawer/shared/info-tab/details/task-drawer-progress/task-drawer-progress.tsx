@@ -105,7 +105,11 @@ const TaskDrawerProgress = ({ task, form }: TaskDrawerProgressProps) => {
         })
       );
 
-      socket?.once(SocketEvents.GET_TASK_PROGRESS.toString(), (data: any) => {
+      const progressEvent = SocketEvents.GET_TASK_PROGRESS.toString();
+      const progressHandler = (data: any) => {
+        if (!data || String(data?.task_id || data?.id || '') !== String(task.id)) {
+          return;
+        }
         if (tab === 'tasks-list') {
           dispatch(
             updateTaskProgress({
@@ -127,7 +131,9 @@ const TaskDrawerProgress = ({ task, form }: TaskDrawerProgressProps) => {
             })
           );
         }
-      });
+        socket?.off(progressEvent, progressHandler);
+      };
+      socket?.on(progressEvent, progressHandler);
 
       if (task.id) {
         setTimeout(() => {
@@ -193,9 +199,11 @@ const TaskDrawerProgress = ({ task, form }: TaskDrawerProgressProps) => {
                 parent_task: task.parent_task_id || null,
               })
             );
-            socket?.once(
-              SocketEvents.TASK_STATUS_CHANGE.toString(),
-              (data: ITaskListStatusChangeResponse) => {
+            const statusEvent = SocketEvents.TASK_STATUS_CHANGE.toString();
+            const statusHandler = (data: ITaskListStatusChangeResponse) => {
+                if (!data || String((data as any).id || '') !== String(task.id)) {
+                  return;
+                }
                 dispatch(setTaskStatus(data));
 
                 if (tab === 'tasks-list') {
@@ -206,8 +214,9 @@ const TaskDrawerProgress = ({ task, form }: TaskDrawerProgressProps) => {
                 }
                 if (data.parent_task)
                   socket?.emit(SocketEvents.GET_TASK_PROGRESS.toString(), data.parent_task);
-              }
-            );
+                socket?.off(statusEvent, statusHandler);
+              };
+            socket?.on(statusEvent, statusHandler);
           } else {
             logger.error(`No "done" statuses found for project ${task.project_id}`);
           }

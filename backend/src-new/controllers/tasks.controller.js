@@ -1,4 +1,4 @@
-const { Task, TaskStatus, TaskComment, TaskAttachment, Project, ProjectMember, TeamMember, TaskPhase, ActivityLog, TimeLog, RunningTimer } = require('../models');
+const { Task, TaskStatus, TaskComment, TaskAttachment, Project, ProjectMember, TeamMember, TaskPhase, TaskLabel, ActivityLog, TimeLog, RunningTimer } = require('../models');
 
 /**
  * @desc    Create task
@@ -93,16 +93,67 @@ exports.getAll = async (req, res, next) => {
     const query = { is_archived: false };
     
     if (project_id) query.project_id = project_id;
-    if (status_id) query.status_id = status_id;
-    if (priority) query.priority = priority;
-    if (assignee) query.assignees = assignee;
-    if (reporter) query.reporter_id = reporter; // Fixed: filter by reporter
-    if (parent_task_id && parent_task_id !== 'undefined' && parent_task_id !== 'null') {
-      query.parent_task_id = parent_task_id;
-    } else if (parent_task_id === 'null') {
-      query.parent_task_id = null;
+    if (status_id) {
+        if (typeof status_id === 'string' && status_id.includes(' ')) {
+            query.status_id = { $in: status_id.split(' ') };
+        } else {
+            query.status_id = status_id;
+        }
     }
-    if (search) query.name = { $regex: search, $options: 'i' };
+    if (priority) {
+        if (typeof priority === 'string' && priority.trim()) {
+            query.priority = { $in: priority.trim().split(/\s+/) };
+        } else if (Array.isArray(priority)) {
+            query.priority = { $in: priority };
+        } else {
+            query.priority = priority;
+        }
+    }
+    // Also handle 'priorities' plural for consistency with list/v3
+    const prioritiesParam = req.query.priorities || req.query.priority;
+    if (prioritiesParam && !query.priority) {
+        if (typeof prioritiesParam === 'string' && prioritiesParam.trim()) {
+            query.priority = { $in: prioritiesParam.trim().split(/\s+/) };
+        } else if (Array.isArray(prioritiesParam)) {
+            query.priority = { $in: prioritiesParam };
+        }
+    }
+
+    if (assignee) {
+        if (typeof assignee === 'string' && assignee.trim()) {
+            query.assignees = { $in: assignee.trim().split(/\s+/) };
+        } else if (Array.isArray(assignee)) {
+            query.assignees = { $in: assignee };
+        } else {
+            query.assignees = assignee;
+        }
+    }
+    // Also handle 'members' for consistency
+    const membersParam = req.query.members || req.query.assignees;
+    if (membersParam && !query.assignees) {
+      if (typeof membersParam === 'string' && membersParam.trim()) {
+          query.assignees = { $in: membersParam.trim().split(/\s+/) };
+      } else if (Array.isArray(membersParam)) {
+          query.assignees = { $in: membersParam };
+      }
+    }
+    if (reporter) query.reporter_id = reporter;
+
+    if (parent_task_id && parent_task_id !== 'undefined' && parent_task_id !== 'null' && parent_task_id !== '') {
+      query.parent_task_id = parent_task_id;
+    } else if (parent_task_id === 'null' || parent_task_id === '') {
+      query.parent_task_id = null;
+    } else {
+      // Default: Only show top-level tasks (legacy-safe filter)
+      query.$or = [
+        { parent_task_id: null },
+        { parent_task_id: { $exists: false } }
+      ];
+    }
+
+    if (search && search.trim()) {
+        query.name = { $regex: search.trim(), $options: 'i' };
+    }
     
     const tasks = await Task.find(query)
       .populate('status_id', 'name color_code category')
@@ -298,85 +349,188 @@ exports.addComment = async (req, res, next) => {
  */
 exports.bulkUpdate = async (req, res, next) => {
   try {
-    const { tasks } = req.body; // Array of { id, updates }
-    
-    const results = await Promise.all(tasks.map(async ({ id, ...updates }) => {
-      return Task.findByIdAndUpdate(id, updates, { new: true });
-    }));
-    
-    res.json({
-      done: true,
-      body: results
-    });
-  } catch (error) {
-    next(error);
-  }
-};
+    const { tasks } = req.body; // Array of { id, updates } OR task ids
+    const action = req.params.action;
 
-/**
- * @desc    Get task info (metadata for drawer)
- * @route   GET /api/tasks/info
- * @access  Private
- */
-exports.getTaskInfo = async (req, res, next) => {
-  try {
-    const { task_id, project_id } = req.query;
+    // Legacy drag/drop payload support: [{ id, ...updates }]
+    if (
+      !action &&
+      Array.isArray(tasks) &&
+      tasks.length > 0 &&
+      typeof tasks[0] === 'object' &&
+      tasks[0] !== null &&
+      tasks[0].id
+    ) {
+      const results = await Promise.all(
+        tasks.map(async ({ id, ...updates }) => Task.findByIdAndUpdate(id, updates, { new: true }))
+      );
 
-    let task = null;
-    let responseProjectId = project_id;
+      return res.json({
+        done: true,
+        body: results
+      });
+    }
 
-    if (task_id && task_id !== 'null' && task_id !== 'undefined') {
-        task = await Task.findById(task_id)
-            .populate('project_id', 'name key')
-            .populate('status_id', 'name color_code')
-            .populate('assignees', 'name email avatar_url')
-            .populate('reporter_id', 'name email')
-            .populate('labels', 'name color_code')
-            .populate('phase_id', 'name color_code');
-        
-        if (task) {
-            responseProjectId = task.project_id?._id || task.project_id; // Handle populated or ID
+    const projectId = req.query.project || req.body.project_id;
+    const taskIds = Array.isArray(tasks) ? tasks.filter(Boolean) : [];
+
+    if (!action) {
+      return res.status(400).json({
+        done: false,
+        message: 'Bulk action is required'
+      });
+    }
+
+    if (!projectId || !taskIds.length) {
+      return res.status(400).json({
+        done: false,
+        message: 'project and tasks are required'
+      });
+    }
+
+    const taskFilter = { _id: { $in: taskIds }, project_id: projectId };
+
+    if (action === 'status') {
+      const { status_id: statusId } = req.body;
+      if (!statusId) {
+        return res.status(400).json({ done: false, message: 'status_id is required' });
+      }
+
+      const status = await TaskStatus.findById(statusId).select('category');
+      const update =
+        status?.category === 'done'
+          ? { status_id: statusId, progress: 100, completed_at: new Date() }
+          : { status_id: statusId, completed_at: null };
+
+      const result = await Task.updateMany(taskFilter, { $set: update });
+      return res.json({
+        done: true,
+        body: { matched: result.matchedCount || 0, modified: result.modifiedCount || 0, failed_tasks: [] }
+      });
+    }
+
+    if (action === 'priority') {
+      const { priority_id: priority } = req.body;
+      if (!priority) {
+        return res.status(400).json({ done: false, message: 'priority_id is required' });
+      }
+      const result = await Task.updateMany(taskFilter, { $set: { priority } });
+      return res.json({
+        done: true,
+        body: { matched: result.matchedCount || 0, modified: result.modifiedCount || 0 }
+      });
+    }
+
+    if (action === 'phase') {
+      const { phase_id: phaseId } = req.body;
+      const result = await Task.updateMany(taskFilter, { $set: { phase_id: phaseId || null } });
+      return res.json({
+        done: true,
+        body: { matched: result.matchedCount || 0, modified: result.modifiedCount || 0 }
+      });
+    }
+
+    if (action === 'delete') {
+      const result = await Task.updateMany(taskFilter, { $set: { is_archived: true } });
+      return res.json({
+        done: true,
+        body: { matched: result.matchedCount || 0, modified: result.modifiedCount || 0 }
+      });
+    }
+
+    if (action === 'archive') {
+      const shouldArchive = req.query.type !== 'unarchive';
+      const result = await Task.updateMany(taskFilter, { $set: { is_archived: shouldArchive } });
+      return res.json({
+        done: true,
+        body: { matched: result.matchedCount || 0, modified: result.modifiedCount || 0 }
+      });
+    }
+
+    if (action === 'members') {
+      const members = Array.isArray(req.body.members) ? req.body.members : [];
+
+      const projectMemberIds = members.map(m => m?.project_member_id).filter(Boolean);
+      const teamMemberIds = members.map(m => m?.team_member_id || m?.id).filter(Boolean);
+      const directUserIds = members.map(m => m?.user_id).filter(Boolean);
+
+      const [projectMembers, teamMembers] = await Promise.all([
+        projectMemberIds.length
+          ? ProjectMember.find({ _id: { $in: projectMemberIds } }).select('user_id')
+          : Promise.resolve([]),
+        teamMemberIds.length
+          ? TeamMember.find({ _id: { $in: teamMemberIds } }).select('user_id')
+          : Promise.resolve([])
+      ]);
+
+      const userIds = Array.from(
+        new Set([
+          ...directUserIds.map(String),
+          ...projectMembers.map(pm => String(pm.user_id)),
+          ...teamMembers.map(tm => String(tm.user_id))
+        ])
+      );
+
+      if (!userIds.length) {
+        return res.json({ done: true, body: { matched: 0, modified: 0 } });
+      }
+
+      const result = await Task.updateMany(taskFilter, {
+        $addToSet: { assignees: { $each: userIds } }
+      });
+
+      return res.json({
+        done: true,
+        body: { matched: result.matchedCount || 0, modified: result.modifiedCount || 0 }
+      });
+    }
+
+    if (action === 'assign-me') {
+      const result = await Task.updateMany(taskFilter, {
+        $addToSet: { assignees: String(req.user._id) }
+      });
+
+      return res.json({
+        done: true,
+        body: { matched: result.matchedCount || 0, modified: result.modifiedCount || 0 }
+      });
+    }
+
+    if (action === 'label') {
+      const incomingLabels = Array.isArray(req.body.labels) ? req.body.labels : [];
+      const labelIds = incomingLabels.map(l => l?.id || l?._id).filter(Boolean);
+      const text = (req.body.text || '').trim();
+
+      if (text) {
+        const project = await Project.findById(projectId).select('team_id');
+        if (project?.team_id) {
+          let label = await TaskLabel.findOne({ team_id: project.team_id, name: text });
+          if (!label) {
+            label = await TaskLabel.create({ team_id: project.team_id, name: text });
+          }
+          labelIds.push(String(label._id));
         }
+      }
+
+      const uniqueLabelIds = Array.from(new Set(labelIds.map(String)));
+      if (!uniqueLabelIds.length) {
+        return res.json({ done: true, body: { matched: 0, modified: 0 } });
+      }
+
+      const result = await Task.updateMany(taskFilter, {
+        $addToSet: { labels: { $each: uniqueLabelIds } }
+      });
+
+      return res.json({
+        done: true,
+        body: { matched: result.matchedCount || 0, modified: result.modifiedCount || 0 }
+      });
     }
 
-    const response = {};
-
-    if (task) {
-         response.task = task;
-    }
-
-    if (responseProjectId && responseProjectId !== 'null') {
-         // Fetch Statuses
-         const statuses = await TaskStatus.find({ project_id: responseProjectId }).sort({ sort_order: 1 });
-         response.statuses = statuses;
-
-         // Fetch Members
-         const projectMembers = await ProjectMember.find({ project_id: responseProjectId })
-            .populate('user_id', 'name email avatar_url');
-         
-         response.team_members = projectMembers.map(pm => {
-             if (!pm.user_id) return null;
-             return {
-                 id: pm.user_id._id,
-                 name: pm.user_id.name,
-                 email: pm.user_id.email,
-                 avatar_url: pm.user_id.avatar_url,
-                 project_member_id: pm._id
-                 // Add other fields if ITaskTeamMember requires them
-             };
-         }).filter(Boolean);
-         
-         // Fetch Priorities (Standard)
-         response.priorities = [
-            { id: 'low', name: 'Low', color_code: '#87d068', value: 0 },
-            { id: 'medium', name: 'Medium', color_code: '#2db7f5', value: 1 },
-            { id: 'high', name: 'High', color_code: '#ff9800', value: 2 },
-            { id: 'urgent', name: 'Urgent', color_code: '#f50', value: 3 }
-         ];
-    }
-
-    res.json({ done: true, body: response });
-
+    return res.status(400).json({
+      done: false,
+      message: `Unsupported bulk action: ${action}`
+    });
   } catch (error) {
     next(error);
   }
@@ -551,36 +705,48 @@ exports.getTaskListV3 = async (req, res, next) => {
         // Treat empty-string parent ids as top-level as well (legacy-safe).
         query.$or = [
           { parent_task_id: null },
-          { parent_task_id: { $exists: false } },
-          { parent_task_id: '' }
+          { parent_task_id: { $exists: false } }
         ];
     }
 
     // Filtering
-    if (members) {
-        query.assignees = { $in: members.split(' ') };
+    if (members && typeof members === 'string' && members.trim()) {
+        const memberIds = members.trim().split(/\s+/).filter(id => id.length > 0);
+        if (memberIds.length > 0) {
+            query.assignees = { $in: memberIds };
+        }
     }
-    if (labels) {
-        query.labels = { $in: labels.split(' ') };
+    if (labels && typeof labels === 'string' && labels.trim()) {
+        const labelIds = labels.trim().split(/\s+/).filter(id => id.length > 0);
+        if (labelIds.length > 0) {
+            query.labels = { $in: labelIds };
+        }
     }
-    if (priorities) {
-        query.priority = { $in: priorities.split(' ') };
+    if (priorities && typeof priorities === 'string' && priorities.trim()) {
+        const priorityList = priorities.trim().split(/\s+/).filter(p => p.length > 0);
+        if (priorityList.length > 0) {
+            query.priority = { $in: priorityList };
+        }
     }
-    if (statuses) {
-        query.status_id = { $in: statuses.split(' ') };
+    if (statuses && typeof statuses === 'string' && statuses.trim()) {
+        const statusIds = statuses.trim().split(/\s+/).filter(id => id.length > 0);
+        if (statusIds.length > 0) {
+            query.status_id = { $in: statusIds };
+        }
     }
 
     // Sorting
     let sort = { sort_order: 1, created_at: -1 };
     if (field && order) {
         // field might be KEY, NAME, etc.
-        let sortField = field.toLowerCase();
+        let sortField = field.toString().toLowerCase();
         if (sortField === 'key') sortField = 'key'; 
         if (sortField === 'name') sortField = 'name';
         if (sortField === 'status') sortField = 'status_id';
         if (sortField === 'priority') sortField = 'priority';
         
-        sort = { [sortField]: order === 'desc' ? -1 : 1 };
+        const sortOrder = order.toString().toLowerCase();
+        sort = { [sortField]: sortOrder === 'desc' ? -1 : 1 };
     }
 
     const tasks = await Task.find(query)
@@ -631,6 +797,7 @@ exports.getTaskListV3 = async (req, res, next) => {
     const formatTask = (t) => ({
         ...t,
         id: t._id.toString(),
+        parent_task_id: t.parent_task_id ? t.parent_task_id.toString() : null,
         title: t.name, // Frontend expects 'title', backend stores as 'name'
         // Status
         status: t.status_id?._id?.toString(),
@@ -673,10 +840,10 @@ exports.getTaskListV3 = async (req, res, next) => {
             color_code: l.color_code
         })) || [],
         labels: t.labels?.map(l => ({
-            id: l._id?.toString(),
-            name: l.name,
-            color: l.color_code,
-            color_code: l.color_code
+            id: l?._id?.toString(),
+            name: l?.name,
+            color: l?.color_code,
+            color_code: l?.color_code
         })) || [],
         // Time tracking
         timeTracking: {
@@ -895,7 +1062,7 @@ exports.updateColumnVisibility = async (req, res, next) => {
 };
 
 /**
- * @desc    Get task info for forms
+ * @desc    Get task info for forms (metadata for drawer)
  * @route   GET /api/tasks/info
  * @access  Private
  */
@@ -905,41 +1072,109 @@ exports.getTaskInfo = async (req, res, next) => {
     let task = null;
     let statuses = [];
     let members = [];
+    let phases = [];
     let targetProjectId = project_id;
+    let projectMembers = [];
+    const userToTeamMemberMap = {};
 
-    if (task_id) {
+    if (task_id && task_id !== 'null' && task_id !== 'undefined') {
         task = await Task.findById(task_id)
             .populate('status_id', 'name color_code')
             .populate('assignees', 'name email avatar_url')
-            .populate('labels', 'name color_code');
+            .populate('labels', 'name color_code')
+            .populate('phase_id', 'name color_code');
         if (task && !targetProjectId) targetProjectId = task.project_id;
     }
 
-    if (targetProjectId) {
+    if (targetProjectId && targetProjectId !== 'null') {
         statuses = await TaskStatus.find({ project_id: targetProjectId }).sort({ sort_order: 1 });
-        const projectMembers = await ProjectMember.find({ project_id: targetProjectId, is_active: true })
+        phases = await TaskPhase.find({ project_id: targetProjectId }).sort({ sort_order: 1 });
+        projectMembers = await ProjectMember.find({ project_id: targetProjectId, is_active: true })
             .populate('user_id', 'name email avatar_url');
-        members = projectMembers.map(m => ({
-            id: m.user_id?._id,
-            name: m.user_id?.name,
-            email: m.user_id?.email,
-            avatar_url: m.user_id?.avatar_url
-        })).filter(m => m.id);
+
+        projectMembers.forEach(pm => {
+          if (pm?.user_id?._id && pm?.team_member_id) {
+            userToTeamMemberMap[pm.user_id._id.toString()] = pm.team_member_id.toString();
+          }
+        });
+
+        members = projectMembers.map(m => {
+            if (!m.user_id) return null;
+            return {
+                id: m.team_member_id ? m.team_member_id.toString() : m.user_id._id.toString(),
+                user_id: m.user_id._id.toString(),
+                name: m.user_id.name,
+                email: m.user_id.email,
+                avatar_url: m.user_id.avatar_url,
+                project_member_id: m._id
+            };
+        }).filter(Boolean);
     }
 
     const priorities = [
-        { id: 'low', name: 'Low', color: '#87d068' },
-        { id: 'medium', name: 'Medium', color: '#2db7f5' },
-        { id: 'high', name: 'High', color: '#ff9800' },
-        { id: 'urgent', name: 'Urgent', color: '#f50' }
+        { id: 'low', name: 'Low', color: '#87d068', color_code: '#87d068' },
+        { id: 'medium', name: 'Medium', color: '#2db7f5', color_code: '#2db7f5' },
+        { id: 'high', name: 'High', color: '#ff9800', color_code: '#ff9800' },
+        { id: 'urgent', name: 'Urgent', color: '#f50', color_code: '#f50' }
     ];
+
+    const normalizedTask = task
+      ? (() => {
+          const taskObj = task.toObject();
+          const assigneeNames = (taskObj.assignees || []).map(a => {
+            const userId = a?._id?.toString?.() || '';
+            return {
+              team_member_id: userToTeamMemberMap[userId] || userId,
+              name: a?.name || '',
+              avatar_url: a?.avatar_url || '',
+            };
+          });
+
+          const labels = (taskObj.labels || []).map(l => ({
+            id: l?._id?.toString?.() || '',
+            name: l?.name || '',
+            color_code: l?.color_code || '#1890ff',
+          }));
+
+          return {
+            ...taskObj,
+            id: taskObj._id?.toString?.() || taskObj._id,
+            parent_task_id: taskObj.parent_task_id
+              ? taskObj.parent_task_id.toString()
+              : null,
+            status_id: taskObj.status_id?._id?.toString?.() || taskObj.status_id || null,
+            status_name: taskObj.status_id?.name || null,
+            status_color: taskObj.status_id?.color_code || null,
+            phase_id: taskObj.phase_id?._id?.toString?.() || taskObj.phase_id || null,
+            phase_name: taskObj.phase_id?.name || null,
+            phase_color: taskObj.phase_id?.color_code || null,
+            priority_id: taskObj.priority || 'medium',
+            due_date: taskObj.end_date || taskObj.due_date || null,
+            dueDate: taskObj.end_date || taskObj.due_date || null,
+            end_date: taskObj.end_date || taskObj.due_date || null,
+            total_hours: Math.floor(Number(taskObj.estimated_hours || 0)),
+            total_minutes: Math.round((Number(taskObj.estimated_hours || 0) % 1) * 60),
+            progress_value:
+              typeof taskObj.progress === 'number' ? taskObj.progress : 0,
+            weight:
+              typeof taskObj.weight === 'number' ? taskObj.weight : null,
+            assignees: assigneeNames.map(a => a.team_member_id),
+            assignee_names: assigneeNames,
+            names: assigneeNames,
+            labels,
+            all_labels: labels,
+          };
+        })()
+      : null;
 
     res.json({
         done: true,
         body: {
-            task: task ? { ...task.toObject(), id: task._id } : null,
+            task: normalizedTask,
             statuses,
+            phases,
             members,
+            team_members: members,
             priorities
         }
     });
@@ -965,6 +1200,50 @@ exports.getTaskDependencyStatus = async (req, res, next) => {
             blockingTasks: []
         }
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Get task subscribers
+ * @route   GET /api/tasks/subscribers/:id
+ * @access  Private
+ */
+exports.getSubscribers = async (req, res, next) => {
+  try {
+    const task = await Task.findById(req.params.id);
+    if (!task) return res.status(404).json({ done: false, message: 'Task not found' });
+
+    const fullTask = await Task.findById(req.params.id).populate(
+      'subscribers',
+      'name email avatar_url'
+    );
+    const subscriberUserIds = (fullTask?.subscribers || []).map(s => s?._id?.toString());
+
+    if (!subscriberUserIds.length) {
+      return res.json({ done: true, body: [] });
+    }
+
+    const teamMembers = await TeamMember.find({
+      user_id: { $in: subscriberUserIds }
+    }).select('_id user_id');
+
+    const userToTeamMemberMap = {};
+    teamMembers.forEach(tm => {
+      if (tm?.user_id && tm?._id) {
+        userToTeamMemberMap[tm.user_id.toString()] = tm._id.toString();
+      }
+    });
+
+    const subscribers = (fullTask?.subscribers || []).map(u => ({
+      team_member_id: userToTeamMemberMap[u?._id?.toString()] || u?._id?.toString(),
+      name: u?.name || '',
+      email: u?.email || '',
+      avatar_url: u?.avatar_url || ''
+    }));
+
+    res.json({ done: true, body: subscribers });
   } catch (error) {
     next(error);
   }

@@ -12,52 +12,53 @@ import {
   List,
   Space,
 } from '@/shared/antd-imports';
-import { useEffect, useRef, useState } from 'react';
+import { useMemo, useRef, useState, useCallback } from 'react';
 import { colors } from '@/styles/colors';
 import { useTranslation } from 'react-i18next';
-import { ITaskLabel } from '@/types/tasks/taskLabel.types';
+import { ITaskLabel } from '@/types/tasks/taskLabel.type';
 import { useAppSelector } from '@/hooks/useAppSelector';
+import { useAppDispatch } from '@/hooks/useAppDispatch';
+import { setLabels } from '@/features/tasks/tasks.slice';
+import { fetchTasksV3 } from '@/features/task-management/task-management.slice';
 
 const LabelsFilterDropdown = (props: { labels: ITaskLabel[] }) => {
+  const dispatch = useAppDispatch();
   const { t } = useTranslation('task-list-filters');
   const labelInputRef = useRef<InputRef>(null);
-  const [selectedCount, setSelectedCount] = useState<number>(0);
-  const [filteredLabelList, setFilteredLabelList] = useState<ITaskLabel[]>(props.labels);
-  const [searchQuery, setSearchQuery] = useState<string>('');
 
-  useEffect(() => {
-    setFilteredLabelList(props.labels);
-  }, [props.labels]);
-
+  const { projectId } = useAppSelector(state => state.projectReducer);
+  const selectedLabels = useAppSelector(state => state.taskReducer.labels);
   const themeMode = useAppSelector(state => state.themeReducer.mode);
 
-  // handle selected filters count
-  const handleSelectedFiltersCount = (checked: boolean) => {
-    setSelectedCount(prev => (checked ? prev + 1 : prev - 1));
-  };
+  const selectedCount = selectedLabels.filter(l => l.selected).length;
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // function to focus labels input
+  const filteredLabelList = useMemo(() => {
+    return selectedLabels.filter(label => 
+      label.name?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [selectedLabels, searchQuery]);
+
+  const handleSelectedLabel = useCallback(
+    (labelId: string, checked: boolean) => {
+      if (!projectId) return;
+
+      const updatedLabels = selectedLabels.map(label =>
+        label.id === labelId ? { ...label, selected: checked } : label
+      );
+      
+      dispatch(setLabels(updatedLabels as any));
+      dispatch(fetchTasksV3(projectId));
+    },
+    [dispatch, projectId, selectedLabels]
+  );
+
   const handleLabelsDropdownOpen = (open: boolean) => {
     if (open) {
-      setTimeout(() => {
-        labelInputRef.current?.focus();
-      }, 0);
+      setTimeout(() => labelInputRef.current?.focus(), 0);
     }
   };
 
-  const handleSearchQuery = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const searchText = e.currentTarget.value;
-    setSearchQuery(searchText);
-    if (searchText.length === 0) {
-      setFilteredLabelList(props.labels);
-      return;
-    }
-    setFilteredLabelList(
-      props.labels.filter(label => label.name?.toLowerCase().includes(searchText.toLowerCase()))
-    );
-  };
-
-  // custom dropdown content
   const labelsDropdownContent = (
     <Card
       className="custom-card"
@@ -69,7 +70,7 @@ const LabelsFilterDropdown = (props: { labels: ITaskLabel[] }) => {
         <Input
           ref={labelInputRef}
           value={searchQuery}
-          onChange={e => handleSearchQuery(e)}
+          onChange={e => setSearchQuery(e.target.value)}
           placeholder={t('searchInputPlaceholder')}
         />
 
@@ -79,17 +80,21 @@ const LabelsFilterDropdown = (props: { labels: ITaskLabel[] }) => {
               <List.Item
                 className={`custom-list-item ${themeMode === 'dark' ? 'dark' : ''}`}
                 key={label.id}
+                onClick={() => handleSelectedLabel(label.id || '', !label.selected)}
                 style={{
                   display: 'flex',
                   justifyContent: 'flex-start',
                   gap: 8,
                   padding: '4px 8px',
                   border: 'none',
+                  cursor: 'pointer'
                 }}
               >
                 <Checkbox
                   id={label.id}
-                  onChange={e => handleSelectedFiltersCount(e.target.checked)}
+                  checked={label.selected}
+                  onChange={e => handleSelectedLabel(label.id || '', e.target.checked)}
+                  onClick={(e) => e.stopPropagation()}
                 />
 
                 <Flex gap={8}>
@@ -117,9 +122,8 @@ const LabelsFilterDropdown = (props: { labels: ITaskLabel[] }) => {
         icon={<CaretDownFilled />}
         iconPosition="end"
         style={{
-          backgroundColor: selectedCount > 0 ? colors.paleBlue : colors.transparent,
-
-          color: selectedCount > 0 ? colors.darkGray : 'inherit',
+          backgroundColor: selectedCount > 0 ? (themeMode === 'dark' ? '#003a5c' : colors.paleBlue) : colors.transparent,
+          color: selectedCount > 0 ? (themeMode === 'dark' ? 'white' : colors.darkGray) : 'inherit',
         }}
       >
         <Space>
@@ -132,3 +136,4 @@ const LabelsFilterDropdown = (props: { labels: ITaskLabel[] }) => {
 };
 
 export default LabelsFilterDropdown;
+

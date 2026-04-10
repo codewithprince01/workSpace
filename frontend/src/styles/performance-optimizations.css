@@ -101,7 +101,7 @@
 }
 
 .task-groups-container-fixed {
-  contain: strict;
+  contain: layout style;
   transform: translateZ(0);
 }
 
@@ -116,7 +116,7 @@
 
 /* Virtualized components */
 .virtualized-task-groups {
-  contain: strict;
+  contain: layout style;
   transform: translateZ(0);
 }
 
@@ -228,7 +228,7 @@
 
 /* Memory-conscious styles for large lists */
 .large-list-container {
-  contain: strict;
+  contain: layout style;
   content-visibility: auto;
 }
 
@@ -293,4 +293,4 @@
 
 .fade-in {
   animation: fadeIn 0.3s ease-in-out;
-} 
+}

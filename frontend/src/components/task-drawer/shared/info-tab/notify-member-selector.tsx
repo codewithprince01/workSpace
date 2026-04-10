@@ -98,8 +98,8 @@ const NotifyMemberSelector = ({ task, t }: NotifyMemberSelectorProps) => {
         user_id: member.user_id || null,
         mode: checked ? 0 : 1,
       };
-      socket?.emit(SocketEvents.TASK_SUBSCRIBERS_CHANGE.toString(), body);
-      socket?.once(SocketEvents.TASK_SUBSCRIBERS_CHANGE.toString(), (data: InlineMember[]) => {
+      const eventName = SocketEvents.TASK_SUBSCRIBERS_CHANGE.toString();
+      const handler = (data: InlineMember[]) => {
         dispatch(setTaskSubscribers(data));
         
         // Update Redux state with subscriber status
@@ -109,7 +109,10 @@ const NotifyMemberSelector = ({ task, t }: NotifyMemberSelectorProps) => {
             has_subscribers: data && data.length > 0
           }
         }));
-      });
+        socket?.off(eventName, handler);
+      };
+      socket?.on(eventName, handler);
+      socket?.emit(eventName, body);
     } catch (error) {
       logger.error('Error notifying member:', error);
     }
@@ -157,7 +160,10 @@ const NotifyMemberSelector = ({ task, t }: NotifyMemberSelectorProps) => {
                 <Checkbox
                   id={member.id}
                   checked={subscribers?.some(sub => sub.team_member_id === member.id)}
-                  onChange={e => e.stopPropagation()}
+                  onChange={e => {
+                    e.stopPropagation();
+                    handleMemberClick(member, e.target.checked);
+                  }}
                   disabled={member.pending_invitation || member.is_pending}
                 />
                 <div>

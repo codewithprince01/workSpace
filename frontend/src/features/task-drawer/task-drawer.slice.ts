@@ -91,13 +91,46 @@ const taskDrawerSlice = createSlice({
       }
     },
     setTaskLabels: (state, action: PayloadAction<ILabelsChangeResponse>) => {
-      const { all_labels, id: taskId } = action.payload;
+      const { all_labels, labels, id: taskId } = action.payload;
       if (state.taskFormViewModel?.task && state.taskFormViewModel.task.id === taskId) {
-        state.taskFormViewModel.task.labels = all_labels || [];
+        state.taskFormViewModel.task.labels = all_labels || labels || [];
       }
     },
     setTaskSubscribers: (state, action: PayloadAction<InlineMember[]>) => {
       state.subscribers = action.payload;
+    },
+    setTaskPhase: (state, action: PayloadAction<{ id: string; phase_id: string; phase_name: string; phase_color: string }>) => {
+      const { id: taskId, phase_id, phase_name, phase_color } = action.payload;
+      if (state.taskFormViewModel?.task && state.taskFormViewModel.task.id === taskId) {
+        state.taskFormViewModel.task.phase_id = phase_id;
+        state.taskFormViewModel.task.phase_name = phase_name;
+        state.taskFormViewModel.task.phase_color = phase_color;
+      }
+    },
+    setTaskDescription: (state, action: PayloadAction<{ id: string; description: string }>) => {
+      const { id: taskId, description } = action.payload;
+      if (state.taskFormViewModel?.task && state.taskFormViewModel.task.id === taskId) {
+        state.taskFormViewModel.task.description = description;
+      }
+    },
+    setTaskBillable: (state, action: PayloadAction<{ id: string; billable: boolean }>) => {
+      const { id: taskId, billable } = action.payload;
+      if (state.taskFormViewModel?.task && state.taskFormViewModel.task.id === taskId) {
+        state.taskFormViewModel.task.billable = billable;
+      }
+    },
+    setTaskEstimation: (state, action: PayloadAction<{ id: string; total_hours: number; total_minutes: number }>) => {
+      const { id: taskId, total_hours, total_minutes } = action.payload;
+      if (state.taskFormViewModel?.task && state.taskFormViewModel.task.id === taskId) {
+        state.taskFormViewModel.task.total_hours = total_hours;
+        state.taskFormViewModel.task.total_minutes = total_minutes;
+      }
+    },
+    setTaskProgress: (state, action: PayloadAction<{ task_id: string; progress_value: number }>) => {
+      const { task_id, progress_value } = action.payload;
+      if (state.taskFormViewModel?.task && state.taskFormViewModel.task.id === task_id) {
+        state.taskFormViewModel.task.progress_value = progress_value;
+      }
     },
     setTimeLogEditing: (
       state,
@@ -154,5 +187,10 @@ export const {
   setTaskRecurringSchedule,
   resetTaskDrawer,
   setConvertToSubtaskDrawerOpen,
+  setTaskPhase,
+  setTaskDescription,
+  setTaskBillable,
+  setTaskEstimation,
+  setTaskProgress,
 } = taskDrawerSlice.actions;
 export default taskDrawerSlice.reducer;

@@ -3,6 +3,8 @@ import DOMPurify from 'dompurify';
 import { useAppSelector } from '@/hooks/useAppSelector';
 import { useSocket } from '@/socket/socketContext';
 import { SocketEvents } from '@/shared/socket-events';
+import { useAppDispatch } from '@/hooks/useAppDispatch';
+import { setTaskDescription } from '@/features/task-drawer/task-drawer.slice';
 
 // Lazy load TinyMCE editor to reduce initial bundle size
 const LazyTinyMCEEditor = lazy(() => 
@@ -26,6 +28,27 @@ const DescriptionEditor = ({ description, taskId, parentTaskId }: DescriptionEdi
   const editorRef = useRef<any>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const themeMode = useAppSelector(state => state.themeReducer.mode);
+  const dispatch = useAppDispatch();
+
+  useEffect(() => {
+    if (!socket) return;
+    const eventName = SocketEvents.TASK_DESCRIPTION_CHANGE.toString();
+    const handler = (data: any) => {
+      if (String(data?.id || '') === String(taskId)) {
+        setContent(data.description || '');
+        dispatch(setTaskDescription(data));
+      }
+    };
+    socket.on(eventName, handler);
+
+    return () => {
+      socket.off(eventName, handler);
+    };
+  }, [socket, taskId, dispatch]);
+
+  useEffect(() => {
+    setContent(description || '');
+  }, [description]);
 
   // CSS styles for description content links
   const descriptionStyles = `

@@ -13,16 +13,9 @@ router.get('/', async (req, res) => {
 
     let query = { is_active: true };
     
-    // If project specified, filter by project membership logic if needed, 
-    // but usually "team members" refers to the organization team.
-    // For now, let's get all members of the user's teams.
-    
     // Find teams where user is a member
     const userMemberships = await TeamMember.find({ user_id: req.user._id, is_active: true });
     const teamIds = userMemberships.map(m => m.team_id);
-    
-    // If searching for specific team context
-    // const teamId = req.query.team_id; 
     
     // Fetch all members of these teams
     const allMembers = await TeamMember.find({ 
@@ -45,7 +38,7 @@ router.get('/', async (req, res) => {
            team_member_id: m._id,
            team_id: m.team_id,
            joined_at: m.created_at,
-           status: 'Active' // Since we filtered by is_active: true
+           status: 'Active'
         });
       }
     }
@@ -65,6 +58,69 @@ router.get('/', async (req, res) => {
   }
 });
 
+/**
+ * @desc    Get all team members (unified)
+ * @route   GET /api/team-members/all
+ * @access  Private
+ */
+router.get('/all', async (req, res) => {
+  try {
+    const { project } = req.query;
+
+    if (project) {
+        const { ProjectMember } = require('../models');
+        const members = await ProjectMember.find({ 
+            project_id: project, 
+            is_active: true 
+        }).populate('user_id', 'name email avatar_url');
+        
+        return res.json({
+            done: true,
+            body: members.map(m => ({
+                id: m.user_id?._id,
+                user_id: m.user_id?._id,
+                name: m.user_id?.name,
+                email: m.user_id?.email,
+                avatar_url: m.user_id?.avatar_url,
+                role: m.role,
+                project_member_id: m._id
+            })).filter(m => m.id)
+        });
+    }
+
+    // Default: all team members for user's teams
+    const userMemberships = await TeamMember.find({ user_id: req.user._id, is_active: true });
+    const teamIds = userMemberships.map(m => m.team_id);
+    
+    const allMembers = await TeamMember.find({ 
+      team_id: { $in: teamIds },
+      is_active: true 
+    }).populate('user_id', 'name email avatar_url');
+
+    const uniqueMembersMap = new Map();
+    for (const m of allMembers) {
+      if (m.user_id && !uniqueMembersMap.has(m.user_id._id.toString())) {
+        uniqueMembersMap.set(m.user_id._id.toString(), {
+           id: m.user_id._id,
+           user_id: m.user_id._id,
+           name: m.user_id.name,
+           email: m.user_id.email,
+           avatar_url: m.user_id.avatar_url,
+           role: m.role,
+           team_id: m.team_id
+        });
+      }
+    }
+    
+    res.json({
+      done: true,
+      body: Array.from(uniqueMembersMap.values())
+    });
+  } catch (error) {
+    res.status(500).json({ done: false, message: error.message });
+  }
+});
+
 // POST /api/team-members - Add/Invite team member
 router.post('/', async (req, res) => {
   try {
@@ -80,7 +136,6 @@ router.post('/', async (req, res) => {
     // Determine target team
     let targetTeamId = team_id;
     if (!targetTeamId) {
-      // Prefer currently active team context first
       if (req.user?.last_team_id) {
         const activeMembership = await TeamMember.findOne({
           team_id: req.user.last_team_id,
@@ -93,7 +148,6 @@ router.post('/', async (req, res) => {
         }
       }
 
-      // Find team where user is owner or admin
       const myMembership = !targetTeamId
         ? await TeamMember.findOne({
             user_id: req.user._id,
@@ -105,7 +159,6 @@ router.post('/', async (req, res) => {
       if (myMembership) {
         targetTeamId = myMembership.team_id;
       } else {
-        // Fallback: any team
         const anyTeam = !targetTeamId
           ? await TeamMember.findOne({ user_id: req.user._id, is_active: true })
           : null;
@@ -114,7 +167,6 @@ router.post('/', async (req, res) => {
     }
     
     if (!targetTeamId) {
-       // Create a new team if none exists
        const newTeam = await Team.create({
          name: `${req.user.name}'s Team`,
          owner_id: req.user._id
@@ -131,7 +183,6 @@ router.post('/', async (req, res) => {
     const errors = [];
     const isSingleInvite = targetEmails.length === 1;
 
-    // Fetch team details for notification
     const team = await Team.findById(targetTeamId);
     const teamName = team ? team.name : 'your team';
 
@@ -140,17 +191,14 @@ router.post('/', async (req, res) => {
             const user = await User.findOne({ email: mail });
             
             if (user) {
-                // Check if already present (active member OR already invited)
                 const existing = await TeamMember.findOne({
                   team_id: targetTeamId,
                   user_id: user._id,
                 });
                 if (existing) {
-                    const alreadyActive = existing.is_active && !existing.pending_invitation;
-                    const alreadyInvited = !!existing.pending_invitation;
-                    const duplicateMessage = alreadyActive
+                    const duplicateMessage = existing.is_active && !existing.pending_invitation
                       ? 'Member is already in team'
-                      : alreadyInvited
+                      : !!existing.pending_invitation
                         ? 'Member is already invited to team'
                         : 'Member already exists in team';
 
@@ -161,7 +209,6 @@ router.post('/', async (req, res) => {
                         body: { email: mail, code: 'TEAM_MEMBER_EXISTS' },
                       });
                     }
-
                     errors.push({ email: mail, error: duplicateMessage, code: 'TEAM_MEMBER_EXISTS' });
                 } else {
                     await TeamMember.create({
@@ -184,31 +231,19 @@ router.post('/', async (req, res) => {
                     }
                 }
             } else {
-                // User does not exist. 
-                // In a real app, create a "TeamInvitation" record and send email.
-                // For now, we will just return "Invited" status.
-                // Optionally create a placeholder user or rely on pending invites table.
-                
-                // For this fix, let's just pretend we sent an invite.
                 results.push({ email: mail, status: 'Invited (Email sent)' });
             }
         } catch (err) {
-            console.error(`Error adding ${mail}:`, err);
             errors.push({ email: mail, error: err.message });
         }
     }
     
     res.json({
       done: true,
-      body: {
-        results,
-        errors,
-        team_id: targetTeamId
-      },
+      body: { results, errors, team_id: targetTeamId },
       message: `Processed ${results.length} members`
     });
   } catch (error) {
-    console.error('Add team member error:', error);
     res.status(500).json({ done: false, message: 'Failed to add team members' });
   }
 });

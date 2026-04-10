@@ -68,6 +68,8 @@ import {
   setTaskPriority,
   setTaskStatus,
   setTaskSubscribers,
+  setTaskBillable,
+  setTaskRecurringSchedule,
 } from '@/features/task-drawer/task-drawer.slice';
 import { deselectAll } from '@/features/projects/bulkActions/bulkActionSlice';
 
@@ -204,6 +206,7 @@ export const useTaskSocketHandlers = () => {
 
       // Update the old task slice (for backward compatibility)
       dispatch(updateTaskStatus(response));
+      dispatch(setTaskStatus(response)); // Added drawer update
       dispatch(deselectAll());
 
       // Update enhanced kanban slice
@@ -603,9 +606,46 @@ export const useTaskSocketHandlers = () => {
     (subscribers: InlineMember[]) => {
       if (!subscribers) return;
       dispatch(setTaskSubscribers(subscribers));
+    },
+    [dispatch]
+  );
+
+  const handleBillableChange = useCallback(
+    (data: { id: string; billable: boolean }) => {
+      if (!data) return;
       
-      // Note: We don't have task_id in this event, so we can't update the task-management slice
-      // The has_subscribers field will be updated when the task is refetched
+      // Update drawer
+      dispatch(setTaskBillable(data));
+      
+      // Update task-management slice
+      const currentTask = store.getState().taskManagement.entities[data.id];
+      if (currentTask) {
+        dispatch(updateTask({
+          ...currentTask,
+          billable: data.billable,
+          updatedAt: new Date().toISOString(),
+        }));
+      }
+    },
+    [dispatch]
+  );
+
+  const handleRecurringChange = useCallback(
+    (data: { task_id: string; schedule_id: string }) => {
+      if (!data) return;
+      
+      // Update drawer
+      dispatch(setTaskRecurringSchedule({ task_id: data.task_id, schedule_id: data.schedule_id }));
+      
+      // Update task-management slice
+      const currentTask = store.getState().taskManagement.entities[data.task_id];
+      if (currentTask) {
+        dispatch(updateTask({
+          ...currentTask,
+          schedule_id: data.schedule_id,
+          updatedAt: new Date().toISOString(),
+        }));
+      }
     },
     [dispatch]
   );
@@ -1043,6 +1083,14 @@ export const useTaskSocketHandlers = () => {
         handler: handleTaskSubscribersChange,
       },
       {
+        event: SocketEvents.TASK_BILLABLE_CHANGE.toString(),
+        handler: handleBillableChange,
+      },
+      {
+        event: SocketEvents.TASK_RECURRING_CHANGE.toString(),
+        handler: handleRecurringChange,
+      },
+      {
         event: SocketEvents.TASK_TIME_ESTIMATION_CHANGE.toString(),
         handler: handleEstimationChange,
       },
@@ -1083,6 +1131,8 @@ export const useTaskSocketHandlers = () => {
     handlePhaseChange,
     handleStartDateChange,
     handleTaskSubscribersChange,
+    handleBillableChange,
+    handleRecurringChange,
     handleEstimationChange,
     handleTaskDescriptionChange,
     handleNewTaskReceived,

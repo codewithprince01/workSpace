@@ -32,6 +32,7 @@ import { updateEnhancedKanbanTaskLabels } from '@/features/enhanced-kanban/enhan
 import { ILabelsChangeResponse } from '@/types/tasks/taskList.types';
 import { ITaskLabelFilter } from '@/types/tasks/taskLabel.types';
 import { sortLabelsBySelection, isLabelSelected } from '@/utils/labelUtils';
+import { message } from '@/shared/antd-imports';
 
 interface TaskDrawerLabelsProps {
   task: ITaskViewModel;
@@ -60,8 +61,12 @@ const TaskDrawerLabels = ({ task, t }: TaskDrawerLabelsProps) => {
         parent_task: task.parent_task_id,
         team_id: currentSession?.team_id,
       };
-      socket?.emit(SocketEvents.TASK_LABELS_CHANGE.toString(), JSON.stringify(labelData));
-      socket?.once(SocketEvents.TASK_LABELS_CHANGE.toString(), (data: ILabelsChangeResponse) => {
+      const eventName = SocketEvents.TASK_LABELS_CHANGE.toString();
+      const handler = (data: ILabelsChangeResponse) => {
+        if (!data || String((data as any).id || '') !== String(task?.id || '')) {
+          return;
+        }
+
         dispatch(setTaskLabels(data));
         if (tab === 'tasks-list') {
           dispatch(updateTaskLabel(data));
@@ -69,9 +74,13 @@ const TaskDrawerLabels = ({ task, t }: TaskDrawerLabelsProps) => {
         if (tab === 'board') {
           dispatch(updateEnhancedKanbanTaskLabels(data));
         }
-      });
+        socket?.off(eventName, handler);
+      };
+      socket?.on(eventName, handler);
+      socket?.emit(eventName, JSON.stringify(labelData));
     } catch (error) {
       console.error('Error changing label:', error);
+      message.error('Failed to update labels');
     }
   };
 
@@ -83,8 +92,12 @@ const TaskDrawerLabels = ({ task, t }: TaskDrawerLabelsProps) => {
       parent_task: task.parent_task_id,
       team_id: currentSession?.team_id,
     };
-    socket?.emit(SocketEvents.CREATE_LABEL.toString(), JSON.stringify(labelData));
-    socket?.once(SocketEvents.CREATE_LABEL.toString(), (data: ILabelsChangeResponse) => {
+    const eventName = SocketEvents.CREATE_LABEL.toString();
+    const handler = (data: ILabelsChangeResponse) => {
+      if (!data || String((data as any).id || '') !== String(task?.id || '')) {
+        return;
+      }
+
       dispatch(setTaskLabels(data));
       if (tab === 'tasks-list') {
         dispatch(updateTaskLabel(data));
@@ -92,7 +105,10 @@ const TaskDrawerLabels = ({ task, t }: TaskDrawerLabelsProps) => {
       if (tab === 'board') {
         dispatch(updateEnhancedKanbanTaskLabels(data));
       }
-    });
+      socket?.off(eventName, handler);
+    };
+    socket?.on(eventName, handler);
+    socket?.emit(eventName, JSON.stringify(labelData));
   };
 
   useEffect(() => {

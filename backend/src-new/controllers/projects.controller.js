@@ -187,15 +187,6 @@ exports.acceptInvite = async (req, res, next) => {
       return res.status(400).json({ done: false, message: 'Invalid or expired invitation' });
     }
 
-    // Verify email matches current user (security check)
-    // Optional: Allow accepting if logged in with different email? 
-    // Requirement says "User must be added". Usually we check if email matches.
-    // For now, let's assume if they have the token, they can accept, BUT we should likely bind to the user who accepts.
-    // Ideally check: if (req.user.email !== invitation.email) ...
-    
-    // Check if valid user matches invite email? 
-    // Implementation: Allow current logged in user to accept.
-    
     // Add to Project Members
     await ProjectMember.create({
       project_id: invitation.project_id,
@@ -253,12 +244,10 @@ exports.create = async (req, res, next) => {
     let team_id = req.body.team_id;
     if (!team_id) {
         // Find user's team - team should already exist from signup
-        
-        // Find any active team where user is a member
         const membership = await TeamMember.findOne({ 
           user_id: req.user._id, 
           is_active: true 
-        }).sort({ role: 1 }); // Sort by role to prefer 'owner' over 'member'
+        }).sort({ role: 1 }); 
         
         if (!membership) {
             return res.status(400).json({
@@ -366,17 +355,12 @@ exports.getAll = async (req, res, next) => {
       _id: { $in: projectIds }
     };
     
-    // Handle Archive Status
-    // If archived=true, we want archived projects.
-    // If archived=false (or missing), we want active projects usually.
-    // Frontend logic: usually toggles tabs.
     if (archived === 'true') {
         query.is_archived = true;
     } else {
         query.is_archived = false;
     }
     
-    // CRITICAL: Filter by team_id to show only current team's projects
     if (team_id) {
         if (mongoose.Types.ObjectId.isValid(team_id)) {
              query.team_id = new mongoose.Types.ObjectId(team_id);
@@ -387,24 +371,17 @@ exports.getAll = async (req, res, next) => {
         const userTeamId = req.user.last_team_id;
         if (userTeamId) query.team_id = userTeamId;
     }
-    if (status) query.status = status; // Filter by specific status like 'active', 'on_hold'
+    if (status) query.status = status; 
     if (search) query.name = { $regex: search, $options: 'i' };
 
-    // Grouping Logic
-    // If group_by is present, we might need to sort/structure differently.
-    // Backend usually just returns flat list and frontend groups, OR we sort by the group field to make frontend grouping easier.
-    // Let's sort by group field first.
     let sort = {}; 
     if (group_by) {
-        // Mapping frontend group keys to db fields if needed
-        // e.g. 'status' -> 'status', 'category' -> 'category_id', 'health' -> 'health'
         if (group_by === 'category') sort['category_id'] = 1;
         else if (group_by === 'status') sort['status'] = 1;
         else if (group_by === 'health') sort['health'] = 1;
-        else if (group_by === 'client') sort['client_id'] = 1; // if client exists
+        else if (group_by === 'client') sort['client_id'] = 1; 
     }
     
-    // Default sort or override
     if (field && order) {
         sort[field] = order === 'ascend' ? 1 : -1;
     } else if (!group_by) {
@@ -413,13 +390,11 @@ exports.getAll = async (req, res, next) => {
 
     const total = await Project.countDocuments(query);
 
-    // ── Single aggregation pipeline replaces N+1 query loop ──────────────────
     const projectsWithCounts = await Project.aggregate([
       { $match: query },
       { $sort: Object.keys(sort).length ? sort : { updated_at: -1 } },
       { $skip: skip },
       { $limit: limit },
-      // Join task_statuses to get 'done' category status IDs per project
       {
         $lookup: {
           from: 'taskstatuses',
@@ -431,7 +406,6 @@ exports.getAll = async (req, res, next) => {
           as: 'done_statuses'
         }
       },
-      // Count all tasks
       {
         $lookup: {
           from: 'tasks',
@@ -443,7 +417,6 @@ exports.getAll = async (req, res, next) => {
           as: 'task_count'
         }
       },
-      // Count completed tasks
       {
         $lookup: {
           from: 'tasks',
@@ -459,7 +432,6 @@ exports.getAll = async (req, res, next) => {
           as: 'completed_count'
         }
       },
-      // Get up to 5 project members with user info
       {
         $lookup: {
           from: 'projectmembers',
@@ -481,7 +453,6 @@ exports.getAll = async (req, res, next) => {
           as: 'member_docs'
         }
       },
-      // Get current user's membership
       {
         $lookup: {
           from: 'projectmembers',
@@ -496,13 +467,10 @@ exports.getAll = async (req, res, next) => {
           as: 'my_membership'
         }
       },
-      // Populate owner
       { $lookup: { from: 'users', localField: 'owner_id', foreignField: '_id', pipeline: [{ $project: { name: 1, email: 1, avatar_url: 1 } }], as: 'owner_doc' } },
       { $unwind: { path: '$owner_doc', preserveNullAndEmptyArrays: true } },
-      // Populate category
       { $lookup: { from: 'projectcategories', localField: 'category_id', foreignField: '_id', pipeline: [{ $project: { name: 1, color_code: 1 } }], as: 'category_doc' } },
       { $unwind: { path: '$category_doc', preserveNullAndEmptyArrays: true } },
-      // Shape output
       {
         $addFields: {
           id: '$_id',
@@ -535,14 +503,11 @@ exports.getAll = async (req, res, next) => {
       { $project: { done_statuses: 0, task_count: 0, completed_count: 0, member_docs: 0, my_membership: 0, owner_doc: 0, category_doc: 0 } }
     ]);
 
-    // Calculate global counts for Tabs
     const allMemberships = await ProjectMember.find({ user_id: req.user._id, is_active: true });
     const allProjectIds = allMemberships.map(m => m.project_id);
     const favProjectIds = allMemberships.filter(m => m.is_favorite).map(m => m.project_id);
 
-    const baseCountQuery = { 
-        _id: { $in: allProjectIds }
-    };
+    const baseCountQuery = { _id: { $in: allProjectIds } };
     if (team_id) baseCountQuery.team_id = team_id;
 
     const [countAll, countArchived, countFavorites] = await Promise.all([
@@ -557,9 +522,9 @@ exports.getAll = async (req, res, next) => {
          data: projectsWithCounts,
          total: total,
          counts: {
-             all: countAll,
-             favorites: countFavorites,
-             archived: countArchived
+              all: countAll,
+              favorites: countFavorites,
+              archived: countArchived
          }
       }
     });
@@ -576,28 +541,19 @@ exports.getAll = async (req, res, next) => {
 exports.getGrouped = async (req, res, next) => {
   try {
     const { team_id, status, search, index, size, field, order, archived, starred, groupBy } = req.query;
-    console.log('GET GROUPED PROJECTS:', JSON.stringify(req.query));
-
-    // Default limit for GROUPS
     const page = parseInt(index) || 1;
     const limit = parseInt(size) || 20;
     const skip = (page - 1) * limit;
 
-    console.log(`Processing Grouped Projects: Page ${page}, Limit ${limit}, GroupBy ${groupBy}`);
-    
-    // Validate User
     if (!req.user || !req.user._id) {
-        console.error('User not authenticated in getGrouped');
         return res.status(401).json({ done: false, message: 'Unauthorized' });
     }
 
-    // Filter memberships
     const memberQuery = { user_id: req.user._id, is_active: true };
     if (starred === 'true') memberQuery.is_favorite = true;
     const memberProjects = await ProjectMember.find(memberQuery);
     let projectIds = memberProjects.map(pm => pm.project_id);
 
-    // Build project query
     const query = { _id: { $in: projectIds } };
     if (archived === 'true') query.is_archived = true;
     else query.is_archived = false;
@@ -606,8 +562,6 @@ exports.getGrouped = async (req, res, next) => {
     if (status) query.status = status;
     if (search) query.name = { $regex: search, $options: 'i' };
 
-    // Fetch ALL matching projects to group them
-    // (Optimization: Aggregate might be better for large datasets, but for now JS grouping is safer/faster to implement)
     const projects = await Project.find(query)
       .populate('owner_id', 'name email avatar_url')
       .populate('category_id', 'name color_code')
@@ -615,18 +569,15 @@ exports.getGrouped = async (req, res, next) => {
       .sort({ [field || 'updated_at']: order === 'ascend' ? 1 : -1 })
       .lean();
 
-    // Fetch all members for projects to attach avatars/favorites
     const allMemberships = await ProjectMember.find({ 
         project_id: { $in: projects.map(p => p._id) },
         is_active: true 
     }).populate('user_id', 'name avatar_url color_code');
 
-    const userMembershipMap = {}; // projectId -> is_favorite
+    const userMembershipMap = {}; 
     memberProjects.forEach(m => userMembershipMap[m.project_id.toString()] = m.is_favorite);
 
-    // Enrich projects
     const enrichedProjects = await Promise.all(projects.map(async (p) => {
-        // Members for this project
         const pMembers = allMemberships.filter(m => m.project_id.toString() === p._id.toString());
         const names = pMembers.slice(0, 5).map(m => m.user_id ? ({
             id: m.user_id._id,
@@ -649,7 +600,7 @@ exports.getGrouped = async (req, res, next) => {
             favorite: userMembershipMap[p._id.toString()] || false,
             category_name: p.category_id ? p.category_id.name : null,
             category_color: p.category_id ? p.category_id.color_code : null,
-            client_name: p.client_name || null, // Assuming client_name is on project if exists
+            client_name: p.client_name || null,
             names,
             total_tasks: totalTasks,
             completed_tasks: completedTasks,
@@ -657,7 +608,6 @@ exports.getGrouped = async (req, res, next) => {
         };
     }));
 
-    // Grouping Logic
     const groupsMap = new Map();
     const noGroupKey = 'uncategorized';
 
@@ -678,11 +628,11 @@ exports.getGrouped = async (req, res, next) => {
             if (p.client_name) {
                 key = p.client_name;
                 name = p.client_name;
-                color = '#1890ff'; // Generate or pick color?
+                color = '#1890ff';
             } else {
                 name = 'No Client';
             }
-        } // Add other groupbys if needed
+        } 
 
         if (!groupsMap.has(key)) {
             groupsMap.set(key, {
@@ -699,11 +649,7 @@ exports.getGrouped = async (req, res, next) => {
     });
 
     const allGroups = Array.from(groupsMap.values());
-    
-    // Sort groups? Maybe by name
     allGroups.sort((a, b) => a.group_name.localeCompare(b.group_name));
-
-    // Pagination (Groups)
     const paginatedGroups = allGroups.slice(skip, skip + limit);
 
     res.json({
@@ -733,23 +679,22 @@ exports.getMembers = async (req, res, next) => {
       .populate('user_id', 'name email avatar_url job_title')
       .lean();
 
-    // Map to flat object and filter null users
     let members = membersDocs
       .map(m => {
         const user = m.user_id || {};
+        const userId = user._id || user.id;
         return {
-          ...user, // Spread user fields (name, email, avatar_url, job_title)
-          id: m._id, // ProjectMember ID for actions like delete
-          user_id: user._id, // User ID for querying tasks
+          ...user,
+          id: userId, 
+          user_id: userId,
           project_member_id: m._id,
           role: m.role,
           is_active: m.is_active,
-          access: m.role // Map role to access for frontend column
+          access: m.role
         };
       })
       .filter(m => m.user_id);
 
-    // Search
     if (search) {
       const lowerSearch = search.toLowerCase();
       members = members.filter(
@@ -761,7 +706,6 @@ exports.getMembers = async (req, res, next) => {
 
     const total = members.length;
 
-    // Sort
     if (field && order) {
       members.sort((a, b) => {
         const valA = (a[field] || '').toString().toLowerCase();
@@ -771,21 +715,17 @@ exports.getMembers = async (req, res, next) => {
       });
     }
 
-    // Pagination
     const pageIndex = parseInt(index);
     const pageSize = parseInt(size);
     const start = (pageIndex - 1) * pageSize;
     const paginatedMembers = members.slice(start, start + pageSize);
 
-    // Calculate Task Stats
     const doneStatuses = await TaskStatus.find({ project_id: id, category: 'done' }).select('_id');
     const doneStatusIds = doneStatuses.map(s => s._id);
 
     const dataWithStats = await Promise.all(
       paginatedMembers.map(async m => {
         const memberId = m.user_id;
-        
-        // Use $ne: true to include tasks where is_archived is undefined/false
         const [all, done] = await Promise.all([
           Task.countDocuments({
             project_id: id,
@@ -799,8 +739,6 @@ exports.getMembers = async (req, res, next) => {
             is_archived: { $ne: true }
           })
         ]);
-        
-        // console.log(`Stats for ${m.name} (${memberId}): All=${all}, Done=${done}`);
 
         return {
           ...m,
@@ -815,9 +753,6 @@ exports.getMembers = async (req, res, next) => {
       body: {
         total,
         data: dataWithStats,
-        // Frontend might expect body to be just { total, data } or { ...data, total }?
-        // Frontend setMembers(res.body). Table dataSource={members.data}.
-        // This structure is correct.
       }
     });
   } catch (error) {
@@ -839,11 +774,9 @@ exports.getOverviewMembers = async (req, res, next) => {
     const members = await ProjectMember.find({ project_id: id, is_active: true })
       .populate('user_id', 'name email avatar_url');
 
-    // Get done status IDs
     const doneStatuses = await TaskStatus.find({ project_id: id, category: 'done' }).select('_id');
     const doneStatusIds = doneStatuses.map(s => s._id);
 
-    // Get total tasks for contribution calculation
     const totalProjectTasks = await Task.countDocuments({
       project_id: id,
       is_archived: includeArchived ? { $in: [true, false] } : false
@@ -854,14 +787,12 @@ exports.getOverviewMembers = async (req, res, next) => {
 
       const memberId = m.user_id._id;
 
-      // Total tasks assigned to this member
       const taskCount = await Task.countDocuments({
         project_id: id,
         assignees: memberId,
         is_archived: includeArchived ? { $in: [true, false] } : false
       });
 
-      // Completed tasks
       const doneTaskCount = await Task.countDocuments({
         project_id: id,
         assignees: memberId,
@@ -869,7 +800,6 @@ exports.getOverviewMembers = async (req, res, next) => {
         status_id: { $in: doneStatusIds }
       });
 
-      // Pending tasks (not done)
       const pendingTaskCount = await Task.countDocuments({
         project_id: id,
         assignees: memberId,
@@ -877,7 +807,6 @@ exports.getOverviewMembers = async (req, res, next) => {
         status_id: { $nin: doneStatusIds }
       });
 
-      // Overdue tasks
       const overdueTaskCount = await Task.countDocuments({
         project_id: id,
         assignees: memberId,
@@ -886,7 +815,6 @@ exports.getOverviewMembers = async (req, res, next) => {
         status_id: { $nin: doneStatusIds }
       });
 
-      // Contribution percentage
       const contribution = totalProjectTasks > 0 ? Math.round((taskCount / totalProjectTasks) * 100) : 0;
 
       return {
@@ -919,44 +847,34 @@ exports.getOverviewMembers = async (req, res, next) => {
  */
 exports.toggleFavorite = async (req, res, next) => {
   try {
-    const { project_id } = req.params; // It's actually mapped to id in route, so req.params.id
     const projectId = req.params.id;
     const userId = req.user._id;
 
-    console.log(`[ToggleFavorite] Project: ${projectId}, User: ${userId}`);
-
-    // Find the member first to check current state
     const member = await ProjectMember.findOne({ 
       project_id: projectId, 
       user_id: userId 
     });
 
     if (!member) {
-      console.log('[ToggleFavorite] Member not found');
       return res.status(404).json({ done: false, message: 'Project member not found' });
     }
 
     const newFavStatus = !member.is_favorite;
     
-    // Explicit update
     const updatedMember = await ProjectMember.findOneAndUpdate(
       { _id: member._id },
       { $set: { is_favorite: newFavStatus } },
       { new: true }
     );
     
-    console.log(`[ToggleFavorite] Member updated. ID: ${member._id}, New Fav: ${updatedMember.is_favorite}`);
-
     res.json({ 
         done: true, 
         body: {
             ...updatedMember.toObject(),
-            // Add these aliases for frontend consistency if needed
             favorite: updatedMember.is_favorite
         }
     });
   } catch (error) {
-    console.error('[ToggleFavorite] Error:', error);
     next(error);
   }
 };
@@ -971,12 +889,6 @@ exports.archive = async (req, res, next) => {
     const project = await Project.findById(req.params.id);
     if (!project) return res.status(404).json({ done: false, message: 'Project not found' });
     
-    // Only owner/admin can archive? 
-    // For now allow logical owner
-    if (project.owner_id.toString() !== req.user._id.toString()) {
-        // basic check
-    }
-
     project.is_archived = !project.is_archived;
     await project.save();
     
@@ -992,7 +904,6 @@ exports.archive = async (req, res, next) => {
  * @access  Private
  */
 exports.archiveAll = async (req, res, next) => {
-   // Re-use archive logic
    return exports.archive(req, res, next);
 };
 
@@ -1038,7 +949,6 @@ exports.getById = async (req, res, next) => {
       });
     }
     
-    // Check access
     const isMember = await ProjectMember.findOne({ 
       project_id: project._id, 
       user_id: req.user._id 
@@ -1051,10 +961,7 @@ exports.getById = async (req, res, next) => {
       });
     }
     
-    // Get task statuses
     const statuses = await TaskStatus.find({ project_id: project._id }).sort({ sort_order: 1 });
-    
-    // Get members
     const members = await ProjectMember.find({ project_id: project._id, is_active: true })
       .populate('user_id', 'name email avatar_url');
     
@@ -1132,10 +1039,6 @@ exports.update = async (req, res, next) => {
       });
     }
     
-    // Check permission (owner or admin)
-    // For simplicity, allow project owner or generic admin
-    // In real app, check ProjectMember role
-    
     if (name) project.name = name;
     if (description !== undefined) project.description = description;
     if (notes !== undefined) project.notes = notes;
@@ -1197,7 +1100,6 @@ exports.delete = async (req, res, next) => {
       });
     }
     
-    // Soft delete - archive
     project.is_archived = true;
     await project.save();
     
@@ -1273,18 +1175,14 @@ exports.addMember = async (req, res, next) => {
       });
     }
 
-    // Invited users can only be members or viewers, never owner or admin
-    // Only project owner can assign admin role if needed
-    let assignedRole = 'member'; // Default to member
+    let assignedRole = 'member'; 
     
     if (role && ['member', 'viewer'].includes(role)) {
       assignedRole = role;
     } else if (role === 'admin' && req.isProjectOwner) {
-      // Only project owner can assign admin role
       assignedRole = 'admin';
     }
 
-    // Check if already member
     const existing = await ProjectMember.findOne({
       project_id: req.params.id,
       user_id: user._id

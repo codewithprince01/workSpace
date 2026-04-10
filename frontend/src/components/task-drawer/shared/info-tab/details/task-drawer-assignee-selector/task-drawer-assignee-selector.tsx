@@ -9,6 +9,7 @@ import List from 'antd/es/list';
 import Typography from 'antd/es/typography';
 import Button from 'antd/es/button';
 import { useMemo, useRef, useState } from 'react';
+import { message } from '@/shared/antd-imports';
 import { useAppSelector } from '@/hooks/useAppSelector';
 import { useAppDispatch } from '@/hooks/useAppDispatch';
 import { PlusOutlined } from '@/shared/antd-imports';
@@ -51,11 +52,27 @@ const TaskDrawerAssigneeSelector = ({ task }: TaskDrawerAssigneeSelectorProps) =
     );
   }, [teamMembers, searchQuery]);
 
+  const isAssigneeSelected = (memberId: string) => {
+    if (!memberId || !task) return false;
+    const directMatch = task.assignees?.some(assignee => String(assignee) === String(memberId));
+    if (directMatch) return true;
+
+    const inlineMatch = (task.names || []).some(
+      member => String((member as any)?.team_member_id || (member as any)?.id || '') === String(memberId)
+    );
+    if (inlineMatch) return true;
+
+    const assigneeNamesMatch = (task.assignee_names || []).some(
+      member => String((member as any)?.team_member_id || (member as any)?.id || '') === String(memberId)
+    );
+    return assigneeNamesMatch;
+  };
+
   const handleMembersDropdownOpen = (open: boolean) => {
     if (open) {
       const membersData = (members?.data || []).map(member => ({
         ...member,
-        selected: task?.assignees?.some(assignee => assignee === member.id),
+        selected: isAssigneeSelected(member.id || ''),
       }));
       let sortedMembers = sortTeamMembers(membersData);
 
@@ -73,7 +90,7 @@ const TaskDrawerAssigneeSelector = ({ task }: TaskDrawerAssigneeSelectorProps) =
     if (!memberId || !projectId || !task?.id || !currentSession?.id) return;
     try {
       const checked =
-        e?.target.checked || !task?.assignees?.some(assignee => assignee === memberId) || false;
+        e?.target.checked ?? !isAssigneeSelected(memberId);
 
       const body = {
         team_member_id: memberId,
@@ -84,28 +101,32 @@ const TaskDrawerAssigneeSelector = ({ task }: TaskDrawerAssigneeSelectorProps) =
         parent_task: task.parent_task_id,
       };
 
-      socket?.emit(SocketEvents.QUICK_ASSIGNEES_UPDATE.toString(), JSON.stringify(body));
-      socket?.once(
-        SocketEvents.QUICK_ASSIGNEES_UPDATE.toString(),
-        (data: ITaskAssigneesUpdateResponse) => {
-          dispatch(setTaskAssignee(data));
-          if (tab === 'tasks-list') {
-            dispatch(updateTasksListTaskAssignees(data));
-          }
-          if (tab === 'board') {
-            dispatch(updateEnhancedKanbanTaskAssignees(data));
-          }
+      const eventName = SocketEvents.QUICK_ASSIGNEES_UPDATE.toString();
+      const handler = (data: ITaskAssigneesUpdateResponse) => {
+        if (!data || String((data as any).id || '') !== String(task.id)) {
+          return;
         }
-      );
+
+        dispatch(setTaskAssignee(data));
+        if (tab === 'tasks-list') {
+          dispatch(updateTasksListTaskAssignees(data));
+        }
+        if (tab === 'board') {
+          dispatch(updateEnhancedKanbanTaskAssignees(data));
+        }
+        socket?.off(eventName, handler);
+      };
+
+      socket?.on(eventName, handler);
+      socket?.emit(eventName, JSON.stringify(body));
     } catch (error) {
       console.error('Error updating assignee:', error);
+      message.error('Failed to update assignee');
     }
   };
 
   const checkMemberSelected = (memberId: string) => {
-    if (!memberId) return false;
-
-    return task?.assignees?.some(assignee => assignee === memberId);
+    return isAssigneeSelected(memberId);
   };
 
   const membersDropdownContent = (
@@ -132,7 +153,10 @@ const TaskDrawerAssigneeSelector = ({ task }: TaskDrawerAssigneeSelectorProps) =
                   border: 'none',
                   cursor: 'pointer',
                 }}
-                onClick={e => handleMemberChange(null, member.id || '')}
+                onClick={() => {
+                  if (member.pending_invitation) return;
+                  handleMemberChange(null, member.id || '');
+                }}
               >
                 <Checkbox
                   id={member.id}

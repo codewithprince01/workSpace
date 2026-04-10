@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { Flex, DatePicker, Typography, Button, Form, FormInstance } from '@/shared/antd-imports';
-import { t, TFunction } from 'i18next';
+import { TFunction } from 'i18next';
 import dayjs, { Dayjs } from 'dayjs';
-import { useTranslation } from 'react-i18next';
 
 import { SocketEvents } from '@/shared/socket-events';
 import { useSocket } from '@/socket/socketContext';
@@ -32,7 +31,7 @@ const TaskDrawerDueDate = ({ task, t, form }: TaskDrawerDueDateProps) => {
   const { tab } = useTabSearchParam();
   // Date handling
   const startDayjs = task?.start_date ? dayjs(task.start_date) : null;
-  const dueDayjs = task?.end_date ? dayjs(task.end_date) : null;
+  const dueDayjs = task?.end_date ? dayjs(task.end_date) : task?.due_date ? dayjs(task.due_date) : null;
   const isValidStartDate = startDayjs?.isValid();
   const isValidDueDate = dueDayjs?.isValid();
 
@@ -53,10 +52,25 @@ const TaskDrawerDueDate = ({ task, t, form }: TaskDrawerDueDateProps) => {
 
   const handleStartDateChange = (date: Dayjs | null) => {
     try {
+      const eventName = SocketEvents.TASK_START_DATE_CHANGE.toString();
+      const handler = (data: IProjectTask) => {
+        if (!data || String((data as any).id || '') !== String(task?.id || '')) {
+          return;
+        }
+
+        dispatch(setStartDate(data));
+
+        // Also update enhanced kanban if on board tab
+        if (tab === 'board') {
+          dispatch(updateEnhancedKanbanTaskStartDate({ task: data }));
+        }
+        socket?.off(eventName, handler);
+      };
+      socket?.on(eventName, handler);
       socket?.emit(
-        SocketEvents.TASK_START_DATE_CHANGE.toString(),
+        eventName,
         JSON.stringify({
-          task_id: task.id,
+          task_id: task?.id,
           start_date: date?.format(),
           parent_task: task.parent_task_id,
           time_zone: getUserSession()?.timezone_name
@@ -64,14 +78,6 @@ const TaskDrawerDueDate = ({ task, t, form }: TaskDrawerDueDateProps) => {
             : Intl.DateTimeFormat().resolvedOptions().timeZone,
         })
       );
-      socket?.once(SocketEvents.TASK_START_DATE_CHANGE.toString(), (data: IProjectTask) => {
-        dispatch(setStartDate(data));
-
-        // Also update enhanced kanban if on board tab
-        if (tab === 'board') {
-          dispatch(updateEnhancedKanbanTaskStartDate({ task: data }));
-        }
-      });
     } catch (error) {
       logger.error('Failed to update start date:', error);
     }
@@ -79,25 +85,32 @@ const TaskDrawerDueDate = ({ task, t, form }: TaskDrawerDueDateProps) => {
 
   const handleEndDateChange = (date: Dayjs | null) => {
     try {
-      socket?.emit(
-        SocketEvents.TASK_END_DATE_CHANGE.toString(),
-        JSON.stringify({
-          task_id: task.id,
-          end_date: date?.format(),
-          parent_task: task.parent_task_id,
-          time_zone: getUserSession()?.timezone_name
-            ? getUserSession()?.timezone_name
-            : Intl.DateTimeFormat().resolvedOptions().timeZone,
-        })
-      );
-      socket?.once(SocketEvents.TASK_END_DATE_CHANGE.toString(), (data: IProjectTask) => {
+      const eventName = SocketEvents.TASK_END_DATE_CHANGE.toString();
+      const handler = (data: IProjectTask) => {
+        if (!data || String((data as any).id || '') !== String(task?.id || '')) {
+          return;
+        }
+
         dispatch(setTaskEndDate(data));
 
         // Also update enhanced kanban if on board tab
         if (tab === 'board') {
           dispatch(updateEnhancedKanbanTaskEndDate({ task: data }));
         }
-      });
+        socket?.off(eventName, handler);
+      };
+      socket?.on(eventName, handler);
+      socket?.emit(
+        eventName,
+        JSON.stringify({
+          task_id: task?.id,
+          end_date: date?.format(),
+          parent_task: task?.parent_task_id,
+          time_zone: getUserSession()?.timezone_name
+            ? getUserSession()?.timezone_name
+            : Intl.DateTimeFormat().resolvedOptions().timeZone,
+        })
+      );
     } catch (error) {
       logger.error('Failed to update due date:', error);
     }
