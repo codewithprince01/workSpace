@@ -870,9 +870,9 @@ const TaskListV2Section: React.FC = () => {
       <div className="flex flex-col bg-white dark:bg-gray-900 h-full overflow-hidden">
         {/* Table Container */}
         <div
-          className="border border-gray-200 dark:border-gray-700 rounded-lg"
+          className="border border-gray-200 dark:border-gray-700 rounded-lg flex-1"
           style={{
-            height: 'calc(100vh - 240px)', // Slightly reduce height to ensure scrollbar visibility
+            height: '100%',
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',

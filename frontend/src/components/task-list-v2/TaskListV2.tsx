@@ -4,12 +4,14 @@ import TaskListV2Section from "./TaskListV2Table";
 const TaskListV2: React.FC = () => {
 
   return (
-    <div>
+    <div className="flex flex-col h-full overflow-hidden">
       {/* Task Filters */}
-      <div className="flex-none" style={{ height: '54px', flexShrink: 0 }}>
+      <div className="flex-none" style={{ minHeight: '54px', height: 'auto', flexShrink: 0, paddingBottom: '8px' }}>
         <ImprovedTaskFilters position="list" />
       </div>
-      <TaskListV2Section />
+      <div className="flex-1 min-h-0">
+        <TaskListV2Section />
+      </div>
     </div>
   );
 };
