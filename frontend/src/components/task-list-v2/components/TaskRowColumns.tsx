@@ -210,30 +210,48 @@ PriorityColumn.displayName = 'PriorityColumn';
 interface ProgressColumnProps {
   width: string;
   task: Task;
+  groupBy?: string;
+  groupName?: string;
 }
 
-export const ProgressColumn: React.FC<ProgressColumnProps> = memo(({ width, task }) => (
-  <div className="flex items-center justify-center px-2 border-r border-gray-200 dark:border-gray-700" style={{ width }}>
-    {task.progress !== undefined &&
-      task.progress >= 0 &&
-      (task.progress === 100 ? (
-        <div className="flex items-center justify-center">
-          <CheckCircleOutlined
-            className="text-green-500"
-            style={{
-              fontSize: '20px',
-              color: '#52c41a',
-            }}
+export const ProgressColumn: React.FC<ProgressColumnProps> = memo(
+  ({ width, task, groupBy, groupName }) => {
+    const normalizedGroupName = String(groupName || '')
+      .toLowerCase()
+      .replace(/\(\d+\)/g, '')
+      .trim();
+    const rawStatusName = String((task as any).status_name || task.status || '').toLowerCase();
+    const isDoneGroup =
+      groupBy === 'status' &&
+      (normalizedGroupName.includes('done') || normalizedGroupName.includes('complete'));
+    const isDoneStatus = rawStatusName.includes('done') || rawStatusName.includes('complete');
+    const effectiveProgress = isDoneGroup || isDoneStatus ? 100 : task.progress ?? 0;
+
+    return (
+      <div
+        className="flex items-center justify-center px-2 border-r border-gray-200 dark:border-gray-700"
+        style={{ width }}
+      >
+        {effectiveProgress >= 100 ? (
+          <div className="flex items-center justify-center">
+            <CheckCircleOutlined
+              className="text-green-500"
+              style={{
+                fontSize: '20px',
+                color: '#52c41a',
+              }}
+            />
+          </div>
+        ) : (
+          <TaskProgress
+            progress={effectiveProgress}
+            numberOfSubTasks={task.sub_tasks?.length || 0}
           />
-        </div>
-      ) : (
-        <TaskProgress
-          progress={task.progress}
-          numberOfSubTasks={task.sub_tasks?.length || 0}
-        />
-      ))}
-  </div>
-));
+        )}
+      </div>
+    );
+  }
+);
 
 ProgressColumn.displayName = 'ProgressColumn';
 

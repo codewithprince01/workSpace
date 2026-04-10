@@ -90,6 +90,7 @@ interface TaskListTableProps {
   tableId: string;
   activeId?: string | null;
   groupBy?: string;
+  groupName?: string;
   isOver?: boolean; // Add this line
 }
 
@@ -1260,7 +1261,13 @@ const renderCustomColumnContent = (
   return customComponents[fieldType] ? customComponents[fieldType]() : null;
 };
 
-const TaskListTable: React.FC<TaskListTableProps> = ({ taskList, tableId, activeId, groupBy }) => {
+const TaskListTable: React.FC<TaskListTableProps> = ({
+  taskList,
+  tableId,
+  activeId,
+  groupBy,
+  groupName,
+}) => {
   const { t } = useTranslation('task-list-table');
   const dispatch = useAppDispatch();
   const currentSession = useAuthService().getCurrentSession();
@@ -1494,7 +1501,7 @@ const TaskListTable: React.FC<TaskListTableProps> = ({ taskList, tableId, active
         />
       ),
       DESCRIPTION: () => <TaskListDescriptionCell description={task.description || ''} />,
-      PROGRESS: () => <TaskListProgressCell task={task} />,
+      PROGRESS: () => <TaskListProgressCell task={task} groupBy={groupBy} groupName={groupName} />,
       ASSIGNEES: () => <TaskListMembersCell groupId={tableId} task={task} />,
       LABELS: () => <TaskListLabelsCell task={task} />,
       PHASE: () => <PhaseDropdown task={task} />,

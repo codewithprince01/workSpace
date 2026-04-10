@@ -6,16 +6,39 @@ import { useAppSelector } from '@/hooks/useAppSelector';
 
 type TaskListProgressCellProps = {
   task: IProjectTask;
+  groupBy?: string;
+  groupName?: string;
 };
 
-const TaskListProgressCell = ({ task }: TaskListProgressCellProps) => {
-  const { project } = useAppSelector(state => state.projectReducer);
+const TaskListProgressCell = ({ task, groupBy, groupName }: TaskListProgressCellProps) => {
+  const { status, statusCategories } = useAppSelector(state => state.taskStatusReducer);
   const isManualProgressEnabled =
     task.project_use_manual_progress ||
     task.project_use_weighted_progress ||
     task.project_use_time_progress;
   const isSubtask = task.is_sub_task;
   const hasManualProgress = task.manual_progress;
+  const normalizedStatusName = String(task.status_name || task.status || '')
+    .trim()
+    .toLowerCase();
+
+  const matchedStatus = status.find(
+    s =>
+      s.id === task.status_id ||
+      s.id === task.status ||
+      s.name?.toLowerCase() === normalizedStatusName
+  );
+  const matchedCategory = statusCategories.find(c => c.id === matchedStatus?.category_id);
+  const categoryName = String(matchedCategory?.name || '').trim().toLowerCase();
+  const normalizedGroupName = String(groupName || '')
+    .trim()
+    .toLowerCase();
+  const isDoneGroup = groupBy === 'status' && ['done', 'completed', 'complete'].includes(normalizedGroupName);
+  const isDoneStatus =
+    isDoneGroup ||
+    Boolean(task.status_category?.is_done) ||
+    categoryName === 'done' ||
+    ['done', 'completed', 'complete'].includes(normalizedStatusName);
 
   // Handle different cases:
   // 1. For subtasks when manual progress is enabled, show the progress
@@ -28,30 +51,34 @@ const TaskListProgressCell = ({ task }: TaskListProgressCellProps) => {
 
   // For parent tasks, show completion ratio with task count tooltip
   if (!isSubtask) {
+    const percent = isDoneStatus ? 100 : task.complete_ratio || 0;
     return (
       <Tooltip title={`${task.completed_count || 0} / ${task.total_tasks_count || 0}`}>
         <Progress
-          percent={task.complete_ratio || 0}
+          percent={percent}
+          status={isDoneStatus ? 'success' : 'normal'}
           type="circle"
           size={24}
           style={{ cursor: 'default' }}
-          strokeWidth={(task.complete_ratio || 0) >= 100 ? 9 : 7}
+          strokeWidth={percent >= 100 ? 9 : 7}
         />
       </Tooltip>
     );
   }
 
   // For subtasks with manual progress enabled, show the progress
+  const subtaskPercent = isDoneStatus ? 100 : hasManualProgress ? task.progress_value || 0 : task.progress || 0;
   return (
     <Tooltip
       title={hasManualProgress ? `Manual: ${task.progress_value || 0}%` : `${task.progress || 0}%`}
     >
       <Progress
-        percent={hasManualProgress ? task.progress_value || 0 : task.progress || 0}
+        percent={subtaskPercent}
+        status={isDoneStatus ? 'success' : 'normal'}
         type="circle"
         size={22} // Slightly smaller for subtasks
         style={{ cursor: 'default' }}
-        strokeWidth={(task.progress || 0) >= 100 ? 9 : 7}
+        strokeWidth={subtaskPercent >= 100 ? 9 : 7}
       />
     </Tooltip>
   );

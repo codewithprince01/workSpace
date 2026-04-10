@@ -12,6 +12,8 @@ import { useTaskRowColumns } from './hooks/useTaskRowColumns';
 interface TaskRowProps {
   taskId: string;
   projectId: string;
+  groupBy?: string;
+  groupName?: string;
   visibleColumns: Array<{
     id: string;
     width: string;
@@ -30,6 +32,8 @@ interface TaskRowProps {
 const TaskRow: React.FC<TaskRowProps> = memo(({ 
   taskId, 
   projectId, 
+  groupBy,
+  groupName,
   visibleColumns, 
   isSubtask = false, 
   isFirstInGroup = false, 
@@ -88,6 +92,8 @@ const TaskRow: React.FC<TaskRowProps> = memo(({
   const { renderColumn } = useTaskRowColumns({
     task,
     projectId,
+    groupBy,
+    groupName,
     isSubtask,
     isSelected,
     isDarkMode,

@@ -15,6 +15,8 @@ import { useAuthService } from '@/hooks/useAuth';
 interface TaskRowWithSubtasksProps {
   taskId: string;
   projectId: string;
+  groupBy?: string;
+  groupName?: string;
   visibleColumns: Array<{
     id: string;
     width: string;
@@ -236,6 +238,8 @@ const getBorderColor = (depth: number) => {
 const TaskRowWithSubtasks: React.FC<TaskRowWithSubtasksProps> = memo(({ 
   taskId, 
   projectId, 
+  groupBy,
+  groupName,
   visibleColumns,
   isFirstInGroup = false,
   updateTaskCustomColumnValue,
@@ -264,6 +268,8 @@ const TaskRowWithSubtasks: React.FC<TaskRowWithSubtasksProps> = memo(({
       <TaskRow
         taskId={taskId}
         projectId={projectId}
+        groupBy={groupBy}
+        groupName={groupName}
         visibleColumns={visibleColumns}
         isFirstInGroup={isFirstInGroup}
         updateTaskCustomColumnValue={updateTaskCustomColumnValue}
@@ -287,6 +293,8 @@ const TaskRowWithSubtasks: React.FC<TaskRowWithSubtasksProps> = memo(({
               <TaskRowWithSubtasks
                 taskId={subtask.id}
                 projectId={projectId}
+                groupBy={groupBy}
+                groupName={groupName}
                 visibleColumns={visibleColumns}
                 updateTaskCustomColumnValue={updateTaskCustomColumnValue}
                 depth={depth + 1}

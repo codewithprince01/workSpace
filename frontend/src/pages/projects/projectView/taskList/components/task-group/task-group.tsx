@@ -226,7 +226,7 @@ const TaskGroup: React.FC<TaskGroupProps> = ({ taskGroup, groupBy, color, active
             taskList={taskGroup.tasks || []}
             tableId={taskGroup.id}
             groupBy={groupBy}
-            color={color}
+            groupName={taskGroup.name || ''}
             activeId={activeId}
           />
         </Collapsible>

@@ -602,6 +602,9 @@ const TaskListV2Section: React.FC = () => {
   const renderTask = useCallback(
     (taskIndex: number, isFirstInGroup: boolean = false) => {
       const item = virtuosoItems[taskIndex];
+      const itemGroup = virtuosoGroups.find(
+        group => taskIndex >= group.startIndex && taskIndex < group.startIndex + group.count
+      );
 
       if (!item || !urlProjectId) return null;
 
@@ -624,13 +627,23 @@ const TaskListV2Section: React.FC = () => {
         <TaskRowWithSubtasks
           taskId={item.id}
           projectId={urlProjectId}
+          groupBy={currentGrouping || 'status'}
+          groupName={itemGroup?.title || ''}
           visibleColumns={visibleColumns}
           isFirstInGroup={isFirstInGroup}
           updateTaskCustomColumnValue={updateTaskCustomColumnValue}
         />
       );
     },
-    [virtuosoItems, visibleColumns, urlProjectId, handleTaskAdded, updateTaskCustomColumnValue]
+    [
+      virtuosoItems,
+      virtuosoGroups,
+      visibleColumns,
+      urlProjectId,
+      handleTaskAdded,
+      updateTaskCustomColumnValue,
+      currentGrouping,
+    ]
   );
 
   // Render column headers

@@ -23,6 +23,8 @@ import { DatePickerColumn } from '../components/DatePickerColumn';
 interface UseTaskRowColumnsProps {
   task: Task;
   projectId: string;
+  groupBy?: string;
+  groupName?: string;
   isSubtask: boolean;
   isSelected: boolean;
   isDarkMode: boolean;
@@ -66,6 +68,8 @@ interface UseTaskRowColumnsProps {
 export const useTaskRowColumns = ({
   task,
   projectId,
+  groupBy,
+  groupName,
   isSubtask,
   isSelected,
   isDarkMode,
@@ -229,6 +233,8 @@ export const useTaskRowColumns = ({
           <ProgressColumn
             width={width}
             task={task}
+            groupBy={groupBy}
+            groupName={groupName}
           />
         );
 

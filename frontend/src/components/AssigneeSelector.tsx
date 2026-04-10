@@ -15,6 +15,8 @@ import { setIsFromAssigner, toggleProjectMemberDrawer } from '@/features/project
 import { updateEnhancedKanbanTaskAssignees } from '@/features/enhanced-kanban/enhanced-kanban.slice';
 import useIsProjectManager from '@/hooks/useIsProjectManager';
 import { useAuthStatus } from '@/hooks/useAuthStatus';
+import { projectMembersApiService } from '@/api/project-members/project-members.api.service';
+import axios from 'axios';
 
 interface AssigneeSelectorProps {
   task: IProjectTask;
@@ -140,11 +142,42 @@ const AssigneeSelector: React.FC<AssigneeSelectorProps> = ({
     }
   };
 
-  const handleMemberToggle = (memberId: string, checked: boolean) => {
+  const ensureProjectMember = async (memberId: string): Promise<boolean> => {
+    if (!projectId || !memberId) return false;
+    try {
+      await projectMembersApiService.createProjectMember({
+        project_id: projectId,
+        team_member_id: memberId,
+      } as any);
+      return true;
+    } catch (error) {
+      // 409 means already a project member, continue assignment flow
+      if (axios.isAxiosError(error) && error.response?.status === 409) {
+        return true;
+      }
+      console.error('Failed to add member to project before task assignment:', error);
+      return false;
+    }
+  };
+
+  const handleMemberToggle = async (memberId: string, checked: boolean) => {
     if (!memberId || !projectId || !task?.id || !currentSession?.id) return;
 
     // Add to pending changes for visual feedback
     setPendingChanges(prev => new Set(prev).add(memberId));
+
+    // Ensure member exists in this project before assigning task
+    if (checked) {
+      const canAssign = await ensureProjectMember(memberId);
+      if (!canAssign) {
+        setPendingChanges(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(memberId);
+          return newSet;
+        });
+        return;
+      }
+    }
 
     // OPTIMISTIC UPDATE: Update local state immediately for instant UI feedback
     const currentAssignees = task?.assignees?.map(a => a.team_member_id) || [];

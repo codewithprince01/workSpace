@@ -223,7 +223,13 @@ const TaskGroupList = ({ taskGroups, groupBy }: TaskGroupListProps) => {
                   className="border-l-[3px] relative after:content after:absolute after:h-full after:w-1 after:z-10 after:top-0 after:left-0 mt-1"
                   color={themeMode === 'dark' ? group.color_code_dark : group.color_code}
                 >
-                  <TaskListTable taskList={group.tasks} tableId={group.id} activeId={activeId} />
+                  <TaskListTable
+                    taskList={group.tasks}
+                    tableId={group.id}
+                    activeId={activeId}
+                    groupBy={groupBy}
+                    groupName={groupNames[group.id] || group.name}
+                  />
                 </Collapsible>
               </Flex>
             </div>
