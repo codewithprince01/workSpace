@@ -118,6 +118,10 @@ apiClient.interceptors.response.use(
   async (error: AxiosError) => {
     const { message, code, name } = error || {};
     const errorResponse = error.response;
+    const backendMessage =
+      (errorResponse?.data as any)?.message ||
+      (errorResponse?.data as any)?.error ||
+      null;
 
     // Handle CSRF token errors
     if (
@@ -156,7 +160,7 @@ apiClient.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    const errorMessage = message || 'An unexpected error occurred';
+    const errorMessage = backendMessage || message || 'An unexpected error occurred';
     const errorTitle = 'Error';
     const skipErrorAlert =
       (error.config?.headers as any)?.['X-Skip-Error-Alert'] === 'true' ||

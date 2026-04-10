@@ -52,7 +52,7 @@ const SwitchTeamButton = () => {
   const displayTeams = useMemo(() => {
     if (!teamsList?.length) return [];
 
-    return teamsList.filter(team => {
+    const filtered = teamsList.filter(team => {
       const ownerName = normalizeTeamText(team.owns_by);
       const teamName = normalizeTeamText(team.name);
 
@@ -76,6 +76,15 @@ const SwitchTeamButton = () => {
 
       return !hasOwnerNamedTeam;
     });
+
+    // Safety dedupe for UI: keep only first team for same normalized owner+name pair.
+    const unique = new Map<string, (typeof filtered)[number]>();
+    for (const team of filtered) {
+      const key = `${normalizeTeamText(team.owns_by)}::${normalizeTeamText(team.name)}`;
+      if (!unique.has(key)) unique.set(key, team);
+    }
+
+    return Array.from(unique.values());
   }, [normalizeTeamText, teamsList]);
 
   useEffect(() => {

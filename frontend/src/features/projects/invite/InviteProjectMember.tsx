@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { projectsApiService } from '@/api/projects/projects.api.service';
 import { useParams } from 'react-router-dom';
+import axios from 'axios';
 
 interface InviteProjectMemberProps {
   open: boolean;
@@ -32,7 +33,11 @@ const InviteProjectMember = ({ open, onClose, onSuccess }: InviteProjectMemberPr
         message.error(res.message || 'Failed to send invitation');
       }
     } catch (error: any) {
-        message.error(error.message || 'An error occurred');
+        const errorMsg =
+          (axios.isAxiosError(error) ? (error.response?.data as any)?.message : null) ||
+          error?.message ||
+          'An error occurred';
+        message.error(errorMsg);
     } finally {
       setLoading(false);
     }

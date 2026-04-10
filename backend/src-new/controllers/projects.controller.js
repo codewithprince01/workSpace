@@ -98,8 +98,22 @@ exports.inviteMember = async (req, res, next) => {
     if (existingUser) {
       const isMember = await ProjectMember.findOne({ project_id: id, user_id: existingUser._id });
       if (isMember) {
-        return res.status(400).json({ success: false, message: 'User is already a member of this project' });
+        return res.status(409).json({ success: false, message: 'Member is already in project' });
       }
+    }
+
+    // Prevent duplicate pending invitations for same project + email
+    const pendingInvite = await ProjectInvitation.findOne({
+      project_id: id,
+      email: email.toLowerCase(),
+      status: 'pending',
+      expires_at: { $gt: new Date() },
+    });
+    if (pendingInvite) {
+      return res.status(409).json({
+        success: false,
+        message: 'Member is already invited to project',
+      });
     }
 
     // Create Invite Token

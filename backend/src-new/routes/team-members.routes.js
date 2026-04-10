@@ -80,18 +80,35 @@ router.post('/', async (req, res) => {
     // Determine target team
     let targetTeamId = team_id;
     if (!targetTeamId) {
+      // Prefer currently active team context first
+      if (req.user?.last_team_id) {
+        const activeMembership = await TeamMember.findOne({
+          team_id: req.user.last_team_id,
+          user_id: req.user._id,
+          role: { $in: ['owner', 'admin'] },
+          is_active: true,
+        });
+        if (activeMembership) {
+          targetTeamId = activeMembership.team_id;
+        }
+      }
+
       // Find team where user is owner or admin
-      const myMembership = await TeamMember.findOne({ 
-        user_id: req.user._id,
-        role: { $in: ['owner', 'admin'] },
-        is_active: true 
-      });
+      const myMembership = !targetTeamId
+        ? await TeamMember.findOne({
+            user_id: req.user._id,
+            role: { $in: ['owner', 'admin'] },
+            is_active: true,
+          })
+        : null;
       
       if (myMembership) {
         targetTeamId = myMembership.team_id;
       } else {
         // Fallback: any team
-        const anyTeam = await TeamMember.findOne({ user_id: req.user._id, is_active: true });
+        const anyTeam = !targetTeamId
+          ? await TeamMember.findOne({ user_id: req.user._id, is_active: true })
+          : null;
         if (anyTeam) targetTeamId = anyTeam.team_id;
       }
     }
@@ -112,6 +129,7 @@ router.post('/', async (req, res) => {
 
     const results = [];
     const errors = [];
+    const isSingleInvite = targetEmails.length === 1;
 
     // Fetch team details for notification
     const team = await Team.findById(targetTeamId);
@@ -122,28 +140,29 @@ router.post('/', async (req, res) => {
             const user = await User.findOne({ email: mail });
             
             if (user) {
-                // Check if already member
-                const existing = await TeamMember.findOne({ team_id: targetTeamId, user_id: user._id });
+                // Check if already present (active member OR already invited)
+                const existing = await TeamMember.findOne({
+                  team_id: targetTeamId,
+                  user_id: user._id,
+                });
                 if (existing) {
-                    if (existing.is_active && !existing.pending_invitation) {
-                        results.push({ email: mail, status: 'Already member', user });
-                    } else {
-                        existing.is_active = false;
-                        existing.pending_invitation = true;
-                        existing.role = is_admin ? 'admin' : (role || 'member');
-                        if (job_title) existing.job_title = job_title;
-                        await existing.save();
-                        results.push({ email: mail, status: 'Invited', user });
+                    const alreadyActive = existing.is_active && !existing.pending_invitation;
+                    const alreadyInvited = !!existing.pending_invitation;
+                    const duplicateMessage = alreadyActive
+                      ? 'Member is already in team'
+                      : alreadyInvited
+                        ? 'Member is already invited to team'
+                        : 'Member already exists in team';
 
-                        if (user._id.toString() !== req.user._id.toString()) {
-                             await Notification.create({
-                                user_id: user._id,
-                                team_id: targetTeamId,
-                                type: 'team_invite',
-                                message: `You have been invited to join team "${teamName}" by ${req.user.name}`
-                             });
-                        }
+                    if (isSingleInvite) {
+                      return res.status(409).json({
+                        done: false,
+                        message: duplicateMessage,
+                        body: { email: mail, code: 'TEAM_MEMBER_EXISTS' },
+                      });
                     }
+
+                    errors.push({ email: mail, error: duplicateMessage, code: 'TEAM_MEMBER_EXISTS' });
                 } else {
                     await TeamMember.create({
                         team_id: targetTeamId,

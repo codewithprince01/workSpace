@@ -12,6 +12,7 @@ import { IJobTitle } from '@/types/job.types';
 import { teamMembersApiService } from '@/api/team-members/teamMembers.api.service';
 import { ITeamMemberCreateRequest } from '@/types/teamMembers/team-member-create-request';
 import { LinkOutlined } from '@ant-design/icons';
+import axios from 'axios';
 
 interface FormValues {
   email: string[];
@@ -65,14 +66,26 @@ const InviteTeamMembers = () => {
       };
       const res = await teamMembersApiService.createTeamMember(body);
       if (res.done) {
+        const duplicateError = (res.body as any)?.errors?.find?.(
+          (err: any) => err?.code === 'TEAM_MEMBER_EXISTS'
+        );
+        if (duplicateError?.error) {
+          message.error(duplicateError.error);
+          return;
+        }
+
         form.resetFields();
         setEmails([]);
         setSelectedJobTitle(null);
         dispatch(triggerTeamMembersRefresh()); // Trigger refresh in TeamMembersSettings
         dispatch(toggleInviteMemberDrawer());
       }
-    } catch (error) {
-      message.error(t('createMemberErrorMessage'));
+    } catch (error: any) {
+      const errorMsg =
+        (axios.isAxiosError(error) ? (error.response?.data as any)?.message : null) ||
+        error?.message ||
+        t('createMemberErrorMessage');
+      message.error(errorMsg);
     } finally {
       setLoading(false);
     }

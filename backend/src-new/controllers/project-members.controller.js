@@ -144,24 +144,24 @@ exports.invite = async (req, res, next) => {
       console.log(`📧 Invitation would be sent to: ${email}`);
     }
     
-    // Check if already a project member
+    // Strict duplicate check: do not allow re-invite if membership already exists
     const existing = await ProjectMember.findOne({ project_id, user_id: user._id });
     if (existing) {
-      if (!existing.is_active || existing.pending_invitation) {
-        existing.is_active = false;
-        existing.pending_invitation = true;
-        await existing.save();
-        
-        const response = {
-          id: existing._id,
-          name: user.name,
-          email: user.email,
-          avatar_url: user.avatar_url,
-          pending_invitation: true
-        };
-        return res.json({ done: true, body: response, message: 'Re-invited to project' });
+      if (existing.is_active && !existing.pending_invitation) {
+        return res.status(409).json({
+          done: false,
+          message: 'Member is already in project',
+          body: { code: 'PROJECT_MEMBER_EXISTS', email: user.email },
+        });
       }
-      return res.status(400).json({ done: false, message: 'User is already a project member' });
+
+      if (existing.pending_invitation || !existing.is_active) {
+        return res.status(409).json({
+          done: false,
+          message: 'Member is already invited to project',
+          body: { code: 'PROJECT_MEMBER_ALREADY_INVITED', email: user.email },
+        });
+      }
     }
     
     // Create project membership

@@ -52,7 +52,11 @@ exports.getAll = async (req, res, next) => {
     
     let teamIds = [];
     if (Array.isArray(memberships)) {
-        teamIds = memberships.map(m => m.team_id ? m.team_id.toString() : null).filter(Boolean);
+        teamIds = Array.from(
+          new Set(
+            memberships.map(m => (m.team_id ? m.team_id.toString() : null)).filter(Boolean)
+          )
+        );
     }
     
     // IMPORTANT: Only show teams where the user has active team membership.
@@ -67,10 +71,18 @@ exports.getAll = async (req, res, next) => {
       id: team._id.toString(),
       owns_by: team.owner_id?.name || 'Unknown'
     }));
+
+    // Safety dedupe in response (in case DB has any accidental duplicates)
+    const uniqueTeamsMap = new Map();
+    formattedTeams.forEach(team => {
+      if (!uniqueTeamsMap.has(team.id)) {
+        uniqueTeamsMap.set(team.id, team);
+      }
+    });
     
     res.json({
       done: true,
-      body: formattedTeams
+      body: Array.from(uniqueTeamsMap.values())
     });
   } catch (error) {
     next(error);

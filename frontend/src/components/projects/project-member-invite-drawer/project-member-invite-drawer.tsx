@@ -19,6 +19,7 @@ import { validateEmail } from '@/utils/validateEmail';
 import { ITeamMembersViewModel } from '@/types/teamMembers/teamMembersViewModel.types';
 import { teamMembersApiService } from '@/api/team-members/teamMembers.api.service';
 import { projectsApiService } from '@/api/projects/projects.api.service';
+import axios from 'axios';
 
 const ProjectMemberDrawer = () => {
   const { t } = useTranslation('project-view/project-member-drawer');
@@ -161,7 +162,10 @@ const ProjectMemberDrawer = () => {
         message.error(res.message || 'Failed to send invitation');
       }
     } catch (error: any) {
-      const errorMsg = error?.message || 'Failed to send invitation';
+      const errorMsg =
+        (axios.isAxiosError(error) ? (error.response?.data as any)?.message : null) ||
+        error?.message ||
+        'Failed to send invitation';
       message.error(`❌ ${errorMsg}`);
       logger.error('Error sending invite:', error);
     } finally {
