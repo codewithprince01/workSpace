@@ -469,37 +469,38 @@ const FilterDropdown: React.FC<{
       <button
         onClick={onToggle}
                   className={`
-          inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md
-          border transition-all duration-200 ease-in-out
+          inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md
+          border transition-all duration-300 ease-in-out
           ${
             selectedCount > 0
               ? isDarkMode
-                ? 'bg-gray-600 text-white border-gray-500'
-                : 'bg-gray-200 text-gray-800 border-gray-300 font-semibold'
+                ? 'bg-blue-600/10 text-blue-400 border-blue-500/30'
+                : 'bg-blue-50 text-blue-700 border-blue-200'
               : `${themeClasses.buttonBg} ${themeClasses.buttonBorder} ${themeClasses.buttonText}`
           }
-          hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2
-          ${isDarkMode ? 'focus:ring-offset-gray-900' : 'focus:ring-offset-white'}
+          hover:shadow-md focus:outline-none focus:ring-1 focus:ring-blue-500/50
         `}
         aria-expanded={isOpen}
         aria-haspopup="true"
       >
         <IconComponent className="w-3.5 h-3.5" />
         <span>{section.label}</span>
-        {/* Show selected option for single-select (group by) */}
-        {section.id === 'groupBy' && selectedCount > 0 && (
-          <span className={`text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-            {section.options.find(opt => opt.value === section.selectedValues[0])?.label}
+        {selectedCount > 0 && (
+          <span className={`
+            text-[11px] font-semibold border-l px-1.5 ml-0.5 truncate max-w-[100px]
+            ${isDarkMode ? 'text-blue-300 border-blue-500/30' : 'text-blue-700 border-blue-200'}
+          `}>
+            {selectedCount <= 2
+              ? section.options
+                  .filter(opt => section.selectedValues.includes(opt.value))
+                  .map(opt => opt.label)
+                  .join(', ')
+              : `${selectedCount} ${t('filtersActive')}`}
           </span>
         )}
-        {/* Show count for multi-select filters */}
-        {section.id !== 'groupBy' && selectedCount > 0 && (
-          <span className="inline-flex items-center justify-center w-4 h-4 text-xs font-bold text-white bg-gray-500 rounded-full">
-            {selectedCount}
-          </span>
-        )}
+        {/* We'll use the border-l label instead of the separate groupBy span or badge */}
         <DownOutlined
-          className={`w-3.5 h-3.5 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+          className={`text-[10px] transition-transform duration-200 ${isOpen ? 'rotate-180' : ''} ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}
         />
       </button>
 
@@ -587,12 +588,14 @@ const FilterDropdown: React.FC<{
                           flex items-center justify-center w-3.5 h-3.5 border rounded
                           ${
                             isSelected
-                              ? 'bg-gray-600 border-gray-800 text-white'
+                              ? isDarkMode
+                                ? 'bg-blue-500 border-blue-400 text-white'
+                                : 'bg-blue-500 border-blue-600 text-white'
                               : 'border-gray-300 dark:border-gray-600'
                           }
                         `}
                         >
-                          {isSelected && <CheckOutlined className="w-2.5 h-2.5" />}
+                          {isSelected && <CheckOutlined className="text-[8px] font-bold" />}
                         </div>
                       )}
 
@@ -683,17 +686,21 @@ const SearchFilter: React.FC<{
 
   return (
     <div className={`relative ${className}`}>
-      {!isExpanded && !value ? (
+      {!isExpanded ? (
         <button
-          onClick={handleToggle}
-          className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md border transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 ${themeClasses.buttonBg} ${themeClasses.buttonBorder} ${themeClasses.buttonText} ${
-            themeClasses.containerBg === 'bg-gray-800'
-              ? 'focus:ring-offset-gray-900'
-              : 'focus:ring-offset-white'
-          }`}
+          onClick={() => setIsExpanded(true)}
+          className={`
+            inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md
+            border transition-all duration-200 ease-in-out
+            focus:outline-none focus:ring-1 focus:ring-blue-500/50
+            ${themeClasses.buttonBg} ${themeClasses.buttonBorder} ${themeClasses.buttonText}
+            ${value ? (isDarkMode ? 'ring-1 ring-blue-500/30' : 'ring-1 ring-blue-500/20') : ''}
+          `}
         >
-          <SearchOutlined className="w-3.5 h-3.5" />
-          <span>{t('search')}</span>
+          <SearchOutlined className={`text-xs ${isDarkMode && !value ? 'text-gray-400' : ''}`} />
+          <span className="truncate max-w-[120px]">
+            {value || t('searchPlaceholder')}
+          </span>
         </button>
       ) : (
         <form onSubmit={handleSubmit} className="flex items-center gap-1.5">
@@ -705,48 +712,36 @@ const SearchFilter: React.FC<{
               value={localValue}
               onChange={e => setLocalValue(e.target.value)}
               placeholder={placeholder || t('searchTasks') || 'Search tasks by name or key...'}
-                                className={`w-full pr-4 pl-8 py-1 rounded border focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors duration-150 ${
-                    isDarkMode
-                      ? 'bg-gray-700 text-gray-100 placeholder-gray-400 border-gray-600'
-                      : 'bg-white text-gray-900 placeholder-gray-400 border-gray-300'
-                  }`}
+              className={`w-full pr-4 pl-8 py-1 rounded border focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-150 ${
+                isDarkMode
+                  ? 'bg-gray-700 text-gray-100 placeholder-gray-400 border-gray-600'
+                  : 'bg-white text-gray-900 placeholder-gray-400 border-gray-300'
+              }`}
             />
-            {localValue && (
-              <button
-                type="button"
-                onClick={handleClear}
-                className={`absolute right-1.5 top-1/2 transform -translate-y-1/2 transition-colors duration-150 ${
-                  isDarkMode 
-                    ? 'text-gray-400 hover:text-gray-200' 
-                    : 'text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                <CloseOutlined className="w-3.5 h-3.5" />
-              </button>
-            )}
           </div>
           <button
             type="submit"
-            className={`px-2.5 py-1.5 text-xs font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors duration-200 ${
-              isDarkMode
-                ? 'text-white bg-gray-600 hover:bg-gray-700'
-                : 'text-gray-800 bg-gray-200 hover:bg-gray-300'
-            }`}
-                      >
-              {t('search')}
-            </button>
+            className={`
+              px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-200
+              focus:outline-none focus:ring-1 focus:ring-blue-500/50
+              ${isDarkMode
+                ? 'bg-blue-600 hover:bg-blue-500 text-white'
+                : 'bg-blue-600 hover:bg-blue-700 text-white'
+              }
+            `}
+          >
+            {t('search')}
+          </button>
           <button
             type="button"
-            onClick={() => {
-              setLocalValue('');
-              onChange('');
-              setIsExpanded(false);
-            }}
-            className={`px-2.5 py-1.5 text-xs font-medium transition-colors duration-200 ${
-              isDarkMode
-                ? 'text-gray-400 hover:text-gray-200'
-                : 'text-gray-600 hover:text-gray-800'
-            }`}
+            onClick={handleCancel}
+            className={`
+              px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-200
+              ${isDarkMode
+                ? 'text-gray-400 hover:text-white hover:bg-[#333333]'
+                : 'text-gray-500 hover:text-gray-800 hover:bg-gray-100'
+              }
+            `}
           >
             {t('cancel')}
           </button>
@@ -834,34 +829,36 @@ const SortDropdown: React.FC<{ themeClasses: any; isDarkMode: boolean }> = ({
             : t('sortText')
         }
         className={`
-          inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md
-          border transition-all duration-200 ease-in-out
+          inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md
+          border transition-all duration-300 ease-in-out
           ${
             isActive
               ? isDarkMode
-                ? 'bg-gray-600 text-white border-gray-500'
-                : 'bg-gray-200 text-gray-800 border-gray-300 font-semibold'
+                ? 'bg-blue-600/10 text-blue-400 border-blue-500/30'
+                : 'bg-blue-50 text-blue-700 border-blue-200'
               : `${themeClasses.buttonBg} ${themeClasses.buttonBorder} ${themeClasses.buttonText}`
           }
-          hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2
-          ${isDarkMode ? 'focus:ring-offset-gray-900' : 'focus:ring-offset-white'}
+          hover:shadow-md focus:outline-none focus:ring-1 focus:ring-blue-500/50
         `}
         aria-expanded={open}
         aria-haspopup="true"
       >
         {currentSortOrder === 'ASC' ? (
-          <SortAscendingOutlined className="w-3.5 h-3.5" />
+          <SortAscendingOutlined className="text-xs" />
         ) : (
-          <SortDescendingOutlined className="w-3.5 h-3.5" />
+          <SortDescendingOutlined className="text-xs" />
         )}
-        <span className="hidden sm:inline">{t('sortText')}</span>
+        <span>{t('sortText')}</span>
         {isActive && currentFieldLabel && (
-          <span className={`text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-600'} max-w-16 truncate hidden md:inline`}>
+          <span className={`
+            text-[11px] font-semibold border-l px-1.5 ml-0.5
+            ${isDarkMode ? 'text-blue-300 border-blue-500/30' : 'text-blue-700 border-blue-200'}
+          `}>
             {currentFieldLabel}
           </span>
         )}
         <DownOutlined
-          className={`w-3.5 h-3.5 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+          className={`text-[10px] transition-transform duration-200 ${open ? 'rotate-180' : ''} ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}
         />
       </button>
 
@@ -893,13 +890,13 @@ const SortDropdown: React.FC<{ themeClasses: any; isDarkMode: boolean }> = ({
                     key={sortField.key}
                     onClick={() => handleSortFieldChange(sortField.key)}
                     className={`
-                      w-full flex items-center justify-between gap-2 px-2 py-1.5 text-xs rounded
-                      transition-colors duration-150 text-left
+                      group w-full flex items-center justify-between gap-2 px-2 py-1.5 text-xs rounded-md
+                      transition-all duration-150 text-left
                       ${
                         isSelected
                           ? isDarkMode
-                            ? 'bg-gray-600 text-white'
-                            : 'bg-gray-200 text-gray-800 font-semibold'
+                            ? 'bg-blue-600/20 text-blue-400'
+                            : 'bg-blue-50 text-blue-700 font-semibold'
                           : `${themeClasses.optionText} ${themeClasses.optionHover}`
                       }
                     `}
@@ -914,21 +911,16 @@ const SortDropdown: React.FC<{ themeClasses: any; isDarkMode: boolean }> = ({
                   >
                     <div className="flex items-center gap-2">
                       <span className="truncate">{sortField.label}</span>
-                      {isSelected && (
-                        <span className={`text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                          ({orderText})
-                        </span>
-                      )}
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center">
                       {isSelected ? (
                         currentSortOrder === 'ASC' ? (
-                          <SortAscendingOutlined className="w-3.5 h-3.5" />
+                          <SortAscendingOutlined className="text-[10px]" />
                         ) : (
-                          <SortDescendingOutlined className="w-3.5 h-3.5" />
+                          <SortDescendingOutlined className="text-[10px]" />
                         )
                       ) : (
-                        <SortAscendingOutlined className="w-3.5 h-3.5 opacity-50" />
+                        <SortAscendingOutlined className={`text-[10px] opacity-0 group-hover:opacity-30 transition-opacity`} />
                       )}
                     </div>
                   </button>
@@ -1204,24 +1196,24 @@ const ImprovedTaskFilters: React.FC<ImprovedTaskFiltersProps> = ({ position, cla
   // Using greyish colors for both dark and light modes
   const themeClasses = useMemo(
     () => ({
-      containerBg: isDarkMode ? 'bg-[#1f1f1f]' : 'bg-white',
+      containerBg: isDarkMode ? 'bg-[#141414]' : 'bg-white',
       containerBorder: isDarkMode ? 'border-[#303030]' : 'border-gray-200',
-      buttonBg: isDarkMode ? 'bg-[#141414] hover:bg-[#262626]' : 'bg-white hover:bg-gray-50',
-      buttonBorder: isDarkMode ? 'border-[#303030]' : 'border-gray-300',
-      buttonText: isDarkMode ? 'text-[#d9d9d9]' : 'text-gray-700',
+      buttonBg: isDarkMode ? 'bg-[#1f1f1f] hover:bg-[#262626]' : 'bg-white hover:bg-gray-50',
+      buttonBorder: isDarkMode ? 'border-[#333333]' : 'border-gray-300',
+      buttonText: isDarkMode ? 'text-[#e5e7eb]' : 'text-gray-700',
       dropdownBg: isDarkMode ? 'bg-[#1f1f1f]' : 'bg-white',
       dropdownBorder: isDarkMode ? 'border-[#303030]' : 'border-gray-200',
-      optionText: isDarkMode ? 'text-[#d9d9d9]' : 'text-gray-700',
+      optionText: isDarkMode ? 'text-[#d1d5db]' : 'text-gray-700',
       optionHover: isDarkMode ? 'hover:bg-[#262626]' : 'hover:bg-gray-50',
-      secondaryText: isDarkMode ? 'text-[#8c8c8c]' : 'text-gray-500',
+      secondaryText: isDarkMode ? 'text-[#9ca3af]' : 'text-gray-500',
       dividerBorder: isDarkMode ? 'border-[#404040]' : 'border-gray-200',
-      pillBg: isDarkMode ? 'bg-[#141414]' : 'bg-gray-100',
-      pillText: isDarkMode ? 'text-[#d9d9d9]' : 'text-gray-700',
-      pillActiveBg: isDarkMode ? 'bg-gray-600' : 'bg-gray-200',
-      pillActiveText: isDarkMode ? 'text-white' : 'text-gray-800',
-      searchBg: isDarkMode ? 'bg-[#141414]' : 'bg-gray-50',
-      searchBorder: isDarkMode ? 'border-[#303030]' : 'border-gray-300',
-      searchText: isDarkMode ? 'text-[#d9d9d9]' : 'text-gray-900',
+      pillBg: isDarkMode ? 'bg-[#262626]' : 'bg-gray-100',
+      pillText: isDarkMode ? 'text-[#e5e7eb]' : 'text-gray-700',
+      pillActiveBg: isDarkMode ? 'bg-blue-600/20' : 'bg-blue-50',
+      pillActiveText: isDarkMode ? 'text-blue-400' : 'text-blue-600',
+      searchBg: isDarkMode ? 'bg-[#1f1f1f]' : 'bg-gray-50',
+      searchBorder: isDarkMode ? 'border-[#333333]' : 'border-gray-300',
+      searchText: isDarkMode ? 'text-[#f3f4f6]' : 'text-gray-900',
     }),
     [isDarkMode]
   );

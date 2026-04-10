@@ -422,6 +422,9 @@ export const tasksApiService = {
         project_id: config.id,
         search: config.search || '',
         parent_task_id: config.parent_task || '',
+        priority: config.priorities,
+        assignee: config.members,
+        labels: config.labels,
       });
       const genericResponse = await apiClient.get(`${rootUrl}${genericQuery}`, silentErrorConfig);
       const genericData = genericResponse.data as IServerResponse<any[]>;
@@ -441,9 +444,6 @@ export const tasksApiService = {
         },
       };
     };
-
-    // Force generic endpoint in this environment to avoid repeated v3/v2 404 noise.
-    return fetchGenericAndBuild();
 
     if (preferredTaskListEndpoint === 'generic') {
       return fetchGenericAndBuild();

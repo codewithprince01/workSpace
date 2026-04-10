@@ -185,26 +185,42 @@ const AssigneeSelector: React.FC<AssigneeSelectorProps> = ({
   const ensureProjectMember = async (memberId: string): Promise<boolean> => {
     if (!resolvedProjectId || !memberId) return false;
     if (isAlreadyProjectMember(memberId)) return true;
+    
     try {
+      // Resolve IDs robustly before sending
+      const member = getMemberByKey(memberId) as any;
+      const payload: any = {
+        project_id: resolvedProjectId,
+        role: 'member'
+      };
+
+      // Send whatever IDs we have
+      if (member?.id) payload.user_id = member.id;
+      if (member?.team_member_id) payload.team_member_id = member.team_member_id;
+      
+      // Fallback: if we only have memberId, decide what it is
+      if (!payload.user_id && !payload.team_member_id) {
+        const isObjectId = /^[0-9a-fA-F]{24}$/.test(memberId);
+        if (isObjectId) {
+          payload.team_member_id = memberId;
+        } else {
+          payload.user_id = memberId; // Likely a nanoid user id
+        }
+      }
+
       await apiClient.post(
         `${API_BASE_URL}/project-members?current_project_id=${encodeURIComponent(resolvedProjectId)}`,
-        {
-          project_id: resolvedProjectId,
-          team_member_id: memberId,
-        },
+        payload,
         { headers: { 'X-Skip-Error-Alert': 'true' } }
       );
       return true;
     } catch (error) {
-      // Non-blocking: assignment should still continue even if this pre-check fails.
-      // 409 => already in project, 403 => caller cannot add members (but may still assign).
       if (
         axios.isAxiosError(error) &&
         [403, 409].includes(error.response?.status || 0)
       ) {
         return true;
       }
-      console.warn('Could not ensure project member before assignment. Continuing assignment flow.', error);
       return true;
     }
   };
