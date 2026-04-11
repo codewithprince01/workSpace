@@ -41,6 +41,8 @@ const AssigneeSelector: React.FC<AssigneeSelectorProps> = ({
   const [optimisticAssignees, setOptimisticAssignees] = useState<string[]>([]); // For optimistic updates
   const [pendingChanges, setPendingChanges] = useState<Set<string>>(new Set()); // Track pending member changes
   const selectedRef = useRef<string[]>([]);
+  const projectMemberKeysRef = useRef<Set<string>>(new Set());
+  const projectMemberCacheLoadedRef = useRef(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -70,16 +72,70 @@ const AssigneeSelector: React.FC<AssigneeSelectorProps> = ({
       const userKey = String((m as any)?.id || '');
       return memberKey === teamMemberKey || memberKey === userKey;
     });
+
+  const normalize = (value: unknown) => String(value || '').trim().toLowerCase();
+  const normalizeId = (value: unknown) => String(value || '');
+  const toMemberKeys = (member: any) =>
+    [
+      normalize(member?.team_member_id),
+      normalize(member?.user_id),
+      normalize(member?.id),
+      normalize(member?.email),
+      normalize(member?.name),
+      normalize(member?.member_name),
+    ].filter(Boolean);
+  const addKeysToProjectMemberCache = (member: any) => {
+    toMemberKeys(member).forEach(k => projectMemberKeysRef.current.add(k));
+  };
+
   const resolvedProjectId = String(projectId || (task as any)?.project_id || routeProjectId || '');
 
-  // Sync only when switching to a different task row.
-  // Re-syncing on every assignees prop mutation can override in-flight optimistic selections.
   useEffect(() => {
-    const ids = normalizeAssigneeIds((task as any)?.assignees || []);
+    projectMemberCacheLoadedRef.current = false;
+    projectMemberKeysRef.current = new Set();
+  }, [resolvedProjectId]);
+
+  const getCandidateKeys = (value: any) => {
+    if (!value) return [];
+    if (typeof value === 'string') return [normalizeId(value)];
+    return [
+      normalizeId(value?.team_member_id),
+      normalizeId(value?.user_id),
+      normalizeId(value?.id),
+      normalizeId(value?._id),
+      normalize(value?.email),
+      normalize(value?.name),
+      normalize(value?.member_name),
+    ].filter(Boolean);
+  };
+
+  const getTaskSelectionKeys = (taskValue: any): string[] => {
+    const selected = new Set<string>();
+    ((taskValue?.assignees || []) as any[]).forEach((a: any) => {
+      getCandidateKeys(a).forEach((k: string) => selected.add(k));
+    });
+    ((taskValue?.assignee_names || []) as any[]).forEach((a: any) => {
+      getCandidateKeys(a).forEach((k: string) => selected.add(k));
+    });
+    ((taskValue?.names || []) as any[]).forEach((a: any) => {
+      getCandidateKeys(a).forEach((k: string) => selected.add(k));
+    });
+    return Array.from(selected);
+  };
+
+  const assigneeSignature = useMemo(() => {
+    const ids = getTaskSelectionKeys(task).map(i => normalizeId(i)).sort();
+    return ids.join('|');
+  }, [task?.assignees, task?.assignee_names, task?.names]);
+
+  // Keep selector state in sync with the current row task data.
+  // This prevents stale checked boxes when a recycled row component renders another task.
+  useEffect(() => {
+    if (pendingChanges.size > 0) return;
+    const ids = getTaskSelectionKeys(task);
     selectedRef.current = ids;
     setOptimisticAssignees(ids);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [task?.id]);
+  }, [task?.id, assigneeSignature, pendingChanges.size]);
 
   // Update dropdown position
   const updateDropdownPosition = useCallback(() => {
@@ -150,9 +206,18 @@ const AssigneeSelector: React.FC<AssigneeSelectorProps> = ({
       updateDropdownPosition();
 
       // Prepare team members data when opening
-      const assignees = selectedRef.current.length
-        ? selectedRef.current
-        : normalizeAssigneeIds((task as any)?.assignees || []);
+      // Always use the latest row task assignees unless there are in-flight local toggles.
+      const assignees = pendingChanges.size
+        ? (selectedRef.current.length
+            ? selectedRef.current
+            : getTaskSelectionKeys(task))
+        : getTaskSelectionKeys(task);
+
+      if (!pendingChanges.size) {
+        selectedRef.current = assignees;
+        setOptimisticAssignees(assignees);
+      }
+
       const membersData = (members?.data || []).map(member => ({
         ...member,
         selected: isMemberSelected(getMemberKey(member), assignees),
@@ -173,17 +238,36 @@ const AssigneeSelector: React.FC<AssigneeSelectorProps> = ({
   const isAlreadyProjectMember = useCallback(
     (memberId: string) => {
       if (!memberId) return false;
-      return (currentProjectMembers || []).some((member: any) => {
-        const projectMemberTeamId = String(member?.team_member_id || '');
-        const projectMemberUserId = String(member?.id || '');
-        return memberId === projectMemberTeamId || memberId === projectMemberUserId;
-      });
+
+      const selected = getMemberByKey(memberId) as any;
+      const selectedKeys = new Set<string>(toMemberKeys(selected));
+      selectedKeys.add(normalize(memberId));
+
+      return (currentProjectMembers || []).some((projectMember: any) => {
+        const projectMemberKeys = toMemberKeys(projectMember);
+        return projectMemberKeys.some((key: string) => selectedKeys.has(key));
+      }) || Array.from(selectedKeys).some((key: string) => projectMemberKeysRef.current.has(key));
     },
-    [currentProjectMembers]
+    [currentProjectMembers, members]
   );
+
+  const ensureProjectMemberCache = useCallback(async () => {
+    if (!resolvedProjectId || projectMemberCacheLoadedRef.current) return;
+    try {
+      const response = await apiClient.get(`${API_BASE_URL}/project-members/${resolvedProjectId}`, {
+        skipErrorAlert: true,
+      } as any);
+      const rows = response?.data?.body || [];
+      rows.forEach((row: any) => addKeysToProjectMemberCache(row));
+      projectMemberCacheLoadedRef.current = true;
+    } catch {
+      // Keep flow resilient; we'll rely on existing checks/fallback.
+    }
+  }, [resolvedProjectId]);
 
   const ensureProjectMember = async (memberId: string): Promise<boolean> => {
     if (!resolvedProjectId || !memberId) return false;
+    await ensureProjectMemberCache();
     if (isAlreadyProjectMember(memberId)) return true;
     
     try {
@@ -213,12 +297,22 @@ const AssigneeSelector: React.FC<AssigneeSelectorProps> = ({
         payload,
         { skipErrorAlert: true } as any
       );
+      addKeysToProjectMemberCache(member);
+      addKeysToProjectMemberCache({
+        team_member_id: payload.team_member_id,
+        user_id: payload.user_id,
+      });
       return true;
     } catch (error) {
-      if (
-        axios.isAxiosError(error) &&
-        [403, 409].includes(error.response?.status || 0)
-      ) {
+      if (axios.isAxiosError(error) && [403, 409].includes(error.response?.status || 0)) {
+        // Treat duplicate as success and cache the member keys to avoid repeat 409 calls.
+        const member = getMemberByKey(memberId) as any;
+        addKeysToProjectMemberCache(member);
+        addKeysToProjectMemberCache({
+          team_member_id: memberId,
+          user_id: member?.id,
+          email: member?.email,
+        });
         return true;
       }
       return true;
@@ -260,9 +354,13 @@ const AssigneeSelector: React.FC<AssigneeSelectorProps> = ({
 
   const isMemberSelected = (memberKey: string, sourceIds?: string[]) => {
     const selected = sourceIds || optimisticAssignees;
+    const selectedRaw = new Set(selected.map(v => normalize(v)));
     const selectedUsers = new Set(toUserAssigneeIds(selected));
+    const member = getMemberByKey(memberKey) as any;
+    const memberKeys = toMemberKeys(member);
+    memberKeys.push(normalize(memberKey));
     const memberUserId = resolveAssigneeUserId(memberKey) || memberKey;
-    return selectedUsers.has(memberUserId);
+    return selectedUsers.has(memberUserId) || memberKeys.some(k => selectedRaw.has(k));
   };
 
   const handleMemberToggle = async (memberId: string, checked: boolean) => {
@@ -274,12 +372,14 @@ const AssigneeSelector: React.FC<AssigneeSelectorProps> = ({
     // Add to pending changes for visual feedback
     setPendingChanges(prev => new Set(prev).add(memberId));
 
-    // Ensure member exists in this project before assigning task
-    if (checked) await ensureProjectMember(socketMemberId);
+    // Ensure member exists in this project before assigning task (skip request when already present)
+    if (checked && !isAlreadyProjectMember(socketMemberId)) {
+      await ensureProjectMember(socketMemberId);
+    }
 
     // OPTIMISTIC UPDATE: Update local state immediately for instant UI feedback
     const currentAssignees = toUserAssigneeIds(
-      selectedRef.current.length ? selectedRef.current : normalizeAssigneeIds((task as any)?.assignees || [])
+      selectedRef.current.length ? selectedRef.current : getTaskSelectionKeys(task)
     );
     let newAssigneeIds: string[];
 
