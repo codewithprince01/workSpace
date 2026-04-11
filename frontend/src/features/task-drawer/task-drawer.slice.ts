@@ -82,6 +82,7 @@ const taskDrawerSlice = createSlice({
       if (state.taskFormViewModel?.task && state.taskFormViewModel.task.id === taskId) {
         state.taskFormViewModel.task.assignees = (assignees || []).map(m => m.team_member_id);
         state.taskFormViewModel.task.names = names;
+        state.taskFormViewModel.task.assignee_names = names;
       }
     },
     setTaskPriority: (state, action: PayloadAction<ITaskListPriorityChangeResponse>) => {

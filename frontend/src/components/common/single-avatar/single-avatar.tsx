@@ -8,17 +8,20 @@ interface SingleAvatarProps {
 }
 
 const SingleAvatar: React.FC<SingleAvatarProps> = ({ avatarUrl, name, email = null }) => {
+  const firstChar = (name?.charAt(0) || '').toUpperCase();
+  const avatarColor = AvatarNamesMap[firstChar] || '#1890ff';
+
   return (
     <Avatar
       src={avatarUrl}
       size={28}
       style={{
-        backgroundColor: avatarUrl ? 'transparent' : AvatarNamesMap[name?.charAt(0) || ''],
-        border: avatarUrl ? 'none' : '1px solid #d9d9d9',
+        backgroundColor: avatarUrl ? 'transparent' : avatarColor,
+        border: avatarUrl ? 'none' : `1px solid ${avatarColor}`,
         marginRight: '8px',
       }}
     >
-      {name?.charAt(0)}
+      {firstChar}
     </Avatar>
   );
 };

@@ -25,12 +25,10 @@ import SingleAvatar from '@/components/common/single-avatar/single-avatar';
 import { sortTeamMembers } from '@/utils/sort-team-members';
 import { SocketEvents } from '@/shared/socket-events';
 import { useSocket } from '@/socket/socketContext';
-import { useAuthService } from '@/hooks/useAuth';
 import Avatars from '@/components/avatars/avatars';
 import { tasksApiService } from '@/api/tasks/tasks.api.service';
 import { setTaskSubscribers } from '@/features/task-drawer/task-drawer.slice';
 import { ITeamMemberViewModel } from '@/types/teamMembers/teamMembersGetResponse.types';
-import useTabSearchParam from '@/hooks/useTabSearchParam';
 import { InlineMember } from '@/types/teamMembers/inlineMember.types';
 
 interface NotifyMemberSelectorProps {
@@ -40,16 +38,15 @@ interface NotifyMemberSelectorProps {
 
 const NotifyMemberSelector = ({ task, t }: NotifyMemberSelectorProps) => {
   const { socket, connected } = useSocket();
-  const currentSession = useAuthService().getCurrentSession();
   const dispatch = useAppDispatch();
-  const { tab } = useTabSearchParam();
 
   const membersInputRef = useRef<InputRef>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [teamMembersLoading, setTeamMembersLoading] = useState(false);
   const [members, setMembers] = useState<ITeamMembersViewModel>({ data: [], total: 0 });
+  const [optimisticSubscriberIds, setOptimisticSubscriberIds] = useState<string[]>([]);
   const themeMode = useAppSelector(state => state.themeReducer.mode);
-  const { subscribers } = useAppSelector(state => state.taskDrawerReducer);
+  const { subscribers, selectedTaskId } = useAppSelector(state => state.taskDrawerReducer);
   const { projectId } = useAppSelector(state => state.projectReducer);
 
   const fetchTeamMembers = async () => {
@@ -71,9 +68,10 @@ const NotifyMemberSelector = ({ task, t }: NotifyMemberSelectorProps) => {
   };
 
   const getSubscribers = async () => {
-    if (!task || !task.id) return;
+    const effectiveTaskId = String(task?.id || selectedTaskId || '');
+    if (!effectiveTaskId) return;
     try {
-      const response = await tasksApiService.getSubscribers(task.id);
+      const response = await tasksApiService.getSubscribers(effectiveTaskId);
       if (response.done) {
         dispatch(setTaskSubscribers(response.body || []));
       }
@@ -89,30 +87,94 @@ const NotifyMemberSelector = ({ task, t }: NotifyMemberSelectorProps) => {
     );
   }, [members, searchQuery]);
 
+  const normalizeId = (value: unknown) => String(value || '');
+  const normalizeEmail = (value: unknown) => String(value || '').trim().toLowerCase();
+  const resolveMemberId = (member: any) =>
+    normalizeId(member?.team_member_id || member?.id || member?._id);
+
+  const getSubscriberIds = (subscriber: any) => {
+    return [
+      normalizeId(subscriber?.team_member_id),
+      normalizeId(subscriber?.user_id),
+      normalizeId(subscriber?.id),
+      normalizeEmail(subscriber?.email),
+    ].filter(Boolean);
+  };
+
+  const getMemberSelectionKeys = (member: any) => {
+    return [
+      resolveMemberId(member),
+      normalizeId(member?.team_member_id),
+      normalizeId(member?.user_id),
+      normalizeId(member?.id),
+      normalizeEmail(member?.email),
+    ].filter(Boolean);
+  };
+
+  useEffect(() => {
+    const selectedIds = new Set<string>();
+    (subscribers || []).forEach(sub => {
+      getSubscriberIds(sub).forEach(id => selectedIds.add(id));
+    });
+    setOptimisticSubscriberIds(Array.from(selectedIds));
+  }, [subscribers, task?.id]);
+
+  useEffect(() => {
+    const eventName = SocketEvents.TASK_SUBSCRIBERS_CHANGE.toString();
+    const handler = (data: InlineMember[]) => {
+      const selectedIds = new Set<string>();
+      (data || []).forEach(subscriber => {
+        getSubscriberIds(subscriber).forEach(id => selectedIds.add(id));
+      });
+      setOptimisticSubscriberIds(Array.from(selectedIds));
+      dispatch(setTaskSubscribers(data));
+      dispatch(
+        updateTaskCounts({
+          taskId: String(task?.id || selectedTaskId || ''),
+          counts: { has_subscribers: !!(data && data.length) },
+        })
+      );
+    };
+
+    socket?.on(eventName, handler);
+    return () => {
+      socket?.off(eventName, handler);
+    };
+  }, [dispatch, selectedTaskId, socket, task?.id]);
+
+  const isSubscriberSelected = (memberId?: string) => {
+    if (!memberId) return false;
+    const selectedIds = new Set<string>(optimisticSubscriberIds);
+
+    const member = (members.data || []).find(m => resolveMemberId(m) === normalizeId(memberId));
+    const memberIds = getMemberSelectionKeys(member);
+
+    return memberIds.some(id => selectedIds.has(id));
+  };
+
   const handleMemberClick = (member: ITeamMemberViewModel, checked: boolean) => {
-    if (!task || !connected || !currentSession?.id || !member.id) return;
+    const effectiveTaskId = String(task?.id || selectedTaskId || '');
+      const memberId = resolveMemberId(member);
+    if (!effectiveTaskId || !connected || !memberId) return;
     try {
+      const memberSelectionKeys = getMemberSelectionKeys(member);
+
+      setOptimisticSubscriberIds(prev => {
+        if (checked) {
+          const next = new Set(prev);
+          memberSelectionKeys.forEach(key => next.add(key));
+          return Array.from(next);
+        }
+        return prev.filter(id => !memberSelectionKeys.includes(id));
+      });
+
       const body = {
-        team_member_id: member.id,
-        task_id: task.id,
+        team_member_id: memberId,
+        task_id: effectiveTaskId,
         user_id: member.user_id || null,
         mode: checked ? 0 : 1,
       };
-      const eventName = SocketEvents.TASK_SUBSCRIBERS_CHANGE.toString();
-      const handler = (data: InlineMember[]) => {
-        dispatch(setTaskSubscribers(data));
-        
-        // Update Redux state with subscriber status
-        dispatch(updateTaskCounts({
-          taskId: task.id,
-          counts: {
-            has_subscribers: data && data.length > 0
-          }
-        }));
-        socket?.off(eventName, handler);
-      };
-      socket?.on(eventName, handler);
-      socket?.emit(eventName, body);
+      socket?.emit(SocketEvents.TASK_SUBSCRIBERS_CHANGE.toString(), body);
     } catch (error) {
       logger.error('Error notifying member:', error);
     }
@@ -137,7 +199,7 @@ const NotifyMemberSelector = ({ task, t }: NotifyMemberSelectorProps) => {
             filteredMembersData.map(member => (
               <List.Item
                 className={`${themeMode === 'dark' ? 'custom-list-item dark' : 'custom-list-item'} ${member.pending_invitation || member.is_pending ? 'disabled' : ''}`}
-                key={member.id}
+                key={resolveMemberId(member) || member.email || member.name}
                 style={{
                   display: 'flex',
                   gap: 8,
@@ -153,13 +215,14 @@ const NotifyMemberSelector = ({ task, t }: NotifyMemberSelectorProps) => {
                   if (member.pending_invitation || member.is_pending) return;
                   handleMemberClick(
                     member,
-                    !subscribers?.some(sub => sub.team_member_id === member.id)
+                    !isSubscriberSelected(resolveMemberId(member))
                   );
                 }}
               >
                 <Checkbox
-                  id={member.id}
-                  checked={subscribers?.some(sub => sub.team_member_id === member.id)}
+                  id={resolveMemberId(member)}
+                  checked={isSubscriberSelected(resolveMemberId(member))}
+                  onClick={e => e.stopPropagation()}
                   onChange={e => {
                     e.stopPropagation();
                     handleMemberClick(member, e.target.checked);
@@ -206,7 +269,7 @@ const NotifyMemberSelector = ({ task, t }: NotifyMemberSelectorProps) => {
 
   useEffect(() => {
     getSubscribers();
-  }, [task?.id]);
+  }, [task?.id, selectedTaskId]);
 
   return (
     <Flex gap={8}>

@@ -6,9 +6,10 @@ import SubTaskTable from './subtask-table';
 import DependenciesTable from './dependencies-table';
 import { useAppSelector } from '@/hooks/useAppSelector';
 import TaskDetailsForm from './task-details-form';
-import { fetchTask } from '@/features/tasks/tasks.slice';
+import { fetchTask } from '@/features/task-drawer/task-drawer.slice';
 import { useAppDispatch } from '@/hooks/useAppDispatch';
 import { updateTaskCounts } from '@/features/task-management/task-management.slice';
+import { updateTask } from '@/features/task-management/task-management.slice';
 import { TFunction } from 'i18next';
 import { subTasksApiService } from '@/api/tasks/subtasks.api.service';
 import { ISubTask } from '@/types/tasks/subTask.types';
@@ -52,6 +53,9 @@ const TaskDrawerInfoTab = ({ t }: TaskDrawerInfoTabProps) => {
 
   const [taskComments, setTaskComments] = useState<ITaskCommentViewModel[]>([]);
   const [loadingTaskComments, setLoadingTaskComments] = useState<boolean>(false);
+  const listTask = useAppSelector(state =>
+    selectedTaskId ? state.taskManagement.entities[selectedTaskId] : undefined
+  );
 
   const handleFilesSelected = async (files: File[]) => {
     if (!taskFormViewModel?.task?.id || !projectId) return;
@@ -201,6 +205,15 @@ const TaskDrawerInfoTab = ({ t }: TaskDrawerInfoTabProps) => {
       const res = await subTasksApiService.getSubTasks(selectedTaskId);
       if (res.done) {
         setSubTasks(res.body);
+        if (listTask) {
+          dispatch(
+            updateTask({
+              ...listTask,
+              sub_tasks_count: res.body.length,
+              updated_at: new Date().toISOString(),
+            } as any)
+          );
+        }
       }
     } catch (error) {
       logger.error('Error fetching sub tasks:', error);

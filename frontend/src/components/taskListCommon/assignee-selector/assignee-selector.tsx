@@ -237,12 +237,8 @@ const AssigneeSelector = ({ task, groupId = null }: AssigneeSelectorProps) => {
                     e.stopPropagation();
                     handleMemberChange(e, getMemberKey(member));
                   }}
+                  onClick={e => e.stopPropagation()}
                   disabled={member.pending_invitation}
-                  onClick={e => {
-                    e.stopPropagation();
-                    // Fallback path: some builds fail to trigger onChange consistently in this dropdown.
-                    handleMemberChange(null, getMemberKey(member));
-                  }}
                 />
                 <div>
                   <SingleAvatar

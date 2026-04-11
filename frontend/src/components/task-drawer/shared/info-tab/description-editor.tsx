@@ -5,6 +5,7 @@ import { useSocket } from '@/socket/socketContext';
 import { SocketEvents } from '@/shared/socket-events';
 import { useAppDispatch } from '@/hooks/useAppDispatch';
 import { setTaskDescription } from '@/features/task-drawer/task-drawer.slice';
+import { updateTask } from '@/features/task-management/task-management.slice';
 
 // Lazy load TinyMCE editor to reduce initial bundle size
 const LazyTinyMCEEditor = lazy(() => 
@@ -28,6 +29,7 @@ const DescriptionEditor = ({ description, taskId, parentTaskId }: DescriptionEdi
   const editorRef = useRef<any>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const themeMode = useAppSelector(state => state.themeReducer.mode);
+  const currentListTask = useAppSelector(state => state.taskManagement.entities[taskId]);
   const dispatch = useAppDispatch();
 
   useEffect(() => {
@@ -37,6 +39,15 @@ const DescriptionEditor = ({ description, taskId, parentTaskId }: DescriptionEdi
       if (String(data?.id || '') === String(taskId)) {
         setContent(data.description || '');
         dispatch(setTaskDescription(data));
+        if (currentListTask) {
+          dispatch(
+            updateTask({
+              ...currentListTask,
+              description: data.description || '',
+              updated_at: new Date().toISOString(),
+            } as any)
+          );
+        }
       }
     };
     socket.on(eventName, handler);
@@ -44,7 +55,7 @@ const DescriptionEditor = ({ description, taskId, parentTaskId }: DescriptionEdi
     return () => {
       socket.off(eventName, handler);
     };
-  }, [socket, taskId, dispatch]);
+  }, [socket, taskId, dispatch, currentListTask]);
 
   useEffect(() => {
     setContent(description || '');

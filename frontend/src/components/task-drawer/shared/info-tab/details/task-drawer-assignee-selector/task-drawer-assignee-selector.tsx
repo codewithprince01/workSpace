@@ -8,7 +8,7 @@ import Input from 'antd/es/input';
 import List from 'antd/es/list';
 import Typography from 'antd/es/typography';
 import Button from 'antd/es/button';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { message } from '@/shared/antd-imports';
 import { useAppSelector } from '@/hooks/useAppSelector';
 import { useAppDispatch } from '@/hooks/useAppDispatch';
@@ -24,10 +24,8 @@ import { SocketEvents } from '@/shared/socket-events';
 import { ITaskViewModel } from '@/types/tasks/task.types';
 import { ITaskAssigneesUpdateResponse } from '@/types/tasks/task-assignee-update-response';
 import { setTaskAssignee } from '@/features/task-drawer/task-drawer.slice';
-import useTabSearchParam from '@/hooks/useTabSearchParam';
-import { updateTaskAssignees as updateBoardTaskAssignees } from '@/features/board/board-slice';
-import { updateTaskAssignees as updateTasksListTaskAssignees } from '@/features/tasks/tasks.slice';
 import { updateEnhancedKanbanTaskAssignees } from '@/features/enhanced-kanban/enhanced-kanban.slice';
+import { updateTaskAssignees as updateTaskManagementAssignees } from '@/features/task-management/task-management.slice';
 interface TaskDrawerAssigneeSelectorProps {
   task: ITaskViewModel;
 }
@@ -41,10 +39,87 @@ const TaskDrawerAssigneeSelector = ({ task }: TaskDrawerAssigneeSelectorProps) =
   const { socket } = useSocket();
   const themeMode = useAppSelector(state => state.themeReducer.mode);
   const { t } = useTranslation('task-list-table');
-  const { tab } = useTabSearchParam();
-
   const dispatch = useAppDispatch();
   const members = useAppSelector(state => state.teamMembersReducer.teamMembers);
+  const selectedTaskId = useAppSelector(state => state.taskDrawerReducer.selectedTaskId);
+  const [optimisticSelectedIds, setOptimisticSelectedIds] = useState<string[]>([]);
+
+  const normalizeId = (value: unknown) => String(value || '');
+  const normalizeEmail = (value: unknown) => String(value || '').trim().toLowerCase();
+  const resolveMemberId = (member: any) =>
+    normalizeId(member?.team_member_id || member?.id || member?._id);
+
+  const getCandidateKeys = (value: any) => {
+    if (!value) return [];
+    if (typeof value === 'string') return [normalizeId(value)];
+    return [
+      normalizeId(value?.team_member_id),
+      normalizeId(value?.id),
+      normalizeId(value?._id),
+      normalizeId(value?.user_id),
+      normalizeEmail(value?.email),
+    ].filter(Boolean);
+  };
+
+  const getMemberSelectionKeys = (member: any) =>
+    [
+      resolveMemberId(member),
+      normalizeId(member?.team_member_id),
+      normalizeId(member?.user_id),
+      normalizeId(member?.id),
+      normalizeEmail(member?.email),
+    ].filter(Boolean);
+
+  const getTaskSelectedIdPool = (taskValue: ITaskViewModel) => {
+    const selectedIdPool = new Set<string>();
+    (taskValue?.assignees || []).forEach(assignee => {
+      getCandidateKeys(assignee).forEach(id => selectedIdPool.add(id));
+    });
+    (taskValue?.names || []).forEach(assignee => {
+      getCandidateKeys(assignee).forEach(id => selectedIdPool.add(id));
+    });
+    (taskValue?.assignee_names || []).forEach(assignee => {
+      getCandidateKeys(assignee).forEach(id => selectedIdPool.add(id));
+    });
+    return Array.from(selectedIdPool);
+  };
+
+  useEffect(() => {
+    setOptimisticSelectedIds(getTaskSelectedIdPool(task));
+    // Only reset when drawer task changes to avoid flicker during in-flight updates.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [task?.id]);
+
+  useEffect(() => {
+    const eventName = SocketEvents.QUICK_ASSIGNEES_UPDATE.toString();
+    const handler = (data: ITaskAssigneesUpdateResponse) => {
+      const effectiveTaskId = String(task?.id || selectedTaskId || '');
+      if (!data || String((data as any).id || '') !== effectiveTaskId) return;
+
+      dispatch(setTaskAssignee(data));
+      dispatch(
+        updateTaskManagementAssignees({
+          taskId: String(data.id || effectiveTaskId),
+          assigneeIds: (data.assignees || []).map(a =>
+            String(a?.team_member_id || a?.id || '')
+          ),
+          assigneeNames: (data.names || data.assignees || []).map(a => ({
+            team_member_id: String((a as any)?.team_member_id || (a as any)?.id || ''),
+            id: String((a as any)?.id || (a as any)?.team_member_id || ''),
+            name: (a as any)?.name || '',
+            avatar_url: (a as any)?.avatar_url || '',
+          })),
+        })
+      );
+      dispatch(updateEnhancedKanbanTaskAssignees(data));
+      setOptimisticSelectedIds(getTaskSelectedIdPool(data as any));
+    };
+
+    socket?.on(eventName, handler);
+    return () => {
+      socket?.off(eventName, handler);
+    };
+  }, [dispatch, selectedTaskId, socket, task?.id]);
 
   const filteredMembersData = useMemo(() => {
     return teamMembers?.data?.filter(member =>
@@ -52,27 +127,21 @@ const TaskDrawerAssigneeSelector = ({ task }: TaskDrawerAssigneeSelectorProps) =
     );
   }, [teamMembers, searchQuery]);
 
-  const isAssigneeSelected = (memberId: string) => {
-    if (!memberId || !task) return false;
-    const directMatch = task.assignees?.some(assignee => String(assignee) === String(memberId));
-    if (directMatch) return true;
+  const isAssigneeSelected = (member: any) => {
+    if (!member || !task) return false;
 
-    const inlineMatch = (task.names || []).some(
-      member => String((member as any)?.team_member_id || (member as any)?.id || '') === String(memberId)
-    );
-    if (inlineMatch) return true;
+    const memberIds = new Set(getMemberSelectionKeys(member));
 
-    const assigneeNamesMatch = (task.assignee_names || []).some(
-      member => String((member as any)?.team_member_id || (member as any)?.id || '') === String(memberId)
-    );
-    return assigneeNamesMatch;
+    const selectedIdPool = new Set<string>(optimisticSelectedIds);
+
+    return Array.from(memberIds).some(id => selectedIdPool.has(id));
   };
 
   const handleMembersDropdownOpen = (open: boolean) => {
     if (open) {
       const membersData = (members?.data || []).map(member => ({
         ...member,
-        selected: isAssigneeSelected(member.id || ''),
+        selected: isAssigneeSelected(member),
       }));
       let sortedMembers = sortTeamMembers(membersData);
 
@@ -86,47 +155,44 @@ const TaskDrawerAssigneeSelector = ({ task }: TaskDrawerAssigneeSelectorProps) =
     }
   };
 
-  const handleMemberChange = (e: CheckboxChangeEvent | null, memberId: string) => {
-    if (!memberId || !projectId || !task?.id || !currentSession?.id) return;
+  const handleMemberChange = (e: CheckboxChangeEvent | null, member: any) => {
+    const memberId = resolveMemberId(member);
+    const effectiveTaskId = String(task?.id || selectedTaskId || '');
+    if (!memberId || !projectId || !effectiveTaskId) return;
     try {
       const checked =
-        e?.target.checked ?? !isAssigneeSelected(memberId);
+        e?.target.checked ??
+        !isAssigneeSelected(member);
+
+      const memberSelectionKeys = getMemberSelectionKeys(member);
+
+      setOptimisticSelectedIds(prev => {
+        if (checked) {
+          const next = new Set(prev);
+          memberSelectionKeys.forEach(key => next.add(key));
+          return Array.from(next);
+        }
+        return prev.filter(id => !memberSelectionKeys.includes(id));
+      });
 
       const body = {
         team_member_id: memberId,
         project_id: projectId,
-        task_id: task.id,
-        reporter_id: currentSession?.id,
+        task_id: effectiveTaskId,
+        reporter_id: currentSession?.id || undefined,
         mode: checked ? 0 : 1,
         parent_task: task.parent_task_id,
       };
 
-      const eventName = SocketEvents.QUICK_ASSIGNEES_UPDATE.toString();
-      const handler = (data: ITaskAssigneesUpdateResponse) => {
-        if (!data || String((data as any).id || '') !== String(task.id)) {
-          return;
-        }
-
-        dispatch(setTaskAssignee(data));
-        if (tab === 'tasks-list') {
-          dispatch(updateTasksListTaskAssignees(data));
-        }
-        if (tab === 'board') {
-          dispatch(updateEnhancedKanbanTaskAssignees(data));
-        }
-        socket?.off(eventName, handler);
-      };
-
-      socket?.on(eventName, handler);
-      socket?.emit(eventName, JSON.stringify(body));
+      socket?.emit(SocketEvents.QUICK_ASSIGNEES_UPDATE.toString(), JSON.stringify(body));
     } catch (error) {
       console.error('Error updating assignee:', error);
       message.error('Failed to update assignee');
     }
   };
 
-  const checkMemberSelected = (memberId: string) => {
-    return isAssigneeSelected(memberId);
+  const checkMemberSelected = (member: any) => {
+    return isAssigneeSelected(member);
   };
 
   const membersDropdownContent = (
@@ -144,7 +210,7 @@ const TaskDrawerAssigneeSelector = ({ task }: TaskDrawerAssigneeSelectorProps) =
             filteredMembersData.map(member => (
               <List.Item
                 className={`${themeMode === 'dark' ? 'custom-list-item dark' : 'custom-list-item'} ${member.pending_invitation ? 'disabled cursor-not-allowed' : ''}`}
-                key={member.id}
+                key={resolveMemberId(member) || member.email || member.name}
                 style={{
                   display: 'flex',
                   gap: 8,
@@ -155,13 +221,17 @@ const TaskDrawerAssigneeSelector = ({ task }: TaskDrawerAssigneeSelectorProps) =
                 }}
                 onClick={() => {
                   if (member.pending_invitation) return;
-                  handleMemberChange(null, member.id || '');
+                  handleMemberChange(null, member);
                 }}
               >
                 <Checkbox
-                  id={member.id}
-                  checked={checkMemberSelected(member.id || '')}
-                  onChange={e => handleMemberChange(e, member.id || '')}
+                  id={resolveMemberId(member)}
+                  checked={checkMemberSelected(member)}
+                  onClick={e => e.stopPropagation()}
+                  onChange={e => {
+                    e.stopPropagation();
+                    handleMemberChange(e, member);
+                  }}
                   disabled={member.pending_invitation}
                 />
                 <div>

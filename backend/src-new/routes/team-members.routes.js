@@ -73,12 +73,29 @@ router.get('/all', async (req, res) => {
             project_id: project, 
             is_active: true 
         }).populate('user_id', 'name email avatar_url');
+
+        // Build a fallback map: user_id -> team_member_id for old rows where project_members.team_member_id is null
+        const userIds = members
+          .map(m => m?.user_id?._id)
+          .filter(Boolean);
+        const teamMembers = await TeamMember.find({
+          user_id: { $in: userIds },
+          is_active: true,
+        }).select('_id user_id');
+        const userToTeamMemberMap = {};
+        teamMembers.forEach(tm => {
+          if (tm?.user_id) {
+            userToTeamMemberMap[tm.user_id.toString()] = tm._id?.toString();
+          }
+        });
         
         return res.json({
             done: true,
             body: members.map(m => ({
+                // Keep existing id shape for compatibility, but expose team_member_id explicitly for assignee sockets
                 id: m.user_id?._id,
                 user_id: m.user_id?._id,
+                team_member_id: m.team_member_id || userToTeamMemberMap[m.user_id?._id?.toString()] || null,
                 name: m.user_id?.name,
                 email: m.user_id?.email,
                 avatar_url: m.user_id?.avatar_url,
@@ -103,6 +120,7 @@ router.get('/all', async (req, res) => {
         uniqueMembersMap.set(m.user_id._id.toString(), {
            id: m.user_id._id,
            user_id: m.user_id._id,
+           team_member_id: m._id,
            name: m.user_id.name,
            email: m.user_id.email,
            avatar_url: m.user_id.avatar_url,
@@ -256,11 +274,27 @@ router.get('/project/:projectId', async (req, res) => {
             project_id: req.params.projectId, 
             is_active: true 
         }).populate('user_id', 'name email avatar_url');
+
+        const userIds = members
+          .map(m => m?.user_id?._id)
+          .filter(Boolean);
+        const teamMembers = await TeamMember.find({
+          user_id: { $in: userIds },
+          is_active: true,
+        }).select('_id user_id');
+        const userToTeamMemberMap = {};
+        teamMembers.forEach(tm => {
+          if (tm?.user_id) {
+            userToTeamMemberMap[tm.user_id.toString()] = tm._id?.toString();
+          }
+        });
         
         res.json({
             done: true,
             body: members.map(m => ({
                 id: m.user_id._id,
+                user_id: m.user_id._id,
+                team_member_id: m.team_member_id || userToTeamMemberMap[m.user_id?._id?.toString()] || null,
                 name: m.user_id.name,
                 email: m.user_id.email,
                 avatar_url: m.user_id.avatar_url,

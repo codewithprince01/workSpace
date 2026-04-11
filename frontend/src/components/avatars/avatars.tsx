@@ -1,6 +1,7 @@
 import { Avatar, Tooltip } from '@/shared/antd-imports';
 import React, { useCallback, useMemo } from 'react';
 import { InlineMember } from '@/types/teamMembers/inlineMember.types';
+import { AvatarNamesMap } from '@/shared/constants';
 
 interface AvatarsProps {
   members: InlineMember[];
@@ -28,7 +29,10 @@ const Avatars: React.FC<AvatarsProps> = React.memo(({ members, maxCount }) => {
               size={28}
               key={member.team_member_id || index}
               style={{
-                backgroundColor: member.color_code || '#1890ff',
+                backgroundColor:
+                  member.color_code ||
+                  AvatarNamesMap[(member.name || '?').charAt(0).toUpperCase()] ||
+                  '#1890ff',
                 fontSize: '14px',
               }}
             >
