@@ -14,6 +14,7 @@ import {
   DeleteOutlined,
   InboxOutlined,
   RollbackOutlined,
+  Divider,
 } from '@/shared/antd-imports';
 import { useTranslation } from 'react-i18next';
 import { useDocumentTitle } from '@/hooks/useDoumentTItle';
@@ -165,48 +166,83 @@ const TrashSettings = () => {
 
   return (
     <Card
+      styles={{ head: { padding: '12px 24px' }, body: { padding: 0 } }}
       title={
-        <Flex justify="space-between" align="center" style={{ width: '100%' }}>
-          <Space>
-            <InboxOutlined />
-            <Typography.Text strong>Task Trash</Typography.Text>
-          </Space>
-          <Space>
+        <Space size="middle">
+          <Flex
+            align="center"
+            justify="center"
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 8,
+              backgroundColor: 'rgba(24, 144, 255, 0.1)',
+              color: '#1890ff',
+            }}
+          >
+            <InboxOutlined style={{ fontSize: 18 }} />
+          </Flex>
+          <Typography.Title level={5} style={{ margin: 0 }}>
+            Task Trash
+          </Typography.Title>
+        </Space>
+      }
+      extra={
+        <Flex gap="middle" align="center">
+          <Space.Compact style={{ width: 300 }}>
             <Input
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               onPressEnter={() => loadTrash(searchQuery)}
-              placeholder="Search trash tasks"
-              suffix={<SearchOutlined />}
-              style={{ width: 240 }}
+              placeholder="Search trash tasks..."
+              prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
+              allowClear
             />
-            <Button onClick={() => loadTrash(searchQuery)}>Search</Button>
-            <PinRouteToNavbarButton name="trash" path="/worklenz/settings/trash" />
-          </Space>
-        </Flex>
-      }
-      extra={
-        <Space>
-          <Button
-            disabled={!selectedIds.length}
-            icon={<RollbackOutlined />}
-            onClick={() => handleRestore(selectedIds)}
-          >
-            Restore Selected
-          </Button>
-          <Popconfirm
-            title="Permanently delete selected tasks?"
-            description="This action cannot be undone."
-            onConfirm={() => handlePermanentDelete(selectedIds)}
-            okText="Delete"
-            cancelText="Cancel"
-            disabled={!selectedIds.length}
-          >
-            <Button danger disabled={!selectedIds.length} icon={<DeleteOutlined />}>
-              Delete Permanently
+            <Button type="primary" onClick={() => loadTrash(searchQuery)}>
+              Search
             </Button>
-          </Popconfirm>
-        </Space>
+          </Space.Compact>
+
+          <Divider type="vertical" style={{ height: 24, margin: '0 4px' }} />
+
+          <Space size="small">
+            <Button
+              disabled={!selectedIds.length}
+              icon={<RollbackOutlined />}
+              onClick={() => handleRestore(selectedIds)}
+              className={selectedIds.length ? 'restore-btn-active' : ''}
+              style={{
+                borderRadius: 6,
+                fontWeight: 500,
+              }}
+            >
+              Restore {selectedIds.length > 0 ? `(${selectedIds.length})` : ''}
+            </Button>
+
+            <Popconfirm
+              title="Permanently delete tasks?"
+              description={`Are you sure you want to permanently delete ${selectedIds.length > 1 ? 'these tasks' : 'this task'}? This action cannot be undone.`}
+              onConfirm={() => handlePermanentDelete(selectedIds)}
+              okText="Delete"
+              cancelText="Cancel"
+              okButtonProps={{ danger: true }}
+              disabled={!selectedIds.length}
+            >
+              <Button
+                danger
+                disabled={!selectedIds.length}
+                icon={<DeleteOutlined />}
+                style={{ borderRadius: 6 }}
+              >
+                Delete
+              </Button>
+            </Popconfirm>
+          </Space>
+
+          <Divider type="vertical" style={{ height: 24, margin: '0 4px' }} />
+
+          <PinRouteToNavbarButton name="trash" path="/worklenz/settings/trash" />
+        </Flex>
       }
     >
       <Table
