@@ -11,6 +11,8 @@ export interface Task {
   status: string;
   priority: string;
   phase?: string;
+  phase_id?: string | null;
+  phase_name?: string | null;
   assignee?: string;
   assignees?: string[]; // Array of assigned member IDs
   assignee_names?: InlineMember[]; // Array of assigned members
@@ -19,6 +21,7 @@ export interface Task {
   dueDate?: string; // Alternative due date field
   startDate?: string; // Start date field
   completedAt?: string; // Completion date
+  completed_at?: string; // Completion date (snake_case)
   updatedAt?: string; // Update timestamp (camelCase from API)
   createdAt?: string; // Creation timestamp (camelCase from API)
   created_at: string; // Creation timestamp (snake_case, legacy)
@@ -46,6 +49,7 @@ export interface Task {
   phase_sort_order?: number; // Sort order when grouped by phase
   member_sort_order?: number; // Sort order when grouped by members
   reporter?: string; // Reporter field
+  reporter_id?: string; // Reporter id field
   timeTracking?: { // Time tracking information
     logged?: number;
     estimated?: number;

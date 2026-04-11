@@ -240,7 +240,7 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
   }, [form]);
 
   useEffect(() => {
-    if (!isProjectDrawerOpen) return;
+    if (!isProjectDrawerOpen || !drawerVisible) return;
 
     const startDate = form.getFieldValue('start_date');
     const endDate = form.getFieldValue('end_date');
@@ -252,7 +252,7 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
       );
       form.setFieldsValue({ working_days: days });
     }
-  }, [form, isProjectDrawerOpen]);
+  }, [form, isProjectDrawerOpen, drawerVisible]);
 
   // Handlers
   const handleFormSubmit = async (values: any) => {

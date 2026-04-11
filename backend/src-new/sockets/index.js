@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const constants = require('../config/constants');
 const { User, Task, Project, TaskStatus, TeamMember, ProjectMember, TimeLog, RunningTimer, ActivityLog, TaskLabel, TaskPhase } = require('../models');
 const SocketEvents = require('../config/socket-events');
+const { generateTaskKeyForProject } = require('../utils/task-key');
 
 let io;
 
@@ -140,6 +141,7 @@ const initializeSocket = (server) => {
             name,
             description: description || '',
             project_id,
+            task_key: await generateTaskKeyForProject(project_id),
             status_id,
             phase_id: requestedPhaseId || null,
             parent_task_id,
@@ -282,21 +284,118 @@ const initializeSocket = (server) => {
     // TASK_LABELS_CHANGE
     socket.on(SocketEvents.TASK_LABELS_CHANGE.toString(), async (str) => {
         try {
-            const data = JSON.parse(str);
+            const data = typeof str === 'string' ? JSON.parse(str) : str;
             const { task_id, label_id, is_selected } = data;
-            const currentTask = await Task.findById(task_id);
+            const currentTask = await Task.findById(task_id).select('labels project_id');
             if (!currentTask) return;
 
-            const shouldSelect = typeof is_selected === 'boolean' ? is_selected : !currentTask.labels.includes(label_id);
+            const currentLabelIds = (currentTask.labels || []).map(id => id?.toString());
+            const shouldSelect =
+              typeof is_selected === 'boolean' ? is_selected : !currentLabelIds.includes(label_id?.toString());
             const update = shouldSelect ? { $addToSet: { labels: label_id } } : { $pull: { labels: label_id } };
             const task = await Task.findByIdAndUpdate(task_id, update, { new: true }).populate('labels');
             
             if (task) {
-                const response = { id: task_id, label_id, is_selected: shouldSelect, labels: task.labels.map(l => ({ id: l._id, name: l.name, color_code: l.color_code })) };
+                const project = await Project.findById(task.project_id).select('team_id');
+                const allLabels = project?.team_id
+                  ? await TaskLabel.find({ team_id: project.team_id }).sort({ created_at: 1 })
+                  : [];
+                const response = {
+                  id: task_id,
+                  label_id,
+                  is_selected: shouldSelect,
+                  is_new: false,
+                  labels: task.labels.map(l => ({
+                    id: l._id.toString(),
+                    name: l.name,
+                    color_code: l.color_code
+                  })),
+                  all_labels: allLabels.map(l => ({
+                    id: l._id.toString(),
+                    name: l.name,
+                    color_code: l.color_code
+                  }))
+                };
                 socket.emit(SocketEvents.TASK_LABELS_CHANGE.toString(), response);
-                io.to(`project:${task.project_id}`).emit(SocketEvents.TASK_LABELS_CHANGE.toString(), response);
+                socket.to(`project:${task.project_id}`).emit(SocketEvents.TASK_LABELS_CHANGE.toString(), response);
             }
         } catch(e) { console.error(e); }
+    });
+
+    // CREATE_LABEL
+    socket.on(SocketEvents.CREATE_LABEL.toString(), async (str) => {
+        try {
+            const data = typeof str === 'string' ? JSON.parse(str) : str;
+            const { task_id, label, team_id } = data || {};
+            const labelName = typeof label === 'string' ? label.trim() : '';
+            if (!task_id || !labelName) return;
+
+            const task = await Task.findById(task_id).select('project_id');
+            if (!task) return;
+
+            const project = await Project.findById(task.project_id).select('team_id');
+            const resolvedTeamId = team_id || project?.team_id?.toString();
+            if (!resolvedTeamId) return;
+
+            const escaped = labelName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            let createdLabel = await TaskLabel.findOne({
+              team_id: resolvedTeamId,
+              name: { $regex: `^${escaped}$`, $options: 'i' }
+            });
+
+            if (!createdLabel) {
+              try {
+                createdLabel = await TaskLabel.create({
+                  name: labelName,
+                  team_id: resolvedTeamId
+                });
+              } catch (createError) {
+                if (createError?.code === 11000) {
+                  createdLabel = await TaskLabel.findOne({
+                    team_id: resolvedTeamId,
+                    name: { $regex: `^${escaped}$`, $options: 'i' }
+                  });
+                } else {
+                  throw createError;
+                }
+              }
+            }
+
+            if (!createdLabel) return;
+
+            const updatedTask = await Task.findByIdAndUpdate(
+              task_id,
+              { $addToSet: { labels: createdLabel._id } },
+              { new: true }
+            ).populate('labels');
+
+            if (!updatedTask) return;
+
+            const allLabels = await TaskLabel.find({ team_id: resolvedTeamId }).sort({ created_at: 1 });
+            const response = {
+              id: task_id,
+              label_id: createdLabel._id.toString(),
+              is_selected: true,
+              is_new: true,
+              labels: updatedTask.labels.map(l => ({
+                id: l._id.toString(),
+                name: l.name,
+                color_code: l.color_code
+              })),
+              all_labels: allLabels.map(l => ({
+                id: l._id.toString(),
+                name: l.name,
+                color_code: l.color_code
+              }))
+            };
+
+            socket.emit(SocketEvents.CREATE_LABEL.toString(), response);
+            socket.to(`project:${updatedTask.project_id}`).emit(SocketEvents.CREATE_LABEL.toString(), response);
+
+            // Keep both label events in sync for consumers listening only to TASK_LABELS_CHANGE
+            socket.emit(SocketEvents.TASK_LABELS_CHANGE.toString(), response);
+            socket.to(`project:${updatedTask.project_id}`).emit(SocketEvents.TASK_LABELS_CHANGE.toString(), response);
+        } catch (e) { console.error(e); }
     });
 
     // TASK_DESCRIPTION_CHANGE
@@ -529,12 +628,25 @@ const initializeSocket = (server) => {
     socket.on(SocketEvents.TASK_TIMER_START.toString(), async (str) => {
         try {
             const { task_id } = JSON.parse(str);
+            const task = await Task.findById(task_id).select('project_id');
+            if (!task) return;
             await RunningTimer.deleteMany({ user_id: socket.user._id });
-            const timer = await RunningTimer.create({ task_id, user_id: socket.user._id, start_time: new Date() });
-            const res = { task_id, start_time: timer.start_time.getTime(), user_id: socket.user._id };
+            const timer = await RunningTimer.create({
+              task_id,
+              user_id: socket.user._id,
+              project_id: task.project_id,
+              start_time: new Date()
+            });
+            const res = {
+              task_id: task_id?.toString(),
+              start_time: timer.start_time.getTime(),
+              user_id: socket.user._id?.toString()
+            };
             socket.emit(SocketEvents.TASK_TIMER_START.toString(), res);
-            const project = await Task.findById(task_id).select('project_id');
-            io.to(`project:${project.project_id}`).emit(SocketEvents.TASK_TIMER_START.toString(), { ...res, user_name: socket.user.name });
+            io.to(`project:${task.project_id}`).emit(SocketEvents.TASK_TIMER_START.toString(), {
+              ...res,
+              user_name: socket.user.name
+            });
         } catch(e) { console.error(e); }
     });
 
@@ -547,7 +659,11 @@ const initializeSocket = (server) => {
                 const hours = (endTime - timer.start_time) / (1000 * 60 * 60);
                 await TimeLog.create({ task_id, user_id: socket.user._id, hours, description: description || '', logged_date: endTime });
                 await RunningTimer.deleteOne({ _id: timer._id });
-                const res = { task_id, user_id: socket.user._id, duration_hours: hours };
+                const res = {
+                  task_id: task_id?.toString(),
+                  user_id: socket.user._id?.toString(),
+                  duration_hours: hours
+                };
                 socket.emit(SocketEvents.TASK_TIMER_STOP.toString(), res);
                 io.to(`project:${timer.project_id}`).emit(SocketEvents.TASK_TIMER_STOP.toString(), { ...res, user_name: socket.user.name });
             }

@@ -152,6 +152,7 @@ const LabelsSelector: React.FC<LabelsSelectorProps> = ({ task, isDarkMode = fals
 
     socket?.emit(SocketEvents.CREATE_LABEL.toString(), JSON.stringify(labelData));
     setSearchQuery('');
+    setTimeout(() => searchInputRef.current?.focus(), 0);
   };
 
   const checkLabelSelected = (labelId: string) => {
@@ -203,6 +204,7 @@ const LabelsSelector: React.FC<LabelsSelectorProps> = ({ task, isDarkMode = fals
               top: dropdownPosition.top,
               left: dropdownPosition.left,
             }}
+            onMouseDown={e => e.stopPropagation()}
           >
             {/* Header */}
             <div className={`p-2 border-b ${isDarkMode ? 'border-gray-600' : 'border-gray-300'}`}>
@@ -270,6 +272,11 @@ const LabelsSelector: React.FC<LabelsSelectorProps> = ({ task, isDarkMode = fals
                   {searchQuery.trim() && (
                     <>
                       <button
+                        type="button"
+                        onMouseDown={e => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                        }}
                         onClick={handleCreateLabel}
                         className={`
                         mt-2 px-3 py-1 text-xs rounded border transition-colors

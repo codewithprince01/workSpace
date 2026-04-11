@@ -28,6 +28,44 @@ router.get('/running-timers', async (req, res) => {
     }
 });
 
+// GET /api/task-time-log/recent - Get recent time logs for current user
+router.get('/recent', async (req, res) => {
+    try {
+        const limit = Math.max(1, Math.min(parseInt(req.query.limit, 10) || 10, 50));
+
+        const logs = await TimeLog.find({ user_id: req.user._id })
+            .populate({
+                path: 'task_id',
+                select: 'name project_id',
+                populate: { path: 'project_id', select: 'name' }
+            })
+            .sort({ logged_date: -1 })
+            .limit(limit);
+
+        const formattedLogs = logs
+            .filter(log => log?.task_id)
+            .map(log => {
+                const seconds = Math.max(0, Math.round((log.hours || 0) * 3600));
+                return {
+                    id: log._id?.toString(),
+                    task_id: log.task_id?._id?.toString(),
+                    task_name: log.task_id?.name || 'Untitled Task',
+                    project_id: log.task_id?.project_id?._id?.toString() || null,
+                    project_name: log.task_id?.project_id?.name || 'Unknown Project',
+                    time_spent_seconds: seconds,
+                    time_spent_text: formatDuration(seconds),
+                    logged_date: log.logged_date,
+                    description: log.description || ''
+                };
+            });
+
+        res.json({ done: true, body: formattedLogs });
+    } catch (error) {
+        console.error('Fetch recent time logs error:', error);
+        res.status(500).json({ done: false, message: 'Failed to fetch recent time logs' });
+    }
+});
+
 // GET /api/task-time-log/task/:id - Get time logs for a task
 router.get('/task/:id', async (req, res) => {
     try {
@@ -180,6 +218,17 @@ function formatTimeSpent(hours) {
     if (h > 0 && m > 0) return `${h}h ${m}m`;
     if (h > 0) return `${h}h`;
     return `${m}m`;
+}
+
+function formatDuration(totalSeconds) {
+    const seconds = Math.max(0, Number(totalSeconds) || 0);
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+
+    if (h > 0) return `${h}h ${m}m ${s}s`;
+    if (m > 0) return `${m}m ${s}s`;
+    return `${s}s`;
 }
 
 module.exports = router;

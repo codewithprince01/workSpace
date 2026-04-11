@@ -1,4 +1,5 @@
 const { Task, TaskStatus, TaskComment, TaskAttachment, Project, ProjectMember, TeamMember, TaskPhase, TaskLabel, ActivityLog, TimeLog, RunningTimer } = require('../models');
+const { generateTaskKeyForProject } = require('../utils/task-key');
 
 /**
  * @desc    Create task
@@ -53,6 +54,7 @@ exports.create = async (req, res, next) => {
       name,
       description,
       project_id,
+      task_key: await generateTaskKeyForProject(project_id),
       status_id: taskStatusId,
       priority: priority || 'medium',
       assignees: assignees || [],
@@ -686,6 +688,12 @@ exports.getTaskListV3 = async (req, res, next) => {
   try {
     const { projectId } = req.params;
     const { group, search, archived, parent_task, members, labels, priorities, statuses, field, order } = req.query;
+    const projectMeta = await Project.findById(projectId).select('key').lean();
+    const projectKeyPrefix =
+      String(projectMeta?.key || 'TASK')
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, '')
+        .slice(0, 10) || 'TASK';
 
     const query = { project_id: projectId };
     if (archived === 'true') query.is_archived = true;
@@ -752,10 +760,76 @@ exports.getTaskListV3 = async (req, res, next) => {
     const tasks = await Task.find(query)
       .populate('status_id', 'name color_code category')
       .populate('assignees', 'name email avatar_url')
+      .populate('reporter_id', 'name email avatar_url')
       .populate('labels', 'name color_code')
       .populate('phase_id', 'name color_code')
       .sort(sort)
       .lean();
+
+    // Backfill missing task keys and normalize old keys (EM1 -> EM-1).
+    if (tasks.some(t => !t.task_key || (typeof t.task_key === 'string' && !t.task_key.includes('-')))) {
+      const project = await Project.findById(projectId).select('key').lean();
+      const prefix = String(project?.key || 'TASK')
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, '')
+        .slice(0, 10) || 'TASK';
+      const prefixRegex = new RegExp(`^${prefix}-?(\\d+)$`);
+
+      const existingKeys = await Task.find({
+        project_id: projectId,
+        task_key: { $type: 'string', $ne: '' },
+      })
+        .select('_id task_key')
+        .lean();
+
+      let maxNumber = 0;
+      const used = new Set();
+      const bulkOps = [];
+      for (const row of existingKeys) {
+        const key = String(row?.task_key || '');
+        const match = key.match(prefixRegex);
+        if (match?.[1]) {
+          const n = Number(match[1]);
+          if (!Number.isNaN(n) && n > maxNumber) maxNumber = n;
+          const normalized = `${prefix}-${n}`;
+          used.add(normalized);
+          if (normalized !== key) {
+            bulkOps.push({
+              updateOne: {
+                filter: { _id: row._id },
+                update: { $set: { task_key: normalized } },
+              },
+            });
+          }
+        } else {
+          used.add(key);
+        }
+      }
+
+      const missing = tasks.filter(t => !t.task_key);
+      for (const task of missing) {
+        let next = maxNumber + 1;
+        let candidate = `${prefix}-${next}`;
+        while (used.has(candidate)) {
+          next += 1;
+          candidate = `${prefix}-${next}`;
+        }
+        maxNumber = next;
+        used.add(candidate);
+        task.task_key = candidate;
+
+        bulkOps.push({
+          updateOne: {
+            filter: { _id: task._id },
+            update: { $set: { task_key: candidate } },
+          },
+        });
+      }
+
+        if (bulkOps.length > 0) {
+        await Task.bulkWrite(bulkOps);
+      }
+    }
 
     // Get time logs for all tasks to calculate time tracking
     const taskIds = tasks.map(t => t._id);
@@ -794,9 +868,18 @@ exports.getTaskListV3 = async (req, res, next) => {
       }
     });
 
-    const formatTask = (t) => ({
+    const formatTask = (t) => {
+      const rawTaskKey = t.task_key ? String(t.task_key).toUpperCase() : '';
+      const normalizedTaskKeyMatch = rawTaskKey.match(new RegExp(`^${projectKeyPrefix}-?(\\d+)$`));
+      const normalizedTaskKey = normalizedTaskKeyMatch?.[1]
+        ? `${projectKeyPrefix}-${Number(normalizedTaskKeyMatch[1])}`
+        : rawTaskKey || null;
+
+      return ({
         ...t,
         id: t._id.toString(),
+        task_key: normalizedTaskKey,
+        key: normalizedTaskKey,
         parent_task_id: t.parent_task_id ? t.parent_task_id.toString() : null,
         title: t.name, // Frontend expects 'title', backend stores as 'name'
         // Status
@@ -819,6 +902,12 @@ exports.getTaskListV3 = async (req, res, next) => {
         end_date: t.end_date || null,
         due_date: t.end_date || t.due_date || null,
         dueDate: t.end_date || t.due_date || null,
+        completed_at: t.completed_at || null,
+        completedAt: t.completed_at || null,
+        created_at: t.created_at || null,
+        createdAt: t.created_at || null,
+        updated_at: t.updated_at || null,
+        updatedAt: t.updated_at || null,
         // Assignees
         assignees: t.assignees?.map(a => ({
             team_member_id: userToTeamMemberMap[a._id?.toString()] || a._id?.toString(),
@@ -854,8 +943,11 @@ exports.getTaskListV3 = async (req, res, next) => {
         },
         total_logged_time: timeLogMap[t._id.toString()] || 0,
         // Progress
-        progress: t.progress || 0
-    });
+        progress: t.progress || 0,
+        reporter: t.reporter_id?.name || null,
+        reporter_id: t.reporter_id?._id?.toString?.() || null
+      });
+    };
 
     // Grouping logic
     let groups = [];

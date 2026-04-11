@@ -1,24 +1,34 @@
-import { ClockCircleOutlined, StopOutlined } from '@/shared/antd-imports';
-import { Badge, Button, Dropdown, List, Tooltip, Typography, Space, Divider, theme } from '@/shared/antd-imports';
+import { ClockCircleOutlined, StopOutlined, PlayCircleFilled } from '@/shared/antd-imports';
+import { Badge, Button, Dropdown, List, Tooltip, Typography, Divider, theme } from '@/shared/antd-imports';
 import React, { useEffect, useState, useCallback } from 'react';
-import { useTranslation } from 'react-i18next';
-import { taskTimeLogsApiService, IRunningTimer } from '@/api/tasks/task-time-logs.api.service';
+import { taskTimeLogsApiService, IRunningTimer, IRecentTimeLog } from '@/api/tasks/task-time-logs.api.service';
 import { useAppDispatch } from '@/hooks/useAppDispatch';
 import { useSocket } from '@/socket/socketContext';
 import { SocketEvents } from '@/shared/socket-events';
 import { updateTaskTimeTracking, updateTaskLoggedTime } from '@/features/tasks/tasks.slice';
-import { format, differenceInSeconds, isValid, parseISO } from 'date-fns';
+import { format, differenceInSeconds, formatDistanceToNow, isValid, parseISO } from 'date-fns';
 
 const { Text } = Typography;
 const { useToken } = theme;
 
+const formatElapsedTime = (totalSeconds: number) => {
+  const seconds = Math.max(0, totalSeconds || 0);
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainingSeconds = seconds % 60;
+
+  if (hours > 0) return `${hours}h ${minutes}m ${remainingSeconds}s`;
+  if (minutes > 0) return `${minutes}m ${remainingSeconds}s`;
+  return `0m ${remainingSeconds}s`;
+};
+
 const TimerButton = () => {
   const [runningTimers, setRunningTimers] = useState<IRunningTimer[]>([]);
+  const [recentLogs, setRecentLogs] = useState<IRecentTimeLog[]>([]);
   const [loading, setLoading] = useState(false);
   const [currentTimes, setCurrentTimes] = useState<Record<string, string>>({});
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { t } = useTranslation('navbar');
   const { token } = useToken();
   const dispatch = useAppDispatch();
   const { socket } = useSocket();
@@ -51,6 +61,20 @@ const TimerButton = () => {
     }
   }, []);
 
+  const fetchRecentLogs = useCallback(async () => {
+    try {
+      const response = await taskTimeLogsApiService.getRecentLogs(8);
+      if (response?.done) {
+        setRecentLogs(Array.isArray(response.body) ? response.body : []);
+      } else {
+        setRecentLogs([]);
+      }
+    } catch (error) {
+      logError('Error fetching recent time logs', error);
+      setRecentLogs([]);
+    }
+  }, []);
+
   const updateCurrentTimes = useCallback(() => {
     try {
       if (!Array.isArray(runningTimers) || runningTimers.length === 0) return;
@@ -68,11 +92,7 @@ const TimerButton = () => {
 
           const now = new Date();
           const totalSeconds = differenceInSeconds(now, startTime);
-          const hours = Math.floor(totalSeconds / 3600);
-          const minutes = Math.floor((totalSeconds % 3600) / 60);
-          const seconds = totalSeconds % 60;
-          newTimes[timer.task_id] =
-            `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+          newTimes[timer.task_id] = formatElapsedTime(totalSeconds);
         } catch (error) {
           logError(`Error updating time for timer ${timer?.task_id}`, error);
         }
@@ -85,9 +105,10 @@ const TimerButton = () => {
 
   useEffect(() => {
     fetchRunningTimers();
+    fetchRecentLogs();
 
     // Removed periodic polling - rely on socket events for real-time updates
-  }, [fetchRunningTimers]);
+  }, [fetchRunningTimers, fetchRecentLogs]);
 
   useEffect(() => {
     if (runningTimers.length > 0) {
@@ -106,8 +127,9 @@ const TimerButton = () => {
     const handleTimerStart = (data: string) => {
       try {
         const parsed = typeof data === 'string' ? JSON.parse(data) : data;
-        const { id } = parsed || {};
-        if (id) {
+        const { id, task_id } = parsed || {};
+        const timerTaskId = id || task_id;
+        if (timerTaskId) {
           // Refresh the running timers list when a new timer is started
           fetchRunningTimers();
         }
@@ -125,6 +147,7 @@ const TimerButton = () => {
         if (taskId) {
           // Refresh the running timers list when a timer is stopped
           fetchRunningTimers();
+          fetchRecentLogs();
           
           // Also update the task log if we have duration
           if (duration_hours) {
@@ -162,7 +185,7 @@ const TimerButton = () => {
     } catch (error) {
       logError('Error setting up socket listeners', error);
     }
-  }, [socket, fetchRunningTimers]);
+  }, [socket, fetchRunningTimers, fetchRecentLogs]);
 
   const hasRunningTimers = () => {
     return Array.isArray(runningTimers) && runningTimers.length > 0;
@@ -204,8 +227,8 @@ const TimerButton = () => {
       return (
         <div
           style={{
-            width: 350,
-            maxHeight: 400,
+            width: 430,
+            maxHeight: 520,
             overflow: 'auto',
             backgroundColor: token.colorBgElevated,
             borderRadius: token.borderRadius,
@@ -213,8 +236,11 @@ const TimerButton = () => {
             border: `1px solid ${token.colorBorderSecondary}`,
           }}
         >
+          <div style={{ padding: '10px 14px', fontWeight: 700, color: token.colorTextSecondary }}>
+            RUNNING TIMERS
+          </div>
           {!Array.isArray(runningTimers) || runningTimers.length === 0 ? (
-            <div style={{ padding: 16, textAlign: 'center' }}>
+            <div style={{ padding: '0 14px 12px' }}>
               <Text type="secondary">No running timers</Text>
             </div>
           ) : (
@@ -226,111 +252,148 @@ const TimerButton = () => {
                 return (
                   <List.Item
                     style={{
-                      padding: '12px 16px',
+                      padding: '12px 14px',
+                      borderTop: `1px solid ${token.colorBorderSecondary}`,
                       borderBottom: `1px solid ${token.colorBorderSecondary}`,
                       backgroundColor: 'transparent',
                     }}
                   >
                     <div style={{ width: '100%' }}>
-                      <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <Text strong style={{ fontSize: 14, color: token.colorText }}>
                           {timer.task_name || 'Unnamed Task'}
                         </Text>
                         <div
                           style={{
                             display: 'inline-block',
-                            backgroundColor: token.colorPrimaryBg,
-                            color: token.colorPrimary,
+                            backgroundColor: token.colorFillSecondary,
+                            color: token.colorTextSecondary,
                             padding: '2px 8px',
                             borderRadius: token.borderRadiusSM,
-                            fontSize: 11,
+                            fontSize: 12,
                             fontWeight: 500,
-                            marginTop: 2,
                           }}
                         >
                           {timer.project_name || 'Unnamed Project'}
                         </div>
-                        {timer.parent_task_name && (
-                          <Text type="secondary" style={{ fontSize: 11 }}>
-                            Parent: {timer.parent_task_name}
-                          </Text>
-                        )}
-                        <div
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                          }}
-                        >
-                          <div style={{ flex: 1 }}>
-                            <div
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 8,
-                                marginBottom: 4,
-                              }}
-                            >
-                              <Text type="secondary" style={{ fontSize: 11 }}>
-                                Started:{' '}
-                                {timer.start_time
-                                  ? format(parseISO(timer.start_time), 'HH:mm')
-                                  : '--:--'}
-                              </Text>
-                              <Text
-                                strong
-                                style={{
-                                  fontSize: 14,
-                                  color: token.colorPrimary,
-                                  fontFamily: 'monospace',
-                                }}
-                              >
-                                {currentTimes[timer.task_id] || '00:00:00'}
-                              </Text>
-                            </div>
-                          </div>
+                      </div>
+
+                      <div
+                        style={{
+                          marginTop: 8,
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                        }}
+                      >
+                        <Text type="secondary" style={{ fontSize: 12 }}>
+                          Started: {timer.start_time ? format(parseISO(timer.start_time), 'HH:mm') : '--:--'}
+                        </Text>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                           <Button
                             size="small"
-                            icon={<StopOutlined />}
+                            type="text"
+                            icon={<StopOutlined style={{ fontSize: 11 }} />}
                             onClick={e => {
                               e.stopPropagation();
                               handleStopTimer(timer.task_id);
                             }}
-                            style={{
-                              backgroundColor: token.colorErrorBg,
-                              borderColor: token.colorError,
-                              color: token.colorError,
-                              fontWeight: 500,
-                            }}
-                          >
-                            Stop
-                          </Button>
+                            style={{ width: 20, height: 20, padding: 0 }}
+                          />
+                          <Text strong style={{ fontSize: 14, color: token.colorText }}>
+                            {currentTimes[timer.task_id] || '00:00:00'}
+                          </Text>
                         </div>
-                      </Space>
+                      </div>
                     </div>
                   </List.Item>
                 );
               }}
             />
           )}
-          {hasRunningTimers() && (
-            <>
-              <Divider style={{ margin: 0, borderColor: token.colorBorderSecondary }} />
-              <div
-                style={{
-                  padding: '8px 16px',
-                  textAlign: 'center',
-                  backgroundColor: token.colorFillQuaternary,
-                  borderBottomLeftRadius: token.borderRadius,
-                  borderBottomRightRadius: token.borderRadius,
-                }}
-              >
-                <Text type="secondary" style={{ fontSize: 11 }}>
-                  {timerCount()} timer{timerCount() !== 1 ? 's' : ''} running
-                </Text>
-              </div>
-            </>
+
+          <div
+            style={{
+              padding: '10px 14px',
+              fontWeight: 700,
+              color: token.colorTextSecondary,
+              borderTop: `1px solid ${token.colorBorderSecondary}`,
+            }}
+          >
+            RECENT TIME LOGS
+          </div>
+          {!recentLogs.length ? (
+            <div style={{ padding: '0 14px 14px' }}>
+              <Text type="secondary">No recent time logs</Text>
+            </div>
+          ) : (
+            <List
+              dataSource={recentLogs}
+              renderItem={log => (
+                <List.Item
+                  style={{
+                    padding: '12px 14px',
+                    borderTop: `1px solid ${token.colorBorderSecondary}`,
+                    backgroundColor: 'transparent',
+                  }}
+                >
+                  <div style={{ width: '100%' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <Text strong style={{ fontSize: 14, color: token.colorText }}>
+                        {log.task_name}
+                      </Text>
+                      <div
+                        style={{
+                          display: 'inline-block',
+                          backgroundColor: token.colorFillSecondary,
+                          color: token.colorTextSecondary,
+                          padding: '2px 8px',
+                          borderRadius: token.borderRadiusSM,
+                          fontSize: 12,
+                          fontWeight: 500,
+                        }}
+                      >
+                        {log.project_name}
+                      </div>
+                    </div>
+                    <div
+                      style={{
+                        marginTop: 8,
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        {log.logged_date ? formatDistanceToNow(parseISO(log.logged_date), { addSuffix: true }) : '--'}
+                      </Text>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <PlayCircleFilled style={{ color: token.colorPrimary }} />
+                        <Text strong style={{ fontSize: 14, color: token.colorText }}>
+                          {log.time_spent_text || '0s'}
+                        </Text>
+                      </div>
+                    </div>
+                  </div>
+                </List.Item>
+              )}
+            />
           )}
+
+          <Divider style={{ margin: 0, borderColor: token.colorBorderSecondary }} />
+          <div
+            style={{
+              padding: '8px 16px',
+              textAlign: 'center',
+              backgroundColor: token.colorFillQuaternary,
+              borderBottomLeftRadius: token.borderRadius,
+              borderBottomRightRadius: token.borderRadius,
+            }}
+          >
+            <Text type="secondary" style={{ fontSize: 11 }}>
+              {timerCount()} timer{timerCount() !== 1 ? 's' : ''} running
+            </Text>
+          </div>
         </div>
       );
     } catch (error) {
@@ -348,6 +411,7 @@ const TimerButton = () => {
       setDropdownOpen(open);
       if (open) {
         fetchRunningTimers();
+        fetchRecentLogs();
       }
     } catch (error) {
       logError('Error handling dropdown open change', error);

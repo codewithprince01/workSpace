@@ -214,6 +214,14 @@ export const useTaskRowColumns = ({
           />
         );
 
+      case 'dueTime':
+        return (
+          <DateColumn
+            width={width}
+            formattedDate={formattedDates.dueTime}
+          />
+        );
+
       case 'startDate':
         return (
           <DatePickerColumn

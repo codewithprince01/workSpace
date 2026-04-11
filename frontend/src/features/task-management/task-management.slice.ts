@@ -150,12 +150,14 @@ export const fetchTasks = createAsyncThunk(
       const tasks: Task[] = response.body.flatMap((group: any) =>
         group.tasks.map((task: any) => ({
           id: task.id,
-          task_key: task.task_key || '',
+          task_key: task.task_key || task.key || '',
           title: (task.title && task.title.trim()) ? task.title.trim() : DEFAULT_TASK_NAME,
           description: task.description || '',
           status: statusIdToNameMap[task.status] || 'todo',
           priority: priorityIdToNameMap[task.priority] || 'medium',
-          phase: task.phase_name || 'Development',
+          phase: task.phase_name || task.phase || '',
+          phase_id: task.phase_id || null,
+          phase_name: task.phase_name || task.phase || null,
           progress: typeof task.complete_ratio === 'number' ? task.complete_ratio : 0,
           assignees: task.assignees?.map((a: any) => a.team_member_id) || [],
           assignee_names: task.assignee_names || task.names || [],
@@ -183,6 +185,8 @@ export const fetchTasks = createAsyncThunk(
             activeTimer: task.timeTracking?.activeTimer ?? task.timer_start_time ?? null,
           },
           customFields: {},
+          completedAt: task.completedAt || task.completed_at || undefined,
+          completed_at: task.completedAt || task.completed_at || undefined,
           createdAt: task.createdAt || task.created_at || new Date().toISOString(),
           updatedAt: task.updatedAt || task.updated_at || new Date().toISOString(),
           created_at: task.createdAt || task.created_at || new Date().toISOString(),
@@ -201,7 +205,8 @@ export const fetchTasks = createAsyncThunk(
           attachments_count: task.attachments_count || 0,
           has_dependencies: task.has_dependencies || false,
           schedule_id: task.schedule_id || null,
-          reporter: task.reporter || undefined,
+          reporter: task.reporter || task.reporter_name || undefined,
+          reporter_id: task.reporter_id || undefined,
           timer_start_time: task.timer_start_time || null,
         }))
       );
@@ -279,7 +284,9 @@ export const fetchTasksV3 = createAsyncThunk(
           description: task.description || '',
           status: task.status || 'todo',
           priority: task.priority || 'medium',
-          phase: task.phase || 'Development',
+          phase: task.phase_name || task.phase || '',
+          phase_id: task.phase_id || null,
+          phase_name: task.phase_name || task.phase || null,
           progress:
             typeof task.progress === 'number'
               ? task.progress
@@ -329,6 +336,8 @@ export const fetchTasksV3 = createAsyncThunk(
           },
           customFields: {},
           custom_column_values: task.custom_column_values || {},
+          completedAt: task.completedAt || task.completed_at || undefined,
+          completed_at: task.completedAt || task.completed_at || undefined,
           createdAt: task.createdAt || task.created_at || now,
           updatedAt: task.updatedAt || task.updated_at || now,
           created_at: task.createdAt || task.created_at || now,
@@ -347,7 +356,8 @@ export const fetchTasksV3 = createAsyncThunk(
           attachments_count: task.attachments_count || 0,
           has_dependencies: task.has_dependencies || false,
           schedule_id: task.schedule_id || null,
-          reporter: task.reporter || undefined,
+          reporter: task.reporter || task.reporter_name || undefined,
+          reporter_id: task.reporter_id || undefined,
         };
         
         return transformedTask;
@@ -1077,13 +1087,15 @@ const taskManagementSlice = createSlice({
           // Convert subtasks to the proper format
           const convertedSubtasks = subtasks.map(subtask => ({
             id: subtask.id || '',
-            task_key: subtask.task_key || '',
+            task_key: subtask.task_key || subtask.key || '',
             title: subtask.name || subtask.title || '',
             name: subtask.name || subtask.title || '',
             description: subtask.description || '',
             status: subtask.status || 'todo',
             priority: subtask.priority || 'low',
-            phase: subtask.phase_name || subtask.phase || 'Development',
+            phase: subtask.phase_name || subtask.phase || '',
+            phase_id: subtask.phase_id || null,
+            phase_name: subtask.phase_name || subtask.phase || null,
             progress: subtask.complete_ratio || subtask.progress || 0,
             assignees: subtask.assignees || [],
             assignee_names: subtask.assignee_names || subtask.names || [],
@@ -1099,11 +1111,15 @@ const taskManagementSlice = createSlice({
             created_at: subtask.created_at || subtask.createdAt || new Date().toISOString(),
             updatedAt: subtask.updated_at || subtask.updatedAt || new Date().toISOString(),
             updated_at: subtask.updated_at || subtask.updatedAt || new Date().toISOString(),
+            completedAt: subtask.completed_at || subtask.completedAt || undefined,
+            completed_at: subtask.completed_at || subtask.completedAt || undefined,
             order: subtask.sort_order || subtask.order || 0,
             parent_task_id: parentTaskId,
             is_sub_task: true,
             sub_tasks_count: subtask.sub_tasks_count || 0, // Use actual count from backend
             show_sub_tasks: false,
+            reporter: subtask.reporter || subtask.reporter_name || undefined,
+            reporter_id: subtask.reporter_id || undefined,
           }));
 
           // Update parent task with subtasks

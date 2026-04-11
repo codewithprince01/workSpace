@@ -27,8 +27,10 @@ const TaskPhaseDropdown: React.FC<TaskPhaseDropdownProps> = ({
 
   // Find current phase details
   const currentPhase = useMemo(() => {
-    return phaseList.find(phase => phase.name === task.phase);
-  }, [phaseList, task.phase]);
+    return phaseList.find(
+      phase => (task.phase_id && phase.id === task.phase_id) || phase.name === task.phase
+    );
+  }, [phaseList, task.phase, task.phase_id]);
 
   // Handle phase change
   const handlePhaseChange = useCallback(

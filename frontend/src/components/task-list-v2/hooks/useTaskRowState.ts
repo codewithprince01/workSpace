@@ -52,11 +52,20 @@ export const useTaskRowState = (task: Task) => {
       const dateValue = task.dueDate || task.due_date;
       return dateValue ? formatDate(dateValue) : null;
     })(),
+    dueTime: (() => {
+      const dateValue = task.dueDate || task.due_date;
+      if (!dateValue) return null;
+      try {
+        return dayjs(dateValue).format('hh:mm A');
+      } catch {
+        return null;
+      }
+    })(),
     start: task.startDate ? formatDate(task.startDate) : null,
-    completed: task.completedAt ? formatDate(task.completedAt) : null,
+    completed: (task.completedAt || task.completed_at) ? formatDate(task.completedAt || task.completed_at || '') : null,
     created: (task.createdAt || task.created_at) ? formatDate(task.createdAt || task.created_at) : null,
-    updated: task.updatedAt ? formatDate(task.updatedAt) : null,
-  }), [task.dueDate, task.due_date, task.startDate, task.completedAt, task.createdAt, task.created_at, task.updatedAt]);
+    updated: (task.updatedAt || task.updated_at) ? formatDate(task.updatedAt || task.updated_at) : null,
+  }), [task.dueDate, task.due_date, task.startDate, task.completedAt, task.completed_at, task.createdAt, task.created_at, task.updatedAt, task.updated_at]);
 
   // Memoize date values for DatePicker
   const dateValues = useMemo(

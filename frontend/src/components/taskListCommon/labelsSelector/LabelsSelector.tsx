@@ -131,12 +131,23 @@ const LabelsSelector = ({ task }: LabelsSelectorProps) => {
               </List.Item>
             ))
           ) : (
-            <Typography.Text
-              style={{ color: colors.lightGray }}
-              onClick={() => handleCreateLabel()}
-            >
-              {t('labelsSelectorInputTip')}
-            </Typography.Text>
+            <div style={{ padding: 8 }}>
+              <Typography.Text style={{ color: colors.lightGray, display: 'block', marginBottom: 6 }}>
+                {t('labelsSelectorInputTip')}
+              </Typography.Text>
+              <Button
+                type="default"
+                size="small"
+                disabled={!searchQuery.trim()}
+                onMouseDown={e => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                onClick={() => handleCreateLabel()}
+              >
+                Create "{searchQuery.trim()}"
+              </Button>
+            </div>
           )}
         </List>
 

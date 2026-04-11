@@ -291,6 +291,9 @@ const InfoTabFooter = () => {
         }}
       />
 
+      {/* Keep form instance connected even when the expanded editor form is collapsed */}
+      <Form form={form} component={false} />
+
       {!isCommentBoxExpand ? (
         // Collapsed state - simple textarea with counter
         <Flex

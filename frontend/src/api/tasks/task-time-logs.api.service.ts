@@ -16,6 +16,18 @@ export interface IRunningTimer {
   parent_task_name?: string;
 }
 
+export interface IRecentTimeLog {
+  id: string;
+  task_id: string;
+  task_name: string;
+  project_id: string | null;
+  project_name: string;
+  time_spent_seconds: number;
+  time_spent_text: string;
+  logged_date: string;
+  description: string;
+}
+
 export const taskTimeLogsApiService = {
   getByTask: async (id: string): Promise<IServerResponse<ITaskLogViewModel[]>> => {
     const session = getUserSession();
@@ -43,6 +55,11 @@ export const taskTimeLogsApiService = {
 
   getRunningTimers: async (): Promise<IServerResponse<IRunningTimer[]>> => {
     const response = await apiClient.get(`${rootUrl}/running-timers`);
+    return response.data;
+  },
+
+  getRecentLogs: async (limit = 10): Promise<IServerResponse<IRecentTimeLog[]>> => {
+    const response = await apiClient.get(`${rootUrl}/recent`, { params: { limit } });
     return response.data;
   },
 

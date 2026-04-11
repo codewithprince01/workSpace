@@ -17,6 +17,12 @@ const taskSchema = new Schema({
     ref: 'Project',
     required: true
   },
+  task_key: {
+    type: String,
+    trim: true,
+    uppercase: true,
+    default: null
+  },
   status_id: {
     type: Schema.Types.ObjectId,
     ref: 'TaskStatus',

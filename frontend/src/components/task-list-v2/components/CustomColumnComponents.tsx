@@ -27,9 +27,14 @@ export const AddCustomColumnButton: React.FC = memo(() => {
   return (
     <Tooltip title={t('customColumns.addCustomColumn')} placement="top">
       <button
-        onClick={handleModalOpen}
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          handleModalOpen();
+        }}
         className={`
-          group relative w-9 h-9 rounded-lg border-2 border-dashed transition-all duration-200
+          group relative z-10 w-9 h-9 rounded-lg border-2 border-dashed transition-all duration-200
           flex items-center justify-center
           ${isDarkMode 
             ? 'border-gray-600 hover:border-blue-500 hover:bg-blue-500/10 text-gray-500 hover:text-blue-400' 
