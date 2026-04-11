@@ -874,6 +874,8 @@ exports.getTaskListV3 = async (req, res, next) => {
       const normalizedTaskKey = normalizedTaskKeyMatch?.[1]
         ? `${projectKeyPrefix}-${Number(normalizedTaskKeyMatch[1])}`
         : rawTaskKey || null;
+      const isDoneStatus = t.status_id?.category === 'done';
+      const resolvedCompletedAt = t.completed_at || (isDoneStatus ? t.updated_at || null : null);
 
       return ({
         ...t,
@@ -902,8 +904,8 @@ exports.getTaskListV3 = async (req, res, next) => {
         end_date: t.end_date || null,
         due_date: t.end_date || t.due_date || null,
         dueDate: t.end_date || t.due_date || null,
-        completed_at: t.completed_at || null,
-        completedAt: t.completed_at || null,
+        completed_at: resolvedCompletedAt,
+        completedAt: resolvedCompletedAt,
         created_at: t.created_at || null,
         createdAt: t.created_at || null,
         updated_at: t.updated_at || null,

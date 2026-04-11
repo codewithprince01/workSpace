@@ -118,14 +118,19 @@ const initializeSocket = (server) => {
 
         // Resolve status
         let status_id = null;
+        let resolvedStatusCategory = 'todo';
         if (requestedStatusId) {
           const requestedStatus = await TaskStatus.findOne({ _id: requestedStatusId, project_id });
-          if (requestedStatus) status_id = requestedStatus._id;
+          if (requestedStatus) {
+            status_id = requestedStatus._id;
+            resolvedStatusCategory = requestedStatus.category || 'todo';
+          }
         }
 
         if (!status_id) {
           const defaultStatus = await TaskStatus.findOne({ project_id, is_default: true });
           status_id = defaultStatus?._id || null;
+          resolvedStatusCategory = defaultStatus?.category || 'todo';
         }
 
         // Resolve priority
@@ -137,6 +142,7 @@ const initializeSocket = (server) => {
         }
 
         // Create Task
+        const isDoneOnCreate = resolvedStatusCategory === 'done';
         const task = await Task.create({
             name,
             description: description || '',
@@ -145,22 +151,30 @@ const initializeSocket = (server) => {
             status_id,
             phase_id: requestedPhaseId || null,
             parent_task_id,
-            reporter_id: reporter_id || socket.user._id,
+            reporter_id: socket.user._id,
             end_date: end_date ? new Date(end_date) : undefined,
             start_date: start_date ? new Date(start_date) : new Date(),
-            priority: resolvedPriority
+            priority: resolvedPriority,
+            progress: isDoneOnCreate ? 100 : 0,
+            completed_at: isDoneOnCreate ? new Date() : null
         });
         
         const populatedTask = await Task.findById(task._id)
             .populate('project_id', 'name key color_code')
             .populate('status_id', 'name color_code category')
-            .populate('phase_id', 'name color_code');
+            .populate('phase_id', 'name color_code')
+            .populate('reporter_id', 'name email avatar_url');
 
         const taskObj = populatedTask.toObject();
         taskObj.id = task._id;
         taskObj.parent_task_id = task.parent_task_id ? task.parent_task_id.toString() : null;
         taskObj.priority_id = resolvedPriority;
         taskObj.assignees = [];
+        taskObj.reporter = populatedTask?.reporter_id?.name || socket.user?.name || '';
+        taskObj.reporter_id = populatedTask?.reporter_id?._id?.toString?.() || socket.user?._id?.toString?.() || '';
+        taskObj.completed_at = task.completed_at || null;
+        taskObj.completedAt = task.completed_at || null;
+        taskObj.complete_ratio = task.progress || 0;
 
         // Send once to creator, and broadcast to all OTHER users in the same project room.
         // Using io.to(room).emit sends back to sender too (if sender already joined room),
@@ -241,9 +255,30 @@ const initializeSocket = (server) => {
         try {
             const data = JSON.parse(str);
             const { task_id, status_id } = data;
-            const task = await Task.findByIdAndUpdate(task_id, { status_id }, { new: true }).populate('status_id');
+            const status = await TaskStatus.findById(status_id).select('category color_code');
+            const isDone = status?.category === 'done';
+            const update = {
+              status_id,
+              progress: isDone ? 100 : undefined,
+              completed_at: isDone ? new Date() : null
+            };
+            if (!isDone) delete update.progress;
+
+            const task = await Task.findByIdAndUpdate(task_id, update, { new: true }).populate('status_id');
             if (task) {
-                const response = { id: task_id, status_id, color_code: task.status_id?.color_code, statusCategory: task.status_id?.category };
+                const category = task.status_id?.category || status?.category || 'todo';
+                const response = {
+                  id: task_id,
+                  status_id,
+                  color_code: task.status_id?.color_code || status?.color_code,
+                  complete_ratio: typeof task.progress === 'number' ? task.progress : 0,
+                  completed_at: task.completed_at || null,
+                  statusCategory: {
+                    is_todo: category === 'todo',
+                    is_doing: category === 'doing',
+                    is_done: category === 'done'
+                  }
+                };
                 socket.emit(SocketEvents.TASK_STATUS_CHANGE.toString(), response);
                 io.to(`project:${task.project_id}`).emit(SocketEvents.TASK_STATUS_CHANGE.toString(), response);
             }

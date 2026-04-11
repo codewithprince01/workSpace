@@ -237,6 +237,12 @@ export const useTaskSocketHandlers = () => {
             ...currentTask,
             status: response.status_id || newStatusValue, // Use actual status_id instead of category
             progress: response.complete_ratio || currentTask.progress,
+            completed_at:
+              response.completed_at ||
+              (response.statusCategory?.is_done ? new Date().toISOString() : undefined),
+            completedAt:
+              response.completed_at ||
+              (response.statusCategory?.is_done ? new Date().toISOString() : undefined),
             updatedAt: new Date().toISOString(),
           })
         );
