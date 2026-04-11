@@ -26,7 +26,6 @@ import { resetBoardData } from '@/features/board/board-slice';
 import { resetTaskManagement } from '@/features/task-management/task-management.slice';
 import { resetGrouping } from '@/features/task-management/grouping.slice';
 import { resetSelection } from '@/features/task-management/selection.slice';
-import { resetFields } from '@/features/task-management/taskListFields.slice';
 import { fetchLabels } from '@/features/taskAttributes/taskLabelSlice';
 import { deselectAll } from '@/features/projects/bulkActions/bulkActionSlice';
 import { tabItems, updateTabLabels } from '@/lib/project/project-view-constants';
@@ -142,7 +141,6 @@ const ProjectView = React.memo(() => {
     dispatch(resetTaskManagement());
     dispatch(resetGrouping());
     dispatch(resetSelection());
-    dispatch(resetFields());
     dispatch(resetEnhancedKanbanState());
 
     // Reset project insights
@@ -196,7 +194,6 @@ const ProjectView = React.memo(() => {
         dispatch(deselectAll());
         dispatch(resetGrouping());
         dispatch(resetSelection());
-        dispatch(resetFields());
         dispatch(resetTaskDrawer());
 
         if (cancelled) return;

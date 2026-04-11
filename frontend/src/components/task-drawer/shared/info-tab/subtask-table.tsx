@@ -16,13 +16,6 @@ import { ITaskCreateRequest } from '@/types/tasks/task-create-request.types';
 import { getUserSession } from '@/utils/session-helper';
 import { SocketEvents } from '@/shared/socket-events';
 import { useSocket } from '@/socket/socketContext';
-import {
-  getCurrentGroup,
-  GROUP_BY_STATUS_VALUE,
-  GROUP_BY_PRIORITY_VALUE,
-  GROUP_BY_PHASE_VALUE,
-} from '@/features/tasks/tasks.slice';
-import useTabSearchParam from '@/hooks/useTabSearchParam';
 import logger from '@/utils/errorLogger';
 import {
   setShowTaskDrawer,
@@ -49,8 +42,20 @@ const SubTaskTable = ({ subTasks, loadingSubTasks, refreshSubTasks, t }: SubTask
   const { projectId } = useAppSelector(state => state.projectReducer);
   const { taskFormViewModel, selectedTaskId } = useAppSelector(state => state.taskDrawerReducer);
   const currentSession = getUserSession();
-  const { projectView } = useTabSearchParam();
   const dispatch = useAppDispatch();
+
+  const getDefaultSubtaskStatusId = (): string | undefined => {
+    const statuses = taskFormViewModel?.statuses ?? [];
+    if (!statuses.length) return undefined;
+
+    const todoStatus =
+      statuses.find((status: any) => status?.category?.toLowerCase?.() === 'todo') ||
+      statuses.find((status: any) => status?.name?.toLowerCase?.().replace(/\s+/g, '') === 'todo') ||
+      statuses.find((status: any) => status?.is_default === true) ||
+      statuses[0];
+
+    return todoStatus?.id;
+  };
 
   const createRequestBody = (taskName: string): ITaskCreateRequest | null => {
     if (!projectId || !currentSession) return null;
@@ -60,17 +65,12 @@ const SubTaskTable = ({ subTasks, loadingSubTasks, refreshSubTasks, t }: SubTask
       name: taskName,
       reporter_id: currentSession.id,
       team_id: currentSession.team_id,
+      priority_id: 'medium',
     };
 
-    const groupBy = getCurrentGroup();
-    const task = taskFormViewModel?.task;
-
-    if (groupBy.value === GROUP_BY_STATUS_VALUE) {
-      body.status_id = task?.status_id;
-    } else if (groupBy.value === GROUP_BY_PRIORITY_VALUE) {
-      body.priority_id = task?.priority_id;
-    } else if (groupBy.value === GROUP_BY_PHASE_VALUE) {
-      body.phase_id = task?.phase_id;
+    const defaultStatusId = getDefaultSubtaskStatusId();
+    if (defaultStatusId) {
+      body.status_id = defaultStatusId;
     }
 
     if (selectedTaskId) {

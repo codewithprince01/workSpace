@@ -235,6 +235,7 @@ const TaskListV2Section: React.FC = () => {
 
   // State hooks
   const [initializedFromDatabase, setInitializedFromDatabase] = useState(false);
+  const [hasStoredFieldPrefs, setHasStoredFieldPrefs] = useState(false);
   const [addTaskRows, setAddTaskRows] = useState<{[groupId: string]: string[]}>({});
 
   // Configure sensors for drag and drop
@@ -347,8 +348,23 @@ const TaskListV2Section: React.FC = () => {
     }
   }, [dispatch, urlProjectId]);
 
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('worklenz.taskManagement.fields');
+      setHasStoredFieldPrefs(!!stored);
+    } catch {
+      setHasStoredFieldPrefs(false);
+    }
+  }, []);
+
   // Initialize field visibility from database when columns are loaded (only once)
   useEffect(() => {
+    // If user already has local saved field prefs, never override them from DB on refresh.
+    if (hasStoredFieldPrefs) {
+      if (!initializedFromDatabase) setInitializedFromDatabase(true);
+      return;
+    }
+
     if (columns.length > 0 && fields.length > 0 && !initializedFromDatabase) {
       // Update local fields to match database state only on initial load
       import('@/features/task-management/taskListFields.slice').then(({ setFields }) => {
@@ -376,7 +392,7 @@ const TaskListV2Section: React.FC = () => {
         setInitializedFromDatabase(true);
       });
     }
-  }, [columns, fields, dispatch, initializedFromDatabase]);
+  }, [columns, fields, dispatch, initializedFromDatabase, hasStoredFieldPrefs]);
 
   // Event handlers
   const handleTaskSelect = useCallback(
