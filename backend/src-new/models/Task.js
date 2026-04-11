@@ -90,6 +90,10 @@ const taskSchema = new Schema({
     type: Boolean,
     default: false
   },
+  is_trashed: {
+    type: Boolean,
+    default: false
+  },
   custom_column_values: {
     type: Schema.Types.Mixed,
     default: {}
@@ -113,6 +117,7 @@ const taskSchema = new Schema({
 // Indexes for common queries
 taskSchema.index({ project_id: 1, status_id: 1 });
 taskSchema.index({ project_id: 1, is_archived: 1 });
+taskSchema.index({ project_id: 1, is_trashed: 1 });
 taskSchema.index({ assignees: 1 });
 taskSchema.index({ parent_task_id: 1 });
 taskSchema.index({ due_date: 1 });

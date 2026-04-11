@@ -34,7 +34,7 @@ export const useBulkActions = () => {
   const dispatch = useAppDispatch();
   const { projectId } = useParams();
   const { trackMixpanelEvent } = useMixpanelTracking();
-  const archived = useAppSelector(state => state.taskReducer.archived);
+  const archived = useAppSelector(state => state.taskManagement.archived);
 
   // Loading states for individual actions
   const [loadingStates, setLoadingStates] = useState({
@@ -277,7 +277,7 @@ export const useBulkActions = () => {
         project_id: projectId,
       };
 
-      const res = await taskListBulkActionsApiService.deleteTasks(body, projectId);
+      const res = await taskListBulkActionsApiService.deleteTasks(body, projectId, archived);
       if (res.done) {
         trackMixpanelEvent(evt_project_task_list_bulk_delete);
         dispatch(clearSelection());
@@ -288,7 +288,7 @@ export const useBulkActions = () => {
     } finally {
       updateLoadingState('delete', false);
     }
-  }, [projectId, trackMixpanelEvent, dispatch, refetchTasks, updateLoadingState]);
+  }, [projectId, archived, trackMixpanelEvent, dispatch, refetchTasks, updateLoadingState]);
 
   const handleBulkDuplicate = useCallback(async (selectedTaskIds: string[]) => {
     if (!projectId || !selectedTaskIds.length) return;

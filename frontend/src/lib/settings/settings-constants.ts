@@ -13,6 +13,7 @@ import {
   UserSwitchOutlined,
   BulbOutlined,
   DeleteOutlined,
+  InboxOutlined,
 } from '@/shared/antd-imports';
 import React, { ReactNode, lazy } from 'react';
 const ProfileSettings = lazy(() => import('../../pages/settings/profile/profile-settings'));
@@ -29,6 +30,7 @@ const ChangePassword = lazy(() => import('@/pages/settings/change-password/chang
 const LanguageAndRegionSettings = lazy(() => import('@/pages/settings/language-and-region/language-and-region-settings'));
 const AppearanceSettings = lazy(() => import('@/pages/settings/appearance/appearance-settings'));
 const AccountDeletion = lazy(() => import('@/pages/settings/account-deletion/AccountDeletion'));
+const TrashSettings = lazy(() => import('@/pages/settings/trash/trash-settings'));
 
 // type of menu item in settings sidebar
 type SettingMenuItems = {
@@ -141,6 +143,14 @@ export const settingsItems: SettingMenuItems[] = [
     endpoint: 'teams',
     icon: React.createElement(BankOutlined),
     element: React.createElement(TeamsSettings),
+    adminOnly: true,
+  },
+  {
+    key: 'trash',
+    name: 'trash',
+    endpoint: 'trash',
+    icon: React.createElement(InboxOutlined),
+    element: React.createElement(TrashSettings),
     adminOnly: true,
   },
   // Danger zone - always at the bottom

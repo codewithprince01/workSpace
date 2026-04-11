@@ -40,9 +40,13 @@ export const taskListBulkActionsApiService = {
   },
   deleteTasks: async (
     body: IBulkTasksDeleteRequest,
-    projectId: string
+    projectId: string,
+    archived = false
   ): Promise<IServerResponse<ITask>> => {
-    const response = await apiClient.put(`${rootUrl}/delete?project=${projectId}`, body);
+    const response = await apiClient.put(
+      `${rootUrl}/delete?project=${projectId}&archived=${archived ? 'true' : 'false'}`,
+      body
+    );
     return response.data;
   },
   archiveTasks: async (

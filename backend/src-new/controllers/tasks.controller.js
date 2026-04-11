@@ -90,9 +90,12 @@ exports.create = async (req, res, next) => {
  */
 exports.getAll = async (req, res, next) => {
   try {
-    const { project_id, status_id, priority, assignee, reporter, search, parent_task_id } = req.query;
+    const { project_id, status_id, priority, assignee, reporter, search, parent_task_id, archived } = req.query;
     
-    const query = { is_archived: false };
+    const query = {
+      is_archived: archived === 'true',
+      is_trashed: { $ne: true },
+    };
     
     if (project_id) query.project_id = project_id;
     if (status_id) {
@@ -197,7 +200,7 @@ exports.getById = async (req, res, next) => {
     }
     
     // Get subtasks
-    const subtasks = await Task.find({ parent_task_id: task._id, is_archived: false })
+    const subtasks = await Task.find({ parent_task_id: task._id, is_archived: false, is_trashed: { $ne: true } })
       .populate('status_id', 'name color_code')
       .populate('assignees', 'name email avatar_url');
     
@@ -297,14 +300,15 @@ exports.delete = async (req, res, next) => {
       });
     }
     
-    // Soft delete
-    task.is_archived = true;
+    // Move to trash (separate from archive)
+    task.is_trashed = true;
+    task.is_archived = false;
     await task.save();
     
-    // Also archive subtasks
+    // Also move subtasks to trash
     await Task.updateMany(
       { parent_task_id: task._id },
-      { is_archived: true }
+      { is_trashed: true, is_archived: false }
     );
     
     res.json({
@@ -433,7 +437,14 @@ exports.bulkUpdate = async (req, res, next) => {
     }
 
     if (action === 'delete') {
-      const result = await Task.updateMany(taskFilter, { $set: { is_archived: true } });
+      const result = await Task.updateMany(taskFilter, { $set: { is_trashed: true, is_archived: false } });
+      await Task.updateMany(
+        {
+          project_id: projectId,
+          parent_task_id: { $in: taskIds },
+        },
+        { $set: { is_trashed: true, is_archived: false } }
+      );
       return res.json({
         done: true,
         body: { matched: result.matchedCount || 0, modified: result.modifiedCount || 0 }
@@ -442,7 +453,10 @@ exports.bulkUpdate = async (req, res, next) => {
 
     if (action === 'archive') {
       const shouldArchive = req.query.type !== 'unarchive';
-      const result = await Task.updateMany(taskFilter, { $set: { is_archived: shouldArchive } });
+      const result = await Task.updateMany(
+        { ...taskFilter, is_trashed: { $ne: true } },
+        { $set: { is_archived: shouldArchive } }
+      );
       return res.json({
         done: true,
         body: { matched: result.matchedCount || 0, modified: result.modifiedCount || 0 }
@@ -606,7 +620,7 @@ exports.updateTaskGroup = async (req, res, next) => {
 exports.search = async (req, res, next) => {
   try {
     const { searchQuery, project_id } = req.query;
-    const query = { is_archived: false };
+    const query = { is_archived: false, is_trashed: { $ne: true } };
     if (project_id) query.project_id = project_id;
     if (searchQuery) query.name = { $regex: searchQuery, $options: 'i' };
 
@@ -627,11 +641,12 @@ exports.search = async (req, res, next) => {
 exports.getProgressStatus = async (req, res, next) => {
   try {
     const { projectId } = req.params;
-    const totalTasks = await Task.countDocuments({ project_id: projectId, is_archived: false });
+    const totalTasks = await Task.countDocuments({ project_id: projectId, is_archived: false, is_trashed: { $ne: true } });
     const doneStatuses = await TaskStatus.find({ project_id: projectId, category: 'done' }).select('_id');
     const completedTasks = await Task.countDocuments({ 
         project_id: projectId, 
-        is_archived: false, 
+        is_archived: false,
+        is_trashed: { $ne: true },
         status_id: { $in: doneStatuses.map(s => s._id) } 
     });
 
@@ -695,7 +710,7 @@ exports.getTaskListV3 = async (req, res, next) => {
         .replace(/[^A-Z0-9]/g, '')
         .slice(0, 10) || 'TASK';
 
-    const query = { project_id: projectId };
+    const query = { project_id: projectId, is_trashed: { $ne: true } };
     if (archived === 'true') query.is_archived = true;
     else query.is_archived = false;
 
@@ -1293,6 +1308,154 @@ exports.getTaskDependencyStatus = async (req, res, next) => {
             status: 'allowed',
             blockingTasks: []
         }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Get trashed tasks for current user
+ * @route   GET /api/tasks/trash
+ * @access  Private
+ */
+exports.getTrash = async (req, res, next) => {
+  try {
+    const { search } = req.query;
+
+    const memberships = await ProjectMember.find({
+      user_id: req.user._id,
+      is_active: true,
+    }).select('project_id');
+
+    const projectIds = memberships.map(m => m.project_id);
+
+    if (!projectIds.length) {
+      return res.json({ done: true, body: [] });
+    }
+
+    const query = {
+      project_id: { $in: projectIds },
+      is_trashed: true,
+    };
+
+    if (search && search.trim()) {
+      query.name = { $regex: search.trim(), $options: 'i' };
+    }
+
+    const tasks = await Task.find(query)
+      .populate('project_id', 'name')
+      .populate('reporter_id', 'name email')
+      .sort({ updated_at: -1 });
+
+    return res.json({ done: true, body: tasks });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Restore tasks from trash
+ * @route   PUT /api/tasks/trash/restore
+ * @access  Private
+ */
+exports.restoreFromTrash = async (req, res, next) => {
+  try {
+    const taskIds = Array.isArray(req.body.task_ids) ? req.body.task_ids : [];
+
+    if (!taskIds.length) {
+      return res.status(400).json({ done: false, message: 'task_ids are required' });
+    }
+
+    const memberships = await ProjectMember.find({
+      user_id: req.user._id,
+      is_active: true,
+    }).select('project_id');
+    const projectIds = memberships.map(m => m.project_id);
+
+    const tasksToRestore = await Task.find({
+      _id: { $in: taskIds },
+      project_id: { $in: projectIds },
+      is_trashed: true,
+    }).select('_id');
+
+    const validIds = tasksToRestore.map(t => t._id);
+
+    if (!validIds.length) {
+      return res.json({ done: true, body: { matched: 0, modified: 0 } });
+    }
+
+    const [directRestoreResult, subtaskRestoreResult] = await Promise.all([
+      Task.updateMany(
+        {
+          _id: { $in: validIds },
+          is_trashed: true,
+        },
+        { $set: { is_trashed: false } }
+      ),
+      Task.updateMany(
+        {
+          parent_task_id: { $in: validIds },
+          is_trashed: true,
+        },
+        { $set: { is_trashed: false } }
+      ),
+    ]);
+
+    return res.json({
+      done: true,
+      body: {
+        matched: (directRestoreResult.matchedCount || 0) + (subtaskRestoreResult.matchedCount || 0),
+        modified: (directRestoreResult.modifiedCount || 0) + (subtaskRestoreResult.modifiedCount || 0),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Permanently delete tasks from trash
+ * @route   DELETE /api/tasks/trash
+ * @access  Private
+ */
+exports.permanentlyDeleteFromTrash = async (req, res, next) => {
+  try {
+    const taskIds = Array.isArray(req.body.task_ids) ? req.body.task_ids : [];
+
+    if (!taskIds.length) {
+      return res.status(400).json({ done: false, message: 'task_ids are required' });
+    }
+
+    const memberships = await ProjectMember.find({
+      user_id: req.user._id,
+      is_active: true,
+    }).select('project_id');
+    const projectIds = memberships.map(m => m.project_id);
+
+    const tasksToDelete = await Task.find({
+      _id: { $in: taskIds },
+      project_id: { $in: projectIds },
+      is_trashed: true,
+    }).select('_id');
+
+    const validIds = tasksToDelete.map(t => t._id);
+
+    if (!validIds.length) {
+      return res.json({ done: true, body: { deleted: 0 } });
+    }
+
+    const result = await Task.deleteMany({
+      $or: [
+        { _id: { $in: validIds }, is_trashed: true },
+        { parent_task_id: { $in: validIds }, is_trashed: true },
+      ],
+      project_id: { $in: projectIds },
+    });
+
+    return res.json({
+      done: true,
+      body: { deleted: result.deletedCount || 0 },
     });
   } catch (error) {
     next(error);

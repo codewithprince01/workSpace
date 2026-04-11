@@ -267,6 +267,19 @@ export const tasksApiService = {
           name: l?.name || '',
           color_code: l?.color_code || l?.color || '#cccccc',
         })),
+        reporter:
+          task?.reporter ||
+          task?.reporter_name ||
+          task?.reporter_id?.name ||
+          null,
+        reporter_id:
+          typeof task?.reporter_id === 'object'
+            ? String(task?.reporter_id?._id ?? task?.reporter_id?.id ?? '')
+            : task?.reporter_id
+              ? String(task?.reporter_id)
+              : null,
+        completedAt: task?.completedAt || task?.completed_at || null,
+        completed_at: task?.completed_at || task?.completedAt || null,
       };
     };
 
@@ -434,6 +447,7 @@ export const tasksApiService = {
         priority: config.priorities,
         assignee: config.members,
         labels: config.labels,
+        archived: Boolean(config.archived),
       });
       const genericResponse = await apiClient.get(`${rootUrl}${genericQuery}`, silentErrorConfig);
       const genericData = genericResponse.data as IServerResponse<any[]>;

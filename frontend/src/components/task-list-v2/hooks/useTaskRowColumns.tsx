@@ -216,9 +216,15 @@ export const useTaskRowColumns = ({
 
       case 'dueTime':
         return (
-          <DateColumn
+          <DatePickerColumn
             width={width}
+            task={task}
+            field="dueTime"
             formattedDate={formattedDates.dueTime}
+            dateValue={dateValues.due}
+            isDarkMode={isDarkMode}
+            activeDatePicker={activeDatePicker}
+            onActiveDatePickerChange={setActiveDatePicker}
           />
         );
 

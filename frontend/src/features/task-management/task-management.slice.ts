@@ -205,8 +205,15 @@ export const fetchTasks = createAsyncThunk(
           attachments_count: task.attachments_count || 0,
           has_dependencies: task.has_dependencies || false,
           schedule_id: task.schedule_id || null,
-          reporter: task.reporter || task.reporter_name || undefined,
-          reporter_id: task.reporter_id || undefined,
+          reporter:
+            task.reporter ||
+            task.reporter_name ||
+            task.reporter_id?.name ||
+            undefined,
+          reporter_id:
+            typeof task.reporter_id === 'object'
+              ? (task.reporter_id?._id || task.reporter_id?.id || undefined)
+              : (task.reporter_id || undefined),
           timer_start_time: task.timer_start_time || null,
         }))
       );
@@ -356,8 +363,15 @@ export const fetchTasksV3 = createAsyncThunk(
           attachments_count: task.attachments_count || 0,
           has_dependencies: task.has_dependencies || false,
           schedule_id: task.schedule_id || null,
-          reporter: task.reporter || task.reporter_name || undefined,
-          reporter_id: task.reporter_id || undefined,
+          reporter:
+            task.reporter ||
+            task.reporter_name ||
+            task.reporter_id?.name ||
+            undefined,
+          reporter_id:
+            typeof task.reporter_id === 'object'
+              ? (task.reporter_id?._id || task.reporter_id?.id || undefined)
+              : (task.reporter_id || undefined),
         };
         
         return transformedTask;

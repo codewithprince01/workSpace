@@ -60,7 +60,7 @@ const TaskContextMenu: React.FC<TaskContextMenuProps> = ({
   const priorityList = useAppSelector(state => state.priorityReducer.priorities);
   const phaseList = useAppSelector(state => state.phaseReducer.phaseList);
   const currentGrouping = useAppSelector(state => state.grouping.currentGrouping);
-  const archived = useAppSelector(state => state.taskReducer.archived);
+  const archived = useAppSelector(state => state.taskManagement.archived);
 
   const [updatingAssignToMe, setUpdatingAssignToMe] = useState(false);
 
@@ -149,7 +149,7 @@ const TaskContextMenu: React.FC<TaskContextMenuProps> = ({
           tasks: [task.id],
           project_id: projectId,
         },
-        false
+        archived
       );
 
       if (res.done) {
@@ -171,7 +171,11 @@ const TaskContextMenu: React.FC<TaskContextMenuProps> = ({
     if (!projectId || !task.id) return;
 
     try {
-      const res = await taskListBulkActionsApiService.deleteTasks({ tasks: [task.id] }, projectId);
+      const res = await taskListBulkActionsApiService.deleteTasks(
+        { tasks: [task.id] },
+        projectId,
+        archived
+      );
 
       if (res.done) {
         trackMixpanelEvent(evt_project_task_list_context_menu_delete);
