@@ -40,7 +40,7 @@ interface OptimizedBulkActionBarProps {
   onBulkPhaseChange?: (phaseId: string) => void;
   onBulkAssignToMe?: () => void;
   onBulkAssignMembers?: (memberIds: string[]) => void;
-  onBulkAddLabels?: (labelIds: string[]) => void;
+  onBulkAddLabels?: (labelIds: string[], createLabelText?: string) => void;
   onBulkArchive?: () => void;
   onBulkDelete?: () => void;
   onBulkDuplicate?: () => void;
@@ -165,6 +165,9 @@ const OptimizedBulkActionBarContent: React.FC<OptimizedBulkActionBarProps> = Rea
     onBulkExport,
     onBulkSetDueDate,
   }) => {
+    const getLabelId = (label?: ITaskLabel | Record<string, any>): string =>
+      String((label as any)?.id || (label as any)?.label_id || (label as any)?._id || '');
+
     const { t } = useTranslation(['tasks/task-table-bulk-actions', 'task-management']);
     const dispatch = useDispatch();
     const isDarkMode = useSelector((state: RootState) => state.themeReducer?.mode === 'dark');
@@ -285,10 +288,16 @@ const OptimizedBulkActionBarContent: React.FC<OptimizedBulkActionBarProps> = Rea
 
     // Labels dropdown handlers
     const handleLabelChange = useCallback((e: CheckboxChangeEvent, label: ITaskLabel) => {
+      const targetId = getLabelId(label);
+      if (!targetId) return;
+
       if (e.target.checked) {
-        setSelectedLabels(prev => [...prev, label]);
+        setSelectedLabels(prev => {
+          const exists = prev.some(l => getLabelId(l) === targetId);
+          return exists ? prev : [...prev, { ...label, id: targetId }];
+        });
       } else {
-        setSelectedLabels(prev => prev.filter(l => l.id !== label.id));
+        setSelectedLabels(prev => prev.filter(l => getLabelId(l) !== targetId));
       }
     }, []);
 
@@ -296,18 +305,10 @@ const OptimizedBulkActionBarContent: React.FC<OptimizedBulkActionBarProps> = Rea
       if (!projectId) return;
       try {
         updateLoadingState('labels', true);
-        const body = {
-          tasks: selectedTaskIds,
-          labels: selectedLabels,
-          text:
-            selectedLabels.length > 0
-              ? null
-              : createLabelText.trim() !== ''
-                ? createLabelText.trim()
-                : null,
-        };
+        const createText = createLabelText.trim() || undefined;
         await onBulkAddLabels?.(
-          selectedLabels.map(l => l.id).filter((id): id is string => id !== undefined)
+          selectedLabels.map(l => getLabelId(l)).filter(Boolean),
+          createText
         );
         setCreateLabelText('');
         setSelectedLabels([]);
@@ -695,7 +696,10 @@ const OptimizedBulkActionBarContent: React.FC<OptimizedBulkActionBarProps> = Rea
               placement="top"
               arrow
               onOpenChange={open => {
-                if (!open) {
+                if (open) {
+                  setCreateLabelText('');
+                  setSelectedLabels([]);
+                } else {
                   setSelectedLabels([]);
                   setCreateLabelText('');
                 }

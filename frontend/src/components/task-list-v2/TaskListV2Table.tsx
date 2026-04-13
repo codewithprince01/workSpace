@@ -1000,8 +1000,8 @@ const TaskListV2Section: React.FC = () => {
               onBulkAssignMembers={memberIds =>
                 bulkActions.handleBulkAssignMembers(memberIds, selectedTaskIds)
               }
-              onBulkAddLabels={labelIds =>
-                bulkActions.handleBulkAddLabels(labelIds, selectedTaskIds)
+              onBulkAddLabels={(labelIds, createLabelText) =>
+                bulkActions.handleBulkAddLabels(labelIds, selectedTaskIds, createLabelText)
               }
               onBulkArchive={() => bulkActions.handleBulkArchive(selectedTaskIds)}
               onBulkDelete={() => bulkActions.handleBulkDelete(selectedTaskIds)}

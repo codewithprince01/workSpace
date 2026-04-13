@@ -66,6 +66,9 @@ interface ITaskAssignee {
 }
 
 const TaskListBulkActionsBar = () => {
+  const getLabelId = (label?: ITaskLabel | Record<string, any>): string =>
+    String((label as any)?.id || (label as any)?.label_id || (label as any)?._id || '');
+
   const dispatch = useAppDispatch();
   const { t } = useTranslation('tasks/task-table-bulk-actions');
   const { trackMixpanelEvent } = useMixpanelTracking();
@@ -343,12 +346,19 @@ const TaskListBulkActionsBar = () => {
   const buttonStyle = { background: colors.transparent, color: colors.white };
 
   const handleLabelChange = (e: CheckboxChangeEvent, label: ITaskLabel) => {
+    const targetId = getLabelId(label);
+    if (!targetId) return;
+
     if (e.target.checked) {
-      setSelectedLabels(prev => [...prev, label]);
+      setSelectedLabels(prev => {
+        const exists = prev.some(l => getLabelId(l) === targetId);
+        return exists ? prev : [...prev, { ...label, id: targetId }];
+      });
     } else {
-      setSelectedLabels(prev => prev.filter(l => l.id !== label.id));
+      setSelectedLabels(prev => prev.filter(l => getLabelId(l) !== targetId));
     }
   };
+
 
   const applyLabels = async () => {
     if (!projectId) return;
@@ -357,12 +367,7 @@ const TaskListBulkActionsBar = () => {
       const body: IBulkTasksLabelsRequest = {
         tasks: selectedTaskIdsList,
         labels: selectedLabels,
-        text:
-          selectedLabels.length > 0
-            ? null
-            : createLabelText.trim() !== ''
-              ? createLabelText.trim()
-              : null,
+        text: createLabelText.trim() !== '' ? createLabelText.trim() : null,
       };
       const res = await taskListBulkActionsApiService.assignLabels(body, projectId);
       if (res.done) {
@@ -438,7 +443,10 @@ const TaskListBulkActionsBar = () => {
                 arrow
                 trigger={['click']}
                 onOpenChange={value => {
-                  if (!value) {
+                  if (value) {
+                    setCreateLabelText('');
+                    setSelectedLabels([]);
+                  } else {
                     setSelectedLabels([]);
                   }
                 }}

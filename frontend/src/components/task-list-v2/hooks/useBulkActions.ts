@@ -214,7 +214,7 @@ export const useBulkActions = () => {
     }
   }, [projectId, trackMixpanelEvent, dispatch, refetchTasks, updateLoadingState]);
 
-  const handleBulkAddLabels = useCallback(async (labelIds: string[], selectedTaskIds: string[]) => {
+  const handleBulkAddLabels = useCallback(async (labelIds: string[], selectedTaskIds: string[], createLabelText?: string) => {
     if (!projectId || !selectedTaskIds.length) return;
     
     try {
@@ -225,7 +225,7 @@ export const useBulkActions = () => {
       const body: IBulkTasksLabelsRequest = {
         tasks: selectedTaskIds,
         labels: labelIds.map(id => ({ id, name: '', color: '' })) as ITaskLabel[],
-        text: null,
+        text: createLabelText?.trim() ? createLabelText.trim() : null,
       };
 
       const res = await taskListBulkActionsApiService.assignLabels(body, projectId);

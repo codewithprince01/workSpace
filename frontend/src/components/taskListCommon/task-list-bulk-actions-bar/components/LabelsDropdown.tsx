@@ -4,6 +4,9 @@ import { ITaskLabel } from '@/types/tasks/taskLabel.types';
 import { InputRef } from 'antd/es/input';
 import { useEffect, useMemo } from 'react'; // Add useMemo for filtering
 
+const getLabelId = (label?: ITaskLabel | Record<string, any>): string =>
+  String((label as any)?.id || (label as any)?.label_id || (label as any)?._id || '');
+
 interface LabelsDropdownProps {
   labelsList: ITaskLabel[];
   themeMode: string;
@@ -50,6 +53,11 @@ const LabelsDropdown = ({
     return labelsList.some(label => label.name?.toLowerCase() === createLabelText.toLowerCase());
   }, [labelsList, createLabelText]);
 
+  const selectedLabelIds = useMemo(
+    () => new Set((selectedLabels || []).map(label => getLabelId(label)).filter(Boolean)),
+    [selectedLabels]
+  );
+
   const isOnApply = () => {
     if (!createLabelText.trim() && selectedLabels.length === 0) return;
     onApply();
@@ -70,7 +78,7 @@ const LabelsDropdown = ({
             filteredLabels.map(label => (
               <List.Item
                 className={themeMode === 'dark' ? 'custom-list-item dark' : 'custom-list-item'}
-                key={label.id}
+                key={getLabelId(label)}
                 style={{
                   display: 'flex',
                   gap: 8,
@@ -81,8 +89,8 @@ const LabelsDropdown = ({
                 }}
               >
                 <Checkbox
-                  id={label.id}
-                  checked={selectedLabels.some(l => l.id === label.id)}
+                  id={getLabelId(label)}
+                  checked={selectedLabelIds.has(getLabelId(label))}
                   onChange={e => onLabelChange(e, label)}
                 >
                   <Badge color={label.color_code} text={label.name} />

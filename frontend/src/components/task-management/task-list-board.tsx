@@ -668,7 +668,7 @@ const TaskListBoard: React.FC<TaskListBoardProps> = ({ projectId, className = ''
   );
 
   const handleBulkAddLabels = useCallback(
-    async (labelIds: string[]) => {
+    async (labelIds: string[], createLabelText?: string) => {
       if (!projectId) return;
       try {
         // Convert labelIds to label objects with proper type checking
@@ -677,7 +677,7 @@ const TaskListBoard: React.FC<TaskListBoardProps> = ({ projectId, className = ''
         const body: IBulkTasksLabelsRequest = {
           tasks: selectedTaskIds,
           labels: selectedLabels,
-          text: null,
+          text: createLabelText?.trim() ? createLabelText.trim() : null,
         };
         const res = await taskListBulkActionsApiService.assignLabels(body, projectId);
         if (res.done) {
