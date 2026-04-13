@@ -163,7 +163,7 @@ export const fetchTasks = createAsyncThunk(
           assignee_names: task.assignee_names || task.names || [],
           labels:
             task.labels?.map((l: any) => ({
-              id: l.id || l.label_id,
+              id: String(l.id || l.label_id || l._id || ''),
               name: l.name,
               color: l.color || l.color_code || '#1890ff',
               end: l.end,
@@ -312,15 +312,15 @@ export const fetchTasksV3 = createAsyncThunk(
               avatar_url: a?.avatar_url || '',
             })) ||
             [],
-          labels: task.labels?.map((l: { id: string; label_id: string; name: string; color: string; end: boolean; names: string[] }) => ({
-            id: l.id || l.label_id,
+          labels: task.labels?.map((l: { id?: string; label_id?: string; _id?: string; name: string; color: string; color_code?: string; end: boolean; names: string[] }) => ({
+            id: String(l.id || l.label_id || l._id || ''),
             name: l.name,
-            color: l.color || '#1890ff',
+            color: l.color || l.color_code || '#1890ff',
             end: l.end,
             names: l.names,
           })) || [],
-          all_labels: task.all_labels?.map((l: { id: string; label_id: string; name: string; color_code: string }) => ({
-            id: l.id || l.label_id,
+          all_labels: task.all_labels?.map((l: { id?: string; label_id?: string; _id?: string; name: string; color_code: string }) => ({
+            id: String(l.id || l.label_id || l._id || ''),
             name: l.name,
             color_code: l.color_code || '#1890ff',
           })) || [],

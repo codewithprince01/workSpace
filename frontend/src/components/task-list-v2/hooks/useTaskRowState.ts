@@ -83,14 +83,14 @@ export const useTaskRowState = (task: Task) => {
     parent_task_id: task.parent_task_id,
     manual_progress: false,
     all_labels: task.all_labels?.map(label => ({
-      id: label.id,
+      id: String((label as any)?.id || (label as any)?.label_id || (label as any)?._id || ''),
       name: label.name,
       color_code: label.color_code,
     })) || [],
     labels: task.labels?.map(label => ({
-      id: label.id,
+      id: String((label as any)?.id || (label as any)?.label_id || (label as any)?._id || ''),
       name: label.name,
-      color_code: label.color,
+      color_code: (label as any)?.color_code || (label as any)?.color,
     })) || [],
   }), [task.id, task.title, task.name, task.parent_task_id, task.all_labels, task.labels, task.all_labels?.length, task.labels?.length]);
 

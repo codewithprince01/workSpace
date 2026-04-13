@@ -257,13 +257,13 @@ export const tasksApiService = {
         names: normalizedAssigneeNames,
         labels: labels.map((l: any) => ({
           ...l,
-          id: String(l?.id ?? l?._id ?? ''),
+          id: String(l?.id ?? l?.label_id ?? l?._id ?? ''),
           name: l?.name || '',
           color: l?.color || l?.color_code || '#cccccc',
           color_code: l?.color_code || l?.color || '#cccccc',
         })),
         all_labels: labels.map((l: any) => ({
-          id: String(l?.id ?? l?._id ?? ''),
+          id: String(l?.id ?? l?.label_id ?? l?._id ?? ''),
           name: l?.name || '',
           color_code: l?.color_code || l?.color || '#cccccc',
         })),

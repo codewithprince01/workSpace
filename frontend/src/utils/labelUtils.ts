@@ -1,5 +1,11 @@
 import { ITaskLabel } from '@/types/tasks/taskLabel.types';
 
+const getNormalizedLabelId = (label?: ITaskLabel | Record<string, any>): string => {
+  if (!label) return '';
+  const rawId = (label as any).id || (label as any).label_id || (label as any)._id || '';
+  return String(rawId);
+};
+
 /**
  * Sorts labels to show selected labels first
  * @param labels - All available labels
@@ -10,9 +16,11 @@ export const sortLabelsBySelection = (
   labels: ITaskLabel[],
   selectedLabels: ITaskLabel[]
 ): ITaskLabel[] => {
+  const selectedIds = new Set((selectedLabels || []).map(label => getNormalizedLabelId(label)));
+
   return [...labels].sort((a, b) => {
-    const aSelected = selectedLabels.some(label => label.id === a.id);
-    const bSelected = selectedLabels.some(label => label.id === b.id);
+    const aSelected = selectedIds.has(getNormalizedLabelId(a));
+    const bSelected = selectedIds.has(getNormalizedLabelId(b));
 
     if (aSelected && !bSelected) return -1;
     if (!aSelected && bSelected) return 1;
@@ -31,5 +39,6 @@ export const isLabelSelected = (
   selectedLabels?: ITaskLabel[]
 ): boolean => {
   if (!selectedLabels || selectedLabels.length === 0) return false;
-  return selectedLabels.some(label => label.id === labelId);
+  const normalizedLabelId = String(labelId || '');
+  return selectedLabels.some(label => getNormalizedLabelId(label) === normalizedLabelId);
 };

@@ -158,7 +158,7 @@ export const useTaskSocketHandlers = () => {
             ...currentTask,
             labels:
               labels.labels?.map(l => ({
-                id: l.id || '',
+                id: String((l as any).id || (l as any).label_id || (l as any)._id || ''),
                 name: l.name || '',
                 color: l.color_code || '#1890ff',
                 end: l.end,
@@ -166,7 +166,7 @@ export const useTaskSocketHandlers = () => {
               })) || [],
             all_labels:
               labels.all_labels?.map(l => ({
-                id: l.id || '',
+                id: String((l as any).id || (l as any).label_id || (l as any)._id || ''),
                 name: l.name || '',
                 color_code: l.color_code || '#1890ff',
               })) || [],
@@ -743,7 +743,7 @@ export const useTaskSocketHandlers = () => {
           assignee_names: data.names || [],
           labels:
             data.labels?.map((l: any) => ({
-              id: l.id || '',
+              id: String(l.id || l.label_id || l._id || ''),
               name: l.name || '',
               color: l.color_code || '#1890ff',
               end: l.end,
@@ -822,7 +822,7 @@ export const useTaskSocketHandlers = () => {
           assignee_names: data.names || [],
           labels:
             data.labels?.map((l: any) => ({
-              id: l.id || '',
+              id: String(l.id || l.label_id || l._id || ''),
               name: l.name || '',
               color: l.color_code || '#1890ff',
               end: l.end,

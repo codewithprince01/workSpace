@@ -18,6 +18,9 @@ interface LabelsSelectorProps {
 }
 
 const LabelsSelector: React.FC<LabelsSelectorProps> = ({ task, isDarkMode = false }) => {
+  const getLabelId = (label?: ITaskLabel | Record<string, any>): string =>
+    String((label as any)?.id || (label as any)?.label_id || (label as any)?._id || '');
+
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
@@ -126,7 +129,8 @@ const LabelsSelector: React.FC<LabelsSelectorProps> = ({ task, isDarkMode = fals
   };
 
   const handleLabelToggle = (label: ITaskLabel) => {
-    const labelId = label.id || '';
+    const labelId = getLabelId(label);
+    if (!labelId) return;
     const nextSelectedState = !checkLabelSelected(labelId);
 
     const labelData = {
@@ -232,7 +236,7 @@ const LabelsSelector: React.FC<LabelsSelectorProps> = ({ task, isDarkMode = fals
               {filteredLabels && filteredLabels.length > 0 ? (
                 filteredLabels.map(label => (
                   <div
-                    key={label.id}
+                    key={getLabelId(label)}
                     className={`
                     flex items-center gap-2 px-2 py-1 cursor-pointer transition-colors
                     ${isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}
@@ -244,7 +248,7 @@ const LabelsSelector: React.FC<LabelsSelectorProps> = ({ task, isDarkMode = fals
                   >
                     <div style={{ pointerEvents: 'none' }}>
                       <Checkbox
-                        checked={checkLabelSelected(label.id || '')}
+                        checked={checkLabelSelected(getLabelId(label))}
                         onChange={() => {}} // Empty handler since we handle click on the div
                         isDarkMode={isDarkMode}
                       />

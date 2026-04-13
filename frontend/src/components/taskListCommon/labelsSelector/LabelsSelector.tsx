@@ -27,6 +27,9 @@ interface LabelsSelectorProps {
 }
 
 const LabelsSelector = ({ task }: LabelsSelectorProps) => {
+  const getLabelId = (label?: ITaskLabel | Record<string, any>): string =>
+    String((label as any)?.id || (label as any)?.label_id || (label as any)?._id || '');
+
   const { t } = useTranslation('task-list-table');
   const { socket } = useSocket();
 
@@ -40,10 +43,12 @@ const LabelsSelector = ({ task }: LabelsSelectorProps) => {
   const themeMode = useAppSelector(state => state.themeReducer.mode);
 
   const handleLabelChange = (label: ITaskLabel) => {
-    const nextSelectedState = !isLabelSelected(label.id || '', task?.labels);
+    const labelId = getLabelId(label);
+    if (!labelId) return;
+    const nextSelectedState = !isLabelSelected(labelId, task?.labels);
     const labelData = {
       task_id: task.id,
-      label_id: label.id,
+      label_id: labelId,
       is_selected: nextSelectedState,
       parent_task: task.parent_task_id,
       team_id: currentSession?.team_id,
@@ -119,8 +124,8 @@ const LabelsSelector = ({ task }: LabelsSelectorProps) => {
                 }}
               >
                 <Checkbox
-                  id={label.id}
-                  checked={isLabelSelected(label.id || '', task?.labels)}
+                  id={getLabelId(label)}
+                  checked={isLabelSelected(getLabelId(label), task?.labels)}
                   onChange={() => handleLabelChange(label)}
                 >
                   <Flex gap={8}>
