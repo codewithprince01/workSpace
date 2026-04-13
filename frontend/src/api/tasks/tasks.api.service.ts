@@ -367,8 +367,41 @@ export const tasksApiService = {
             .map((s: any) => String(s?.id ?? s?._id ?? ''))
             .filter(Boolean);
 
+          const validStatusIds = new Set(ordered);
           const grouped = Array.from(map.values());
-          grouped.sort((a, b) => {
+          const remappedGroups: typeof grouped = grouped.filter(group => validStatusIds.has(group.id));
+          const primaryStatusId = ordered[0] || '';
+          const primaryGroup = remappedGroups.find(group => group.id === primaryStatusId);
+
+          // Move tasks from deleted/missing status groups into the first valid status,
+          // so "Unmapped Status" group does not appear in task list.
+          let fallbackGroup = grouped.find(group => group.id === 'unmapped-status');
+          if (!fallbackGroup) {
+            fallbackGroup = { id: 'unmapped-status', title: 'Unmapped Status', color: '#cccccc', tasks: [] };
+          }
+
+          grouped.forEach(group => {
+            if (validStatusIds.has(group.id)) return;
+
+            if (primaryGroup) {
+              const remappedTasks = group.tasks.map((task: any) => ({
+                ...task,
+                status_id: primaryGroup.id,
+                status: primaryGroup.id,
+                status_name: primaryGroup.title,
+                status_color: primaryGroup.color,
+              }));
+              primaryGroup.tasks.push(...remappedTasks);
+            } else {
+              fallbackGroup!.tasks.push(...group.tasks);
+            }
+          });
+
+          if (!primaryGroup && fallbackGroup.tasks.length > 0) {
+            remappedGroups.push(fallbackGroup);
+          }
+
+          remappedGroups.sort((a, b) => {
             const ai = ordered.indexOf(a.id);
             const bi = ordered.indexOf(b.id);
             if (ai === -1 && bi === -1) return 0;
@@ -377,7 +410,7 @@ export const tasksApiService = {
             return ai - bi;
           });
 
-          return grouped.map(group => ({
+          return remappedGroups.map(group => ({
             id: group.id,
             title: group.title,
             groupType: grouping as 'status' | 'priority' | 'phase',

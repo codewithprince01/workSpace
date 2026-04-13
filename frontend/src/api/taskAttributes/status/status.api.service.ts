@@ -79,7 +79,7 @@ export const statusApiService = {
     currentProjectId: string
   ): Promise<IServerResponse<ITaskStatus>> => {
     const q = toQueryString({ current_project_id: currentProjectId });
-    const response = await apiClient.put<IServerResponse<ITaskStatus>>(`${rootUrl}/order`, body);
+    const response = await apiClient.put<IServerResponse<ITaskStatus>>(`${rootUrl}/order${q}`, body);
     return response.data;
   },
 

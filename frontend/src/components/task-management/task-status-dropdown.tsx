@@ -133,12 +133,25 @@ const TaskStatusDropdown: React.FC<TaskStatusDropdownProps> = ({
   // Get status color - enhanced dark mode support
   const getStatusColor = useCallback(
     (status: any) => {
-      if (isDarkMode) {
-        return status?.color_code_dark || status?.color_code || '#4b5563';
+      const category = String(status?.category || '').toLowerCase();
+      const name = String(status?.name || '').toLowerCase();
+
+      // Keep status colors consistent with grouped columns:
+      // To Do -> gray, In Progress/Doing -> blue, Done -> green
+      if (category.includes('done') || name.includes('done') || name.includes('complete')) {
+        return '#52c41a';
       }
-      return status?.color_code || '#6b7280';
+      if (
+        category.includes('doing') ||
+        name.includes('doing') ||
+        name.includes('in progress') ||
+        name.includes('progress')
+      ) {
+        return '#4096ff';
+      }
+      return '#bfbfbf';
     },
-    [isDarkMode]
+    []
   );
 
   // Status display name - format status names by replacing underscores with spaces

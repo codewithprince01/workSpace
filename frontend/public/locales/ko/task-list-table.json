@@ -100,6 +100,7 @@
     },
     "fieldTypes": {
       "people": "사람들",
+      "text": "텍스트",
       "number": "숫자",
       "date": "날짜",
       "selection": "선택",

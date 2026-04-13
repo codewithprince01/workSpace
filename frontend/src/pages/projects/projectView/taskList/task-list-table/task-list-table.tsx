@@ -84,6 +84,7 @@ import PhaseDropdown from '@/components/taskListCommon/phase-dropdown/phase-drop
 import CustomColumnModal from './custom-columns/custom-column-modal/custom-column-modal';
 import { toggleProjectMemberDrawer } from '@/features/projects/singleProject/members/projectMembersSlice';
 import SingleAvatar from '@/components/common/single-avatar/single-avatar';
+import { tasksCustomColumnsService } from '@/api/tasks/tasks-custom-columns.service';
 
 interface TaskListTableProps {
   taskList: IProjectTask[] | null;
@@ -1318,6 +1319,13 @@ const TaskListTable: React.FC<TaskListTableProps> = ({
         value: value,
         project_id: projectId,
       };
+
+      // Persist value so it remains after refresh
+      void tasksCustomColumnsService
+        .updateTaskCustomColumnValue(taskId, columnKey, value, projectId)
+        .catch(error => {
+          console.error('Failed to persist custom column value:', error);
+        });
 
       // Emit socket event to update the custom column value
       if (socket) {

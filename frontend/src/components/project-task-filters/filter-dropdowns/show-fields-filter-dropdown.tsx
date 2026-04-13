@@ -151,17 +151,22 @@ const ShowFieldsFilterDropdown = () => {
   const handleColumnVisibilityChange = async (col: ITaskListColumn) => {
     if (!projectId) return;
     const column = { ...col, is_visible: !col.pinned, pinned: !col.pinned };
+    const nextPinned = !col.pinned;
 
     if (col.custom_column) {
+      // Update UI immediately for custom columns
+      dispatch(
+        updateCustomColumnPinned({
+          columnId: col.id || col.key || '',
+          isVisible: nextPinned,
+        })
+      );
+
+      // Best-effort socket sync
       socket?.emit(SocketEvents.CUSTOM_COLUMN_PINNED_CHANGE.toString(), {
         column_id: col.id,
         project_id: projectId,
-        is_visible: !col.pinned,
-      });
-      socket?.once(SocketEvents.CUSTOM_COLUMN_PINNED_CHANGE.toString(), (data: any) => {
-        if (col.id) {
-          dispatch(updateCustomColumnPinned({ columnId: col.id, isVisible: !col.pinned }));
-        }
+        is_visible: nextPinned,
       });
     } else {
       await dispatch(updateColumnVisibility({ projectId, item: column }));
@@ -183,7 +188,7 @@ const ShowFieldsFilterDropdown = () => {
             {col.key === 'PHASE' ? project?.phase_label : ''}
             {col.key !== 'PHASE' &&
               (col.custom_column
-                ? col.name
+                ? (col.name || col.custom_column_obj?.fieldTitle || (col as any)?.configuration?.field_title || 'Text')
                 : t(`${col.key?.replace('_', '').toLowerCase() + 'Text'}`))}
           </Checkbox>
         </Space>

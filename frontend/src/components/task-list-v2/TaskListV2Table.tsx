@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { HolderOutlined } from '@/shared/antd-imports';
+import { tasksCustomColumnsService } from '@/api/tasks/tasks-custom-columns.service';
 
 // Redux hooks and selectors
 import { useAppSelector } from '@/hooks/useAppSelector';
@@ -292,7 +293,17 @@ const TaskListV2Section: React.FC = () => {
     // Add visible custom columns
     const visibleCustomColumns =
       customColumns
-        ?.filter(column => column.pinned)
+        ?.filter(column => {
+          const fieldKey = String((column as any)?.key || (column as any)?.id || '');
+          const customField = fields.find(
+            f => String(f.key) === fieldKey
+          );
+
+          // If the custom field exists in Fields dropdown state, prefer that visibility
+          if (customField) return Boolean(customField.visible);
+
+          return (column as any)?.pinned ?? (column as any)?.is_visible ?? (column as any)?.isVisible ?? true;
+        })
         ?.map(column => {
           // Give selection columns more width for dropdown content
           const fieldType = column.custom_column_obj?.fieldType;
@@ -325,7 +336,11 @@ const TaskListV2Section: React.FC = () => {
 
           return {
             id: column.key || column.id || 'unknown',
-            label: column.name || t('customColumns.customColumnHeader'),
+            label:
+              column.name ||
+              column.custom_column_obj?.fieldTitle ||
+              (column as any)?.configuration?.field_title ||
+              'Text',
             width: `${(column as any).width || defaultWidth}px`,
             key: column.key || column.id || 'unknown',
             custom_column: true,
@@ -453,6 +468,13 @@ const TaskListV2Section: React.FC = () => {
             dispatch(updateTask(updatedTask));
           });
         }
+
+        // Persist value so it survives refresh
+        void tasksCustomColumnsService
+          .updateTaskCustomColumnValue(taskId, columnKey, value, urlProjectId)
+          .catch(error => {
+            console.error('Failed to persist custom column value:', error);
+          });
 
         if (socket && connected) {
           socket.emit(SocketEvents.TASK_CUSTOM_COLUMN_UPDATE.toString(), JSON.stringify(body));

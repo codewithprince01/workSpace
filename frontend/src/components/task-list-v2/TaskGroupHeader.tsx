@@ -74,7 +74,29 @@ const TaskGroupHeader: React.FC<TaskGroupHeaderProps> = ({
   const [isEditingName, setIsEditingName] = useState(false);
   const [editingName, setEditingName] = useState(group.name);
 
-  const headerBackgroundColor = group.color || '#F0F0F0'; // Default light gray if no color
+  const getFixedStatusColor = useCallback((categoryOrName?: string) => {
+    const v = String(categoryOrName || '').toLowerCase().trim();
+    if (v.includes('done') || v.includes('complete')) return '#52c41a';
+    if (v.includes('doing') || v.includes('progress') || v.includes('in progress')) return '#4096ff';
+    return '#dbdbdb';
+  }, []);
+
+  const normalizedGroupName = String(group.name || '')
+    .toLowerCase()
+    .replace(/\(\d+\)/g, '')
+    .trim();
+
+  const matchedStatus = statusList.find(s => {
+    const sid = String(s?.id || '').toLowerCase();
+    const sname = String(s?.name || '').toLowerCase().trim();
+    const gid = String(group.id || '').toLowerCase();
+    return sid === gid || sname === normalizedGroupName;
+  });
+
+  const headerBackgroundColor =
+    currentGrouping === 'status'
+      ? getFixedStatusColor(String((matchedStatus as any)?.category || normalizedGroupName))
+      : group.color || '#F0F0F0'; // Default light gray if no color
   const headerTextColor = getContrastColor(headerBackgroundColor);
 
   // Get tasks in this group

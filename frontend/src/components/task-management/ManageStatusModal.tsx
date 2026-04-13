@@ -2,6 +2,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Modal, Form, Input, Button, Space, Divider, Typography, Flex, Select, Tooltip } from '@/shared/antd-imports';
 import { PlusOutlined, HolderOutlined, EditOutlined, DeleteOutlined } from '@/shared/antd-imports';
 import { useTranslation } from 'react-i18next';
+import { useParams } from 'react-router-dom';
 import { DndContext, DragEndEvent, PointerSensor, useSensor, useSensors, DragOverEvent, useDroppable, closestCenter, DragOverlay } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -258,7 +259,10 @@ const CategorySection: React.FC<CategorySectionProps> = ({
   // Check if we should show cross-category drop placeholder
   const shouldShowPlaceholder = dragOverCategory === category.id && activeId;
   const draggedStatus = activeId ? localStatuses.find((s: IKanbanTaskStatus) => s.id === activeId) : null;
-  const isDraggedFromDifferentCategory = draggedStatus && (draggedStatus as IKanbanTaskStatus).category_id !== category.id;
+  const localGetStatusCategoryId = (status: Partial<IKanbanTaskStatus> | undefined | null) =>
+    String(status?.category_id || (status as any)?.category || '');
+  const isDraggedFromDifferentCategory =
+    draggedStatus && localGetStatusCategoryId(draggedStatus as IKanbanTaskStatus) !== String(category.id || '');
 
   return (
     <div 
@@ -452,6 +456,7 @@ const ManageStatusModal: React.FC<ManageStatusModalProps> = ({
 }) => {
   const { t } = useTranslation('task-list-filters');
   const dispatch = useAppDispatch();
+  const { id: projectIdFromRoute } = useParams();
   
   // Redux state
   const isDarkMode = useAppSelector(state => state.themeReducer?.mode === 'dark');
@@ -464,7 +469,12 @@ const ManageStatusModal: React.FC<ManageStatusModalProps> = ({
   const [dragOverCategory, setDragOverCategory] = useState<string | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
-  const finalProjectId = projectId || currentProjectId;
+  const finalProjectId = projectId || currentProjectId || projectIdFromRoute;
+  const getStatusCategoryId = useCallback(
+    (status: Partial<IKanbanTaskStatus> | undefined | null) =>
+      String(status?.category_id || (status as any)?.category || ''),
+    []
+  );
 
   // DnD sensors
   const sensors = useSensors(
@@ -476,7 +486,11 @@ const ManageStatusModal: React.FC<ManageStatusModalProps> = ({
   );
 
   useEffect(() => {
-    setLocalStatuses(statuses);
+    const normalizedStatuses = (statuses || []).map((status: IKanbanTaskStatus) => ({
+      ...status,
+      category_id: status.category_id || (status as any).category || '',
+    }));
+    setLocalStatuses(normalizedStatuses);
   }, [statuses]);
 
   useEffect(() => {
@@ -496,7 +510,9 @@ const ManageStatusModal: React.FC<ManageStatusModalProps> = ({
   // Group statuses by category
   const statusesByCategory = statusCategories.map(category => ({
     ...category,
-    statuses: localStatuses.filter(status => (status as IKanbanTaskStatus).category_id === category.id)
+    statuses: localStatuses.filter(
+      status => getStatusCategoryId(status as IKanbanTaskStatus) === String(category.id || '')
+    )
   }));
 
   const handleCategoryChange = useCallback(async (id: string, categoryId: string, insertIndex?: number) => {
@@ -506,11 +522,11 @@ const ManageStatusModal: React.FC<ManageStatusModalProps> = ({
     const statusToMove = localStatuses.find(s => s.id === id) as IKanbanTaskStatus;
     if (!statusToMove) return;
     
-    const currentCategoryId = statusToMove.category_id;
+    const currentCategoryId = getStatusCategoryId(statusToMove);
     
     // Check if moving this status would leave the source category with less than 1 status
     const statusesInCurrentCategory = localStatuses.filter(s => 
-      (s as IKanbanTaskStatus).category_id === currentCategoryId
+      getStatusCategoryId(s as IKanbanTaskStatus) === currentCategoryId
     );
     
     if (statusesInCurrentCategory.length <= 1) {
@@ -531,7 +547,7 @@ const ManageStatusModal: React.FC<ManageStatusModalProps> = ({
       setLocalStatuses(prevStatuses => {
         const updatedStatuses = prevStatuses.map(status => {
           if (status.id === id) {
-            return { ...status, category_id: categoryId } as IKanbanTaskStatus;
+            return { ...status, category_id: categoryId, category: categoryId } as IKanbanTaskStatus;
           }
           return status;
         });
@@ -545,7 +561,7 @@ const ManageStatusModal: React.FC<ManageStatusModalProps> = ({
         // Create a complete new order for ALL statuses in the project
         const updatedStatuses = localStatuses.map(status => {
           if (status.id === id) {
-            return { ...status, category_id: categoryId } as IKanbanTaskStatus;
+            return { ...status, category_id: categoryId, category: categoryId } as IKanbanTaskStatus;
           }
           return status;
         });
@@ -553,7 +569,9 @@ const ManageStatusModal: React.FC<ManageStatusModalProps> = ({
         // Group statuses by category with the updated category assignment
         const statusesByUpdatedCategory = statusCategories.map(category => ({
           ...category,
-          statuses: updatedStatuses.filter(status => (status as IKanbanTaskStatus).category_id === category.id)
+          statuses: updatedStatuses.filter(
+            status => getStatusCategoryId(status as IKanbanTaskStatus) === String(category.id || '')
+          )
         }));
         
         // Find the target category and insert the moved status at the correct position
@@ -599,7 +617,7 @@ const ManageStatusModal: React.FC<ManageStatusModalProps> = ({
       // Revert optimistic update on error
       dispatch(fetchStatuses(finalProjectId));
     }
-  }, [finalProjectId, dispatch, localStatuses, statusCategories, t]);
+  }, [finalProjectId, dispatch, localStatuses, statusCategories, t, getStatusCategoryId]);
 
   const handleDragStart = useCallback((event: any) => {
     setActiveId(event.active.id);
@@ -629,7 +647,7 @@ const ManageStatusModal: React.FC<ManageStatusModalProps> = ({
       const categoryId = overId.replace('category-', '');
       
       // Only show placeholder for cross-category drops
-      if (draggedStatus.category_id !== categoryId) {
+      if (getStatusCategoryId(draggedStatus) !== categoryId) {
         setDragOverCategory(categoryId);
         // Default to end of category for category drops
         const targetCategory = statusesByCategory.find(c => c.id === categoryId);
@@ -643,18 +661,19 @@ const ManageStatusModal: React.FC<ManageStatusModalProps> = ({
 
     // Check if we're dragging over a status item
     const targetStatus = localStatuses.find(s => s.id === overId) as IKanbanTaskStatus | undefined;
-    if (!targetStatus || !targetStatus.category_id) {
+    const targetStatusCategoryId = getStatusCategoryId(targetStatus);
+    if (!targetStatus || !targetStatusCategoryId) {
       setDragOverCategory(null);
       setDragOverIndex(null);
       return;
     }
 
     // Only show placeholder for cross-category drops
-    if (draggedStatus.category_id !== targetStatus.category_id) {
-      setDragOverCategory(targetStatus.category_id);
+    if (getStatusCategoryId(draggedStatus) !== targetStatusCategoryId) {
+      setDragOverCategory(targetStatusCategoryId);
       
       // Find the exact index of the target status in its category
-      const targetCategory = statusesByCategory.find(c => c.id === targetStatus.category_id);
+      const targetCategory = statusesByCategory.find(c => c.id === targetStatusCategoryId);
       if (targetCategory) {
         const targetIndex = targetCategory.statuses.findIndex((s: IKanbanTaskStatus) => s.id === overId);
         setDragOverIndex(targetIndex >= 0 ? targetIndex : 0);
@@ -666,7 +685,7 @@ const ManageStatusModal: React.FC<ManageStatusModalProps> = ({
       setDragOverCategory(null);
       setDragOverIndex(null);
     }
-  }, [statusesByCategory, localStatuses]);
+  }, [statusesByCategory, localStatuses, getStatusCategoryId]);
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
@@ -690,7 +709,7 @@ const ManageStatusModal: React.FC<ManageStatusModalProps> = ({
       const newCategoryId = overId.replace('category-', '');
       
       // Only change category if it's different
-      if (draggedStatus.category_id !== newCategoryId) {
+      if (getStatusCategoryId(draggedStatus) !== newCategoryId) {
         handleCategoryChange(draggedStatusId, newCategoryId);
       }
       return;
@@ -698,12 +717,13 @@ const ManageStatusModal: React.FC<ManageStatusModalProps> = ({
 
     // Handle dropping on a status item
     const targetStatus = localStatuses.find(s => s.id === overId) as IKanbanTaskStatus | undefined;
-    if (!targetStatus || !targetStatus.category_id) return;
+    const targetStatusCategoryId = getStatusCategoryId(targetStatus);
+    if (!targetStatus || !targetStatusCategoryId) return;
 
     // Check if this is a cross-category move
-    if (draggedStatus.category_id !== targetStatus.category_id) {
+    if (getStatusCategoryId(draggedStatus) !== targetStatusCategoryId) {
       // Cross-category move - move to target category at target position
-      const targetCategoryId = targetStatus.category_id;
+      const targetCategoryId = targetStatusCategoryId;
       const targetCategoryStatuses = statusesByCategory.find(c => c.id === targetCategoryId)?.statuses || [];
       const targetIndex = targetCategoryStatuses.findIndex((s: IKanbanTaskStatus) => s.id === overId);
       
@@ -741,14 +761,16 @@ const ManageStatusModal: React.FC<ManageStatusModalProps> = ({
 
       return newItems;
     });
-  }, [finalProjectId, dispatch, handleCategoryChange, localStatuses, statusesByCategory]);
+  }, [finalProjectId, dispatch, handleCategoryChange, localStatuses, statusesByCategory, getStatusCategoryId]);
 
   const handleCreateStatus = useCallback(async (categoryId: string, name: string) => {
     if (!name.trim() || !finalProjectId) return;
 
     try {
       // Find the highest order_index in the same category to add to the bottom
-      const categoryStatuses = localStatuses.filter(status => (status as IKanbanTaskStatus).category_id === categoryId);
+      const categoryStatuses = localStatuses.filter(
+        status => getStatusCategoryId(status as IKanbanTaskStatus) === categoryId
+      );
       const maxOrderIndex = categoryStatuses.length > 0 
         ? Math.max(...categoryStatuses.map(s => s.order_index || 0))
         : 0;
@@ -769,7 +791,7 @@ const ManageStatusModal: React.FC<ManageStatusModalProps> = ({
     } catch (error) {
       console.error('Error creating status:', error);
     }
-  }, [finalProjectId, dispatch, localStatuses]);
+  }, [finalProjectId, dispatch, localStatuses, getStatusCategoryId]);
 
   const handleRenameStatus = useCallback(async (id: string, name: string) => {
     if (!finalProjectId || !name.trim()) return;
@@ -781,7 +803,7 @@ const ManageStatusModal: React.FC<ManageStatusModalProps> = ({
       const body: ITaskStatusUpdateModel = {
         name: name.trim(),
         project_id: finalProjectId,
-        category_id: currentStatus?.category_id || '', // Required by backend validator
+        category_id: getStatusCategoryId(currentStatus), // Required by backend validator
       };
       
       await statusApiService.updateNameOfStatus(id, body, finalProjectId);
@@ -791,7 +813,7 @@ const ManageStatusModal: React.FC<ManageStatusModalProps> = ({
     } catch (error) {
       console.error('Error renaming status:', error);
     }
-  }, [finalProjectId, dispatch, localStatuses]);
+  }, [finalProjectId, dispatch, localStatuses, getStatusCategoryId]);
 
   const handleDeleteStatus = useCallback(async (id: string) => {
     if (!finalProjectId) return;

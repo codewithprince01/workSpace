@@ -939,10 +939,16 @@ const taskSlice = createSlice({
     },
 
     addCustomColumn: (state, action: PayloadAction<ITaskListColumn>) => {
-      state.customColumns.push(action.payload);
+      const normalizedColumn = {
+        ...action.payload,
+        key: action.payload?.key || action.payload?.id,
+        name: action.payload?.name || 'Text',
+        pinned: true,
+      };
+      state.customColumns.push(normalizedColumn);
       // Also add to columns array to maintain visibility
       state.columns.push({
-        ...action.payload,
+        ...normalizedColumn,
         pinned: true, // New columns are visible by default
       });
     },
@@ -1035,8 +1041,10 @@ const taskSlice = createSlice({
       action: PayloadAction<{ columnId: string; isVisible: boolean }>
     ) => {
       const { columnId, isVisible } = action.payload;
-      const customColumn = state.customColumns.find(col => col.id === columnId);
-      const column = state.columns.find(col => col.id === columnId);
+      const customColumn = state.customColumns.find(
+        col => col.id === columnId || col.key === columnId
+      );
+      const column = state.columns.find(col => col.id === columnId || col.key === columnId);
 
       if (customColumn) {
         customColumn.pinned = isVisible;
@@ -1142,15 +1150,37 @@ const taskSlice = createSlice({
           index: 1,
           pinned: true,
         });
-        // Process custom columns
-        const customColumns = (action.payload as { custom: any[] }).custom.map((col: any) => ({
-          ...col,
-          isCustom: true,
-        }));
+        // Process and normalize custom columns
+        const rawCustomColumns = (action.payload as { custom: any[] })?.custom || [];
+        const customColumns = Array.isArray(rawCustomColumns)
+          ? rawCustomColumns.map((col: any) => ({
+              ...col,
+              key: col?.key || col?.id,
+              name:
+                col?.name ||
+                col?.custom_column_obj?.fieldTitle ||
+                col?.configuration?.field_title ||
+                'Text',
+              pinned: col?.pinned ?? col?.is_visible ?? col?.isVisible ?? true,
+              isCustom: true,
+            }))
+          : [];
+
+        // Merge fetched custom columns with existing optimistic ones
+        const mergedCustomColumnsMap = new Map<string, any>();
+        state.customColumns.forEach((col: any) => {
+          const key = String(col?.key || col?.id || '');
+          if (key) mergedCustomColumnsMap.set(key, col);
+        });
+        customColumns.forEach((col: any) => {
+          const key = String(col?.key || col?.id || '');
+          if (key) mergedCustomColumnsMap.set(key, col);
+        });
+        const mergedCustomColumns = Array.from(mergedCustomColumnsMap.values());
 
         // Merge columns
-        state.columns = [...standardColumns, ...customColumns];
-        state.customColumns = customColumns;
+        state.columns = [...standardColumns, ...mergedCustomColumns];
+        state.customColumns = mergedCustomColumns;
       })
       .addCase(fetchTaskListColumns.rejected, (state, action) => {
         state.loadingColumns = false;
@@ -1189,9 +1219,31 @@ const taskSlice = createSlice({
       })
       .addCase(fetchCustomColumns.fulfilled, (state, action) => {
         state.loadingColumns = false;
-        state.customColumns = action.payload;
+        const normalizedCustomColumns = (action.payload || []).map((col: any) => ({
+          ...col,
+          key: col?.key || col?.id,
+          name:
+            col?.name ||
+            col?.custom_column_obj?.fieldTitle ||
+            col?.configuration?.field_title ||
+            'Text',
+          pinned: col?.pinned ?? col?.is_visible ?? col?.isVisible ?? true,
+        }));
+
+        const mergedCustomColumnsMap = new Map<string, any>();
+        state.customColumns.forEach((col: any) => {
+          const key = String(col?.key || col?.id || '');
+          if (key) mergedCustomColumnsMap.set(key, col);
+        });
+        normalizedCustomColumns.forEach((col: any) => {
+          const key = String(col?.key || col?.id || '');
+          if (key) mergedCustomColumnsMap.set(key, col);
+        });
+        const mergedCustomColumns = Array.from(mergedCustomColumnsMap.values());
+
+        state.customColumns = mergedCustomColumns;
         // Add custom columns to the columns array
-        const customColumnsForVisibility = action.payload;
+        const customColumnsForVisibility = mergedCustomColumns;
         state.columns = [...state.columns, ...customColumnsForVisibility];
       })
       .addCase(fetchCustomColumns.rejected, (state, action) => {

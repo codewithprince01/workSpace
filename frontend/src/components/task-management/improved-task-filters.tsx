@@ -23,7 +23,10 @@ import { useAppDispatch } from '@/hooks/useAppDispatch';
 import useTabSearchParam from '@/hooks/useTabSearchParam';
 import { useFilterDataLoader } from '@/hooks/useFilterDataLoader';
 import { toggleField, syncFieldWithDatabase } from '@/features/task-management/taskListFields.slice';
-import { selectColumns } from '@/features/task-management/task-management.slice';
+import {
+  selectColumns,
+  updateCustomColumnPinned,
+} from '@/features/task-management/task-management.slice';
 
 // Import Redux actions
 import {
@@ -509,7 +512,10 @@ const FilterDropdown: React.FC<{
         <div className="inline-flex items-center gap-1 ml-2">
           {section.selectedValues[0] === 'phase' && (
             <button
-              onClick={onManagePhase}
+              onClick={() => {
+                onToggle();
+                onManagePhase?.();
+              }}
               className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md border transition-all duration-200 ease-in-out hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 ${themeClasses.buttonBg} ${themeClasses.buttonBorder} ${themeClasses.buttonText} ${
                 isDarkMode ? 'focus:ring-offset-gray-900' : 'focus:ring-offset-white'
               }`}
@@ -519,7 +525,10 @@ const FilterDropdown: React.FC<{
           )}
           {section.selectedValues[0] === 'status' && (
             <button
-              onClick={onManageStatus}
+              onClick={() => {
+                onToggle();
+                onManageStatus?.();
+              }}
               className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md border transition-all duration-200 ease-in-out hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 ${themeClasses.buttonBg} ${themeClasses.buttonBorder} ${themeClasses.buttonText} ${
                 isDarkMode ? 'focus:ring-offset-gray-900' : 'focus:ring-offset-white'
               }`}
@@ -945,7 +954,7 @@ const FieldsDropdown: React.FC<{ themeClasses: any; isDarkMode: boolean }> = ({
   const dispatch = useAppDispatch();
 
   // Helper function to get translated field label using existing task-list-table translations
-  const getFieldLabel = useCallback((fieldKey: string) => {
+  const getFieldLabel = useCallback((fieldKey: string, fallbackLabel?: string) => {
     const keyMappings: Record<string, string> = {
       'KEY': 'keyColumn',
       'DESCRIPTION': 'descriptionColumn', 
@@ -967,7 +976,7 @@ const FieldsDropdown: React.FC<{ themeClasses: any; isDarkMode: boolean }> = ({
     };
 
     const translationKey = keyMappings[fieldKey];
-    return translationKey ? tTable(translationKey) : fieldKey;
+    return translationKey ? tTable(translationKey) : (fallbackLabel || fieldKey);
   }, [tTable]);
   const fieldsRaw = useSelector((state: RootState) => state.taskManagementFields);
   const columns = useSelector(selectColumns);
@@ -1067,15 +1076,39 @@ const FieldsDropdown: React.FC<{ themeClasses: any; isDarkMode: boolean }> = ({
                       onClick={() => {
                         // Toggle field locally first
                         dispatch(toggleField(field.key));
-                        
-                        // Sync with database if projectId is available
-                        if (projectId) {
-                          dispatch(syncFieldWithDatabase({
-                            projectId,
-                            fieldKey: field.key,
-                            visible: !field.visible,
-                            columns
-                          }));
+
+                        const targetColumn = columns.find(col => {
+                          const key = String(col.key || '');
+                          const id = String((col as any).id || '');
+                          const name = String((col as any).name || '');
+                          const fieldKey = String(field.key || '');
+                          const fieldLabel = String(field.label || '');
+                          return (
+                            key === fieldKey ||
+                            id === fieldKey ||
+                            (col.custom_column && name === fieldLabel)
+                          );
+                        });
+                        const nextVisible = !field.visible;
+
+                        // Custom columns need pinned toggle on task-management custom columns list
+                        if (targetColumn?.custom_column) {
+                          dispatch(
+                            updateCustomColumnPinned({
+                              columnKey: targetColumn.key || targetColumn.id || field.key,
+                              isVisible: nextVisible,
+                            })
+                          );
+                        } else if (projectId) {
+                          // Standard columns sync through API
+                          dispatch(
+                            syncFieldWithDatabase({
+                              projectId,
+                              fieldKey: field.key,
+                              visible: nextVisible,
+                              columns,
+                            })
+                          );
                         }
                       }}
                       className={`
@@ -1106,7 +1139,23 @@ const FieldsDropdown: React.FC<{ themeClasses: any; isDarkMode: boolean }> = ({
 
                       {/* Label and Count */}
                       <div className="flex-1 flex items-center justify-between">
-                        <span className="truncate">{getFieldLabel(field.key)}</span>
+                        <span className="truncate">
+                          {getFieldLabel(
+                            field.key,
+                            columns.find(col => {
+                              const key = String(col.key || '');
+                              const id = String((col as any).id || '');
+                              const name = String((col as any).name || '');
+                              const fieldKey = String(field.key || '');
+                              const fieldLabel = String(field.label || '');
+                              return (
+                                key === fieldKey ||
+                                id === fieldKey ||
+                                (col.custom_column && name === fieldLabel)
+                              );
+                            })?.name || field.label
+                          )}
+                        </span>
                       </div>
                     </button>
                   );

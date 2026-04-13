@@ -38,17 +38,24 @@ import CustomColumnHeader from '../custom-column-header/custom-column-header';
 import { nanoid } from '@reduxjs/toolkit';
 import {
   CustomTableColumnsType,
+  addCustomColumn as addCustomColumnToColumns,
   deleteCustomColumn as deleteCustomColumnFromColumns,
 } from '@features/projects/singleProject/taskListColumns/taskColumnsSlice';
 import { themeWiseColor } from '@/utils/themeWiseColor';
 import KeyTypeColumn from './key-type-column/key-type-column';
 import logger from '@/utils/errorLogger';
-import { 
+import {
   fetchTasksV3, 
   fetchTaskListColumns,
   addCustomColumn,
   deleteCustomColumn as deleteCustomColumnFromTaskManagement,
 } from '@/features/task-management/task-management.slice';
+import {
+  addCustomColumn as addCustomColumnToTaskReducer,
+  deleteCustomColumn as deleteCustomColumnFromTaskReducer,
+  fetchTaskListColumns as fetchTaskListColumnsFromTasks,
+} from '@/features/tasks/tasks.slice';
+import { removeCustomField, upsertCustomField } from '@/features/task-management/taskListFields.slice';
 import { useParams } from 'react-router-dom';
 import { tasksCustomColumnsService } from '@/api/tasks/tasks-custom-columns.service';
 import { ExclamationCircleFilled } from '@/shared/antd-imports';
@@ -122,6 +129,8 @@ const CustomColumnModal = () => {
       // Dispatch actions to update the Redux store
       dispatch(deleteCustomColumnFromTaskManagement(customColumnId));
       dispatch(deleteCustomColumnFromColumns(customColumnId));
+      dispatch(deleteCustomColumnFromTaskReducer(customColumnId));
+      dispatch(removeCustomField(openedColumn?.key || customColumnId));
 
       // Close the modal and reset data
       dispatch(toggleCustomColumnModalOpen(false));
@@ -133,6 +142,7 @@ const CustomColumnModal = () => {
       // Refresh tasks and columns to reflect the deleted custom column
       if (projectId) {
         dispatch(fetchTaskListColumns(projectId));
+        dispatch(fetchTaskListColumnsFromTasks(projectId));
         dispatch(fetchTasksV3(projectId));
       }
     } catch (error) {
@@ -145,50 +155,32 @@ const CustomColumnModal = () => {
     {
       key: 'people',
       value: 'people',
-      label: t('customColumns.fieldTypes.people'),
+      label: 'People',
+      disabled: false,
+    },
+    {
+      key: 'text',
+      value: 'text',
+      label: 'Text',
       disabled: false,
     },
     {
       key: 'number',
       value: 'number',
-      label: t('customColumns.fieldTypes.number'),
+      label: 'Number',
       disabled: false,
     },
     {
       key: 'date',
       value: 'date',
-      label: t('customColumns.fieldTypes.date'),
+      label: 'Date',
       disabled: false,
     },
     {
       key: 'selection',
       value: 'selection',
-      label: t('customColumns.fieldTypes.selection'),
+      label: 'Selection',
       disabled: false,
-    },
-    {
-      key: 'checkbox',
-      value: 'checkbox',
-      label: t('customColumns.fieldTypes.checkbox'),
-      disabled: true,
-    },
-    {
-      key: 'labels',
-      value: 'labels',
-      label: t('customColumns.fieldTypes.labels'),
-      disabled: true,
-    },
-    {
-      key: 'key',
-      value: 'key',
-      label: t('customColumns.fieldTypes.key'),
-      disabled: true,
-    },
-    {
-      key: 'formula',
-      value: 'formula',
-      label: t('customColumns.fieldTypes.formula'),
-      disabled: true,
     },
   ];
 
@@ -256,8 +248,26 @@ const CustomColumnModal = () => {
           });
 
           if (res.done) {
-            if (res.body.id) newColumn.id = res.body.id;
-            dispatch(addCustomColumn(newColumn));
+            const createdColumn = {
+              ...newColumn,
+              id: res?.body?.id || newColumn.id,
+              key: res?.body?.key || newColumn.key,
+              name:
+                res?.body?.name ||
+                res?.body?.field_title ||
+                newColumn.name ||
+                'Text',
+            };
+            dispatch(addCustomColumn(createdColumn));
+            dispatch(addCustomColumnToColumns(createdColumn));
+            dispatch(addCustomColumnToTaskReducer(createdColumn));
+            dispatch(
+              upsertCustomField({
+                key: createdColumn.key as string,
+                label: value.fieldTitle || (createdColumn.name as string) || 'Text',
+                visible: true,
+              })
+            );
             dispatch(toggleCustomColumnModalOpen(false));
             resetModalData();
             
@@ -267,6 +277,7 @@ const CustomColumnModal = () => {
             // Refresh tasks and columns to include the new custom column values
             if (projectId) {
               dispatch(fetchTaskListColumns(projectId));
+              dispatch(fetchTaskListColumnsFromTasks(projectId));
               dispatch(fetchTasksV3(projectId));
             }
           }
@@ -359,7 +370,15 @@ const CustomColumnModal = () => {
 
             // Refresh tasks and columns to reflect the updated custom column
             if (projectId) {
+              dispatch(
+                upsertCustomField({
+                  key: openedColumn?.key || customColumnId,
+                  label: value.fieldTitle || 'Text',
+                  visible: true,
+                })
+              );
               dispatch(fetchTaskListColumns(projectId));
+              dispatch(fetchTaskListColumnsFromTasks(projectId));
               dispatch(fetchTasksV3(projectId));
             }
           } catch (error) {
@@ -391,7 +410,7 @@ const CustomColumnModal = () => {
       afterOpenChange={open => {
         if (open && customColumnModalType === 'edit' && openedColumn) {
           // Set the field type first so the correct form fields are displayed
-          dispatch(setCustomFieldType(openedColumn.custom_column_obj?.fieldType || 'people'));
+          dispatch(setCustomFieldType(openedColumn.custom_column_obj?.fieldType || 'text'));
 
           // Set other field values based on the custom column type
           if (openedColumn.custom_column_obj?.fieldType === 'number') {

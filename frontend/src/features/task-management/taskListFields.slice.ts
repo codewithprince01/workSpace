@@ -152,6 +152,32 @@ const taskListFieldsSlice = createSlice({
         saveFields(state);
       }
     },
+    upsertCustomField(
+      state,
+      action: PayloadAction<{ key: string; label: string; visible?: boolean }>
+    ) {
+      const { key, label, visible = true } = action.payload;
+      const existing = state.find(f => f.key === key);
+      if (existing) {
+        existing.label = label || existing.label;
+        existing.visible = visible;
+      } else {
+        const maxOrder = state.reduce((max, f) => Math.max(max, f.order || 0), 0);
+        state.push({
+          key,
+          label: label || 'Text',
+          visible,
+          order: maxOrder + 1,
+        });
+      }
+      saveFields(state);
+    },
+    removeCustomField(state, action: PayloadAction<string>) {
+      const key = action.payload;
+      const filtered = state.filter(f => f.key !== key);
+      saveFields(filtered);
+      return filtered;
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -177,7 +203,14 @@ const taskListFieldsSlice = createSlice({
   },
 });
 
-export const { toggleField, setFields, resetFields, updateFieldVisibilityFromDatabase } = taskListFieldsSlice.actions;
+export const {
+  toggleField,
+  setFields,
+  resetFields,
+  updateFieldVisibilityFromDatabase,
+  upsertCustomField,
+  removeCustomField,
+} = taskListFieldsSlice.actions;
 
 // Utility function to force reset fields (can be called from browser console)
 export const forceResetFields = () => {

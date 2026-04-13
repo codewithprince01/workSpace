@@ -114,6 +114,7 @@
     
     "fieldTypes": {
       "people": "People",
+      "text": "Text",
       "number": "Number",
       "date": "Date",
       "selection": "Selection",

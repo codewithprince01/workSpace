@@ -104,9 +104,62 @@ router.put('/:id', async (req, res) => {
 // DELETE /api/project-statuses/:id
 router.delete('/:id', async (req, res) => {
     try {
-        const { TaskStatus } = require('../models');
-        await TaskStatus.deleteOne({ _id: req.params.id });
-        res.json({ done: true });
+        const { TaskStatus, Task } = require('../models');
+        const statusId = req.params.id;
+        const replaceStatusId = req.query.replace;
+
+        const status = await TaskStatus.findById(statusId);
+        if (!status) {
+          return res.status(404).json({ done: false, message: 'Status not found' });
+        }
+
+        // Pick replacement status from query, otherwise fallback to another status in same project.
+        let replacement = null;
+        if (replaceStatusId && String(replaceStatusId) !== String(statusId)) {
+          replacement = await TaskStatus.findOne({
+            _id: replaceStatusId,
+            project_id: status.project_id,
+          });
+        }
+
+        if (!replacement) {
+          replacement = await TaskStatus.findOne({
+            project_id: status.project_id,
+            _id: { $ne: status._id },
+          }).sort({ sort_order: 1 });
+        }
+
+        const tasksUsingStatus = await Task.countDocuments({
+          project_id: status.project_id,
+          status_id: status._id,
+        });
+
+        if (!replacement && tasksUsingStatus > 0) {
+          return res.status(400).json({
+            done: false,
+            message: 'Cannot delete status because tasks still use it and no replacement status is available',
+          });
+        }
+
+        // Move tasks from deleted status to replacement so deleted status does not keep showing in task list.
+        let movedTasksCount = 0;
+        if (replacement) {
+          const moved = await Task.updateMany(
+            { project_id: status.project_id, status_id: status._id },
+            { $set: { status_id: replacement._id } }
+          );
+          movedTasksCount = Number(moved?.modifiedCount || moved?.nModified || 0);
+        }
+
+        await TaskStatus.deleteOne({ _id: status._id });
+
+        res.json({
+          done: true,
+          body: {
+            replaced_with: replacement?._id || null,
+            moved_tasks: movedTasksCount,
+          },
+        });
     } catch (error) {
         res.status(500).json({ done: false, message: 'Failed to delete status' });
     }

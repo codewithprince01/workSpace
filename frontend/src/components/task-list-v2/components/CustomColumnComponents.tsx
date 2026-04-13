@@ -13,6 +13,38 @@ import PeopleDropdown from '@/components/common/people-dropdown/PeopleDropdown';
 import AvatarGroup from '@/components/AvatarGroup';
 import dayjs from 'dayjs';
 
+const resolveColumnValue = (values: Record<string, any> | undefined, column: any) => {
+  if (!values || !column) return undefined;
+
+  const candidates = [
+    column?.key,
+    column?.id,
+    column?.uuid,
+    column?.custom_column_obj?.id,
+    column?.custom_column_obj?.uuid,
+  ]
+    .filter(Boolean)
+    .map(String);
+
+  for (const candidate of candidates) {
+    if (Object.prototype.hasOwnProperty.call(values, candidate)) {
+      return values[candidate];
+    }
+  }
+
+  return undefined;
+};
+
+const resolveColumnKeyForUpdate = (column: any): string =>
+  String(
+    column?.uuid ||
+      column?.id ||
+      column?.custom_column_obj?.uuid ||
+      column?.custom_column_obj?.id ||
+      column?.key ||
+      ''
+  );
+
 // Add Custom Column Button Component
 export const AddCustomColumnButton: React.FC = memo(() => {
   const dispatch = useAppDispatch();
@@ -71,7 +103,7 @@ export const CustomColumnHeader: React.FC<{
                      column.label || 
                      column.custom_column_obj?.fieldTitle || 
                      column.custom_column_obj?.field_title ||
-                     t('customColumns.customColumnHeader');
+                     'Text';
 
   return (
     <Flex 
@@ -102,7 +134,8 @@ export const CustomColumnCell: React.FC<{
 }> = memo(({ column, task, updateTaskCustomColumnValue }) => {
   const { t } = useTranslation('task-list-table');
 
-  const customValue = task.custom_column_values?.[column.key];
+  const columnKey = resolveColumnKeyForUpdate(column);
+  const customValue = resolveColumnValue(task.custom_column_values, column);
   const fieldType = column.custom_column_obj?.fieldType;
 
   if (!fieldType || !column.custom_column) {
@@ -115,7 +148,16 @@ export const CustomColumnCell: React.FC<{
       return (
         <PeopleCustomColumnCell
           task={task}
-          columnKey={column.key}
+          columnKey={columnKey}
+          customValue={customValue}
+          updateTaskCustomColumnValue={updateTaskCustomColumnValue}
+        />
+      );
+    case 'text':
+      return (
+        <TextCustomColumnCell
+          task={task}
+          columnKey={columnKey}
           customValue={customValue}
           updateTaskCustomColumnValue={updateTaskCustomColumnValue}
         />
@@ -124,7 +166,7 @@ export const CustomColumnCell: React.FC<{
       return (
         <DateCustomColumnCell
           task={task}
-          columnKey={column.key}
+          columnKey={columnKey}
           customValue={customValue}
           updateTaskCustomColumnValue={updateTaskCustomColumnValue}
         />
@@ -133,7 +175,7 @@ export const CustomColumnCell: React.FC<{
       return (
         <NumberCustomColumnCell
           task={task}
-          columnKey={column.key}
+          columnKey={columnKey}
           customValue={customValue}
           columnObj={column.custom_column_obj}
           updateTaskCustomColumnValue={updateTaskCustomColumnValue}
@@ -143,7 +185,7 @@ export const CustomColumnCell: React.FC<{
       return (
         <SelectionCustomColumnCell
           task={task}
-          columnKey={column.key}
+          columnKey={columnKey}
           customValue={customValue}
           columnObj={column.custom_column_obj}
           updateTaskCustomColumnValue={updateTaskCustomColumnValue}
@@ -155,6 +197,56 @@ export const CustomColumnCell: React.FC<{
 });
 
 CustomColumnCell.displayName = 'CustomColumnCell';
+
+// Text Field Cell Component
+export const TextCustomColumnCell: React.FC<{
+  task: any;
+  columnKey: string;
+  customValue: any;
+  updateTaskCustomColumnValue: (taskId: string, columnKey: string, value: string) => void;
+}> = memo(({ task, columnKey, customValue, updateTaskCustomColumnValue }) => {
+  const [inputValue, setInputValue] = useState(String(customValue || ''));
+  const [isEditing, setIsEditing] = useState(false);
+  const isDarkMode = useAppSelector(state => state.themeReducer.mode === 'dark');
+
+  useEffect(() => {
+    setInputValue(String(customValue || ''));
+  }, [customValue]);
+
+  const handleSave = useCallback(() => {
+    setIsEditing(false);
+    if (!task.id) return;
+
+    const nextValue = String(inputValue || '');
+    const currentValue = String(customValue || '');
+    if (nextValue !== currentValue) {
+      updateTaskCustomColumnValue(task.id, columnKey, nextValue);
+    }
+  }, [task.id, inputValue, customValue, columnKey, updateTaskCustomColumnValue]);
+
+  return (
+    <div className="px-2">
+      <Input
+        value={inputValue}
+        onChange={e => setInputValue(e.target.value)}
+        onFocus={() => setIsEditing(true)}
+        onBlur={handleSave}
+        onPressEnter={handleSave}
+        placeholder="Type text..."
+        size="small"
+        variant="borderless"
+        className={isDarkMode ? 'dark-mode' : 'light-mode'}
+        style={{
+          width: '100%',
+          minWidth: 0,
+          textOverflow: 'ellipsis',
+        }}
+      />
+    </div>
+  );
+});
+
+TextCustomColumnCell.displayName = 'TextCustomColumnCell';
 
 // People Field Cell Component
 export const PeopleCustomColumnCell: React.FC<{

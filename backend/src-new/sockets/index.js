@@ -447,6 +447,35 @@ const initializeSocket = (server) => {
         } catch(e) { console.error(e); }
     });
 
+    // TASK_CUSTOM_COLUMN_UPDATE
+    socket.on(SocketEvents.TASK_CUSTOM_COLUMN_UPDATE.toString(), async (payload) => {
+        try {
+            const data = typeof payload === 'string' ? JSON.parse(payload) : payload;
+            const { task_id, column_key, value } = data || {};
+            if (!task_id || !column_key) return;
+
+            const task = await Task.findById(task_id);
+            if (!task) return;
+
+            if (!task.custom_column_values || typeof task.custom_column_values !== 'object') {
+              task.custom_column_values = {};
+            }
+
+            task.custom_column_values[String(column_key)] = value;
+            task.markModified('custom_column_values');
+            await task.save();
+
+            const response = {
+              task_id: String(task_id),
+              column_key: String(column_key),
+              value,
+            };
+
+            socket.emit(SocketEvents.TASK_CUSTOM_COLUMN_UPDATE.toString(), response);
+            socket.to(`project:${task.project_id}`).emit(SocketEvents.TASK_CUSTOM_COLUMN_UPDATE.toString(), response);
+        } catch (e) { console.error(e); }
+    });
+
     // TASK_TIME_ESTIMATION_CHANGE
     socket.on(SocketEvents.TASK_TIME_ESTIMATION_CHANGE.toString(), async (str) => {
         try {

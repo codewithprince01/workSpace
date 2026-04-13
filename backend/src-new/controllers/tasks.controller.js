@@ -160,7 +160,7 @@ exports.getAll = async (req, res, next) => {
         query.name = { $regex: search.trim(), $options: 'i' };
     }
     
-    const tasks = await Task.find(query)
+    let tasks = await Task.find(query)
       .populate('status_id', 'name color_code category')
       .populate('assignees', 'name email avatar_url')
       .populate('reporter_id', 'name email')
@@ -970,6 +970,34 @@ exports.getTaskListV3 = async (req, res, next) => {
     let groups = [];
     if (group === 'status') {
         const statuses = await TaskStatus.find({ project_id: projectId }).sort({ sort_order: 1 });
+        const statusIdSet = new Set(statuses.map(s => s._id.toString()));
+
+        // Auto-heal: move tasks with deleted/missing status to a valid status
+        // so "Unmapped Status" does not keep appearing in task list.
+        if (statuses.length > 0) {
+            const fallbackStatus = statuses.find(s => s.category === 'todo') || statuses[0];
+            const orphanTaskIds = tasks
+              .filter(t => {
+                const taskStatusId = t.status_id?._id?.toString() || t.status_id?.toString();
+                return !taskStatusId || !statusIdSet.has(taskStatusId);
+              })
+              .map(t => t._id);
+
+            if (orphanTaskIds.length > 0) {
+                await Task.updateMany(
+                  { _id: { $in: orphanTaskIds } },
+                  { $set: { status_id: fallbackStatus._id } }
+                );
+
+                tasks = tasks.map(t => {
+                  const taskStatusId = t.status_id?._id?.toString() || t.status_id?.toString();
+                  if (!taskStatusId || !statusIdSet.has(taskStatusId)) {
+                    return { ...t, status_id: fallbackStatus._id };
+                  }
+                  return t;
+                });
+            }
+        }
         const matchedTaskIds = new Set();
 
         groups = statuses.map(s => {
