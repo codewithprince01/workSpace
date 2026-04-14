@@ -50,7 +50,7 @@ export const initializeCsrfToken = async (): Promise<void> => {
 const apiClient = axios.create({
   baseURL: config.apiUrl,
   withCredentials: true,
-  timeout: 30000, // 30 second timeout to prevent hanging requests
+  timeout: 0, // No timeout to prevent hanging requests on slow networks or large data
   headers: {
     'Content-Type': 'application/json',
     Accept: 'application/json',
@@ -64,9 +64,7 @@ apiClient.interceptors.request.use(
 
     // Ensure we have a CSRF token before making requests
     if (!csrfToken) {
-      const tokenStart = performance.now();
       await refreshCsrfToken();
-      const tokenEnd = performance.now();
     }
 
     if (csrfToken) {
@@ -80,8 +78,6 @@ apiClient.interceptors.request.use(
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
     }
-
-    const requestEnd = performance.now();
 
     return config;
   },
@@ -151,12 +147,7 @@ apiClient.interceptors.response.use(
 
     // Add 401 unauthorized handling - DON'T auto-redirect, let auth guard handle it
     if (error.response?.status === 401) {
-      // Only log the error, don't redirect - the route guards will handle auth
       console.warn('401 Unauthorized response:', error.config?.url);
-      // Don't show error for auth endpoints
-      if (!error.config?.url?.includes('/auth/') && !error.config?.url?.includes('/secure/')) {
-        // alertService.error('Session Expired', 'Please log in again');
-      }
       return Promise.reject(error);
     }
 

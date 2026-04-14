@@ -19,9 +19,10 @@ export const attachmentsApiService = {
   getProjectAttachments: async (
     projectId: string,
     index: number,
-    size: number
+    size: number,
+    view?: string
   ): Promise<IServerResponse<IProjectAttachmentsViewModel>> => {
-    const q = toQueryString({ index, size });
+    const q = toQueryString({ index, size, view });
     const response = await apiClient.get<IServerResponse<IProjectAttachmentsViewModel>>(
       `${rootUrl}/project/${projectId}${q}`
     );
@@ -37,6 +38,19 @@ export const attachmentsApiService = {
 
   deleteAttachment: async (id: string): Promise<IServerResponse<string>> => {
     const response = await apiClient.delete<IServerResponse<string>>(`${rootUrl}/tasks/${id}`);
+    return response.data;
+  },
+
+  getUploadUrl: async (
+    fileName: string,
+    fileType: string
+  ): Promise<IServerResponse<{ upload_url: string; file_key: string }>> => {
+    const response = await apiClient.post(`${rootUrl}/upload-url`, { fileName, fileType });
+    return response.data;
+  },
+
+  createAttachment: async (data: any): Promise<IServerResponse<any>> => {
+    const response = await apiClient.post(`${rootUrl}/tasks`, data);
     return response.data;
   },
 };

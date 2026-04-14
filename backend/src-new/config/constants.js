@@ -87,9 +87,7 @@ module.exports = {
   SES_REGION: process.env.AWS_REGION || 'us-east-1',
 
   // Storage
-  STORAGE_PROVIDER: process.env.STORAGE_PROVIDER || (
-    process.env.AWS_ACCESS_KEY_ID ? 's3' : 'local'
-  ),
+  STORAGE_PROVIDER: 'local',
   S3_BUCKET: process.env.AWS_BUCKET || 'worklenz-files',
   LOCAL_UPLOAD_DIR: process.env.LOCAL_UPLOAD_DIR || 'uploads',
 };

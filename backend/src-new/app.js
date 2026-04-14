@@ -159,10 +159,21 @@ app.get('/csrf-token', (req, res) => {
 // Skipped for requests using Bearer token auth (JWT in Authorization header)
 // because those are not vulnerable to CSRF (browser never auto-sends that header).
 const csrfProtection = (req, res, next) => {
-  // Skip if request uses Bearer JWT auth (SPA with localStorage token)
+  // 1. Skip if safe method (GET, HEAD, OPTIONS)
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+    return next();
+  }
+
+  // 2. Skip for local dev file routes
+  if (req.originalUrl.includes('/api/attachments/local-upload')) {
+    return next();
+  }
+
+  // 3. Skip if request uses Bearer JWT auth (SPA with localStorage token)
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
     return next();
   }
+
   // For cookie-based sessions, validate the CSRF token
   const incoming = req.headers['x-csrf-token'] || req.headers['x-csrf-Token'];
   const expected = req.session?.csrfToken;

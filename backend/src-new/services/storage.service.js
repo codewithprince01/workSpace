@@ -3,21 +3,16 @@ const {
   PutObjectCommand, 
   GetObjectCommand, 
   DeleteObjectCommand 
-} = require('@aws-sdk/client-ses'); // Note: package.json hasses, but usually S3 is client-s3.
-// Wait, I should check if @aws-sdk/client-s3 is installed.
+} = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const constants = require('../config/constants');
 const logger = require('../utils/logger');
 const fs = require('fs-extra');
 const path = require('path');
 
-// I'll check package.json again to be SURE about the S3 client package name.
-// Line 52: "@aws-sdk/client-s3": "^3.378.0"
-// Yes, it is client-s3.
-
-const { S3Client: S3 } = require('@aws-sdk/client-s3');
-
 let s3Client;
+
+console.log(`📦 Storage Service Initialized. Provider: ${constants.STORAGE_PROVIDER}`);
 
 /**
  * Initialize S3 Client
@@ -26,8 +21,8 @@ const getS3Client = () => {
   if (s3Client) return s3Client;
 
   if (process.env.AWS_ACCESS_KEY_ID) {
-    s3Client = new S3({
-      region: constants.SES_REGION, // S3 usually shares the region
+    s3Client = new S3Client({
+      region: constants.SES_REGION, 
       credentials: {
         accessKeyId: process.env.AWS_ACCESS_KEY_ID,
         secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
@@ -59,10 +54,9 @@ exports.getUploadUrl = async (fileKey, contentType) => {
     return await getSignedUrl(client, command, { expiresIn: 900 });
   }
 
-  // Local fallback: Return a local endpoint or mock path
-  // In a real local upload, we'd return a backend path that the frontend POSTs to.
-  // For now, we'll return a path that signals local handling.
-  return `${process.env.FRONTEND_URL}/api/attachments/local-upload?key=${fileKey}`;
+  // Local fallback: Return a backend URL
+  const host = process.env.BACKEND_URL || 'http://localhost:3000';
+  return `${host}/api/attachments/local-upload/${fileKey}`;
 };
 
 /**

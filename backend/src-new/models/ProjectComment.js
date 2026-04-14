@@ -19,11 +19,19 @@ const projectCommentSchema = new Schema({
   mentions: [{
     type: Schema.Types.ObjectId,
     ref: 'User'
-  }]
+  }],
+  readBy: [{
+    user_id: { type: Schema.Types.ObjectId, ref: 'User' },
+    read_at: { type: Date, default: Date.now }
+  }],
+  is_edited: {
+    type: Boolean,
+    default: false
+  }
 }, {
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }
 });
 
-projectCommentSchema.index({ project_id: 1, created_at: -1 });
+projectCommentSchema.index({ project_id: 1, created_at: 1 });
 
 module.exports = mongoose.model('ProjectComment', projectCommentSchema);

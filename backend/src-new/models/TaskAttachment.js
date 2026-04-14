@@ -5,6 +5,12 @@ const taskAttachmentSchema = new Schema({
   task_id: {
     type: Schema.Types.ObjectId,
     ref: 'Task',
+    required: false,
+    default: null
+  },
+  project_id: {
+    type: Schema.Types.ObjectId,
+    ref: 'Project',
     required: true
   },
   user_id: {
@@ -34,5 +40,9 @@ const taskAttachmentSchema = new Schema({
 });
 
 taskAttachmentSchema.index({ task_id: 1 });
+taskAttachmentSchema.index({ project_id: 1 });
+taskAttachmentSchema.index({ created_at: -1 });
+taskAttachmentSchema.index({ project_id: 1, task_id: 1 });
+taskAttachmentSchema.index({ project_id: 1, created_at: -1 });
 
 module.exports = mongoose.model('TaskAttachment', taskAttachmentSchema);

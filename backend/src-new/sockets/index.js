@@ -918,6 +918,95 @@ const initializeSocket = (server) => {
         } catch(e) { console.error(e); }
     });
 
+    // ======= GROUP CHAT EVENTS =======
+    const { ProjectComment } = require('../models');
+
+    // chat:history - Load paginated messages on join
+    socket.on('chat:history', async ({ projectId, before, limit = 30 }) => {
+        try {
+            const query = { project_id: projectId };
+            if (before) query.created_at = { $lt: new Date(before) };
+            const msgs = await ProjectComment.find(query)
+                .sort({ created_at: 1 })
+                .limit(limit)
+                .populate('user_id', 'name avatar_url')
+                .lean();
+            const formatted = msgs.map(m => ({
+                id: m._id.toString(),
+                project_id: m.project_id.toString(),
+                user_id: m.user_id?._id?.toString(),
+                username: m.user_id?.name || 'Unknown',
+                avatar: m.user_id?.avatar_url || null,
+                message: m.content,
+                timestamp: m.created_at,
+                readBy: (m.readBy || []).map(r => r.user_id?.toString())
+            }));
+            socket.emit('chat:history', formatted);
+        } catch(e) { console.error('chat:history error', e); }
+    });
+
+    // chat:send - Save message & broadcast to project room
+    socket.on('chat:send', async ({ projectId, message }) => {
+        try {
+            if (!message?.trim() || !projectId) return;
+            const comment = await ProjectComment.create({
+                project_id: projectId,
+                user_id: socket.user._id,
+                content: message.trim(),
+                readBy: [{ user_id: socket.user._id }]
+            });
+            const payload = {
+                id: comment._id.toString(),
+                project_id: projectId,
+                user_id: socket.user._id.toString(),
+                username: socket.user.name,
+                avatar: socket.user.avatar_url || null,
+                message: message.trim(),
+                timestamp: comment.created_at,
+                readBy: [socket.user._id.toString()]
+            };
+            io.to(`project:${projectId}`).emit('chat:message', payload);
+        } catch(e) { console.error('chat:send error', e); }
+    });
+
+    // chat:delete - Delete own message
+    socket.on('chat:delete', async ({ projectId, messageId }) => {
+        try {
+            const comment = await ProjectComment.findById(messageId);
+            if (!comment) return;
+            if (comment.user_id.toString() !== socket.user._id.toString()) return;
+            await ProjectComment.deleteOne({ _id: messageId });
+            io.to(`project:${projectId}`).emit('chat:deleted', { messageId });
+        } catch(e) { console.error('chat:delete error', e); }
+    });
+
+    // chat:typing - Broadcast typing indicator (don't save)
+    socket.on('chat:typing', ({ projectId, isTyping }) => {
+        socket.to(`project:${projectId}`).emit('chat:typing', {
+            user_id: socket.user._id.toString(),
+            username: socket.user.name,
+            isTyping
+        });
+    });
+
+    // chat:read - Mark messages as read by current user
+    socket.on('chat:read', async ({ projectId }) => {
+        try {
+            await ProjectComment.updateMany(
+                {
+                    project_id: projectId,
+                    'readBy.user_id': { $ne: socket.user._id }
+                },
+                { $addToSet: { readBy: { user_id: socket.user._id, read_at: new Date() } } }
+            );
+            io.to(`project:${projectId}`).emit('chat:read', {
+                user_id: socket.user._id.toString(),
+                username: socket.user.name
+            });
+        } catch(e) { console.error('chat:read error', e); }
+    });
+    // ======= END GROUP CHAT EVENTS =======
+
     socket.on('disconnect', async () => {
       if (socket.user) await User.findByIdAndUpdate(socket.user._id, { socket_id: null });
     });
