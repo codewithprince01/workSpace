@@ -37,7 +37,7 @@ const AssigneeSelector: React.FC<AssigneeSelectorProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [teamMembers, setTeamMembers] = useState<ITeamMembersViewModel>({ data: [], total: 0 });
-  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, isAbove: false });
   const [optimisticAssignees, setOptimisticAssignees] = useState<string[]>([]); // For optimistic updates
   const [pendingChanges, setPendingChanges] = useState<Set<string>>(new Set()); // Track pending member changes
   const selectedRef = useRef<string[]>([]);
@@ -137,18 +137,21 @@ const AssigneeSelector: React.FC<AssigneeSelectorProps> = ({
     setOptimisticAssignees(ids);
   }, [task?.id, assigneeSignature, pendingChanges.size]);
 
-  // Update dropdown position
   const updateDropdownPosition = useCallback(() => {
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
+      const ESTIMATED_DROPDOWN_HEIGHT = 280; // Reasonable threshold
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const shouldShowAbove = spaceBelow < ESTIMATED_DROPDOWN_HEIGHT && rect.top > ESTIMATED_DROPDOWN_HEIGHT;
+
       setDropdownPosition({
-        top: rect.bottom + window.scrollY + 2,
-        left: rect.left + window.scrollX,
+        top: shouldShowAbove ? rect.top - 5 : rect.bottom + 5,
+        left: Math.min(rect.left, window.innerWidth - 300),
+        isAbove: shouldShowAbove
       });
     }
   }, []);
 
-  // Close dropdown when clicking outside and handle scroll
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node) &&
@@ -159,7 +162,6 @@ const AssigneeSelector: React.FC<AssigneeSelectorProps> = ({
 
     const handleScroll = () => {
       if (isOpen) {
-        // Check if the button is still visible in the viewport
         if (buttonRef.current) {
           const rect = buttonRef.current.getBoundingClientRect();
           const isVisible = rect.top >= 0 && rect.left >= 0 &&
@@ -169,7 +171,6 @@ const AssigneeSelector: React.FC<AssigneeSelectorProps> = ({
           if (isVisible) {
             updateDropdownPosition();
           } else {
-            // Hide dropdown if button is not visible
             setIsOpen(false);
           }
         }
@@ -518,6 +519,7 @@ const AssigneeSelector: React.FC<AssigneeSelectorProps> = ({
           style={{
             top: dropdownPosition.top,
             left: dropdownPosition.left,
+            transform: dropdownPosition.isAbove ? 'translateY(-100%)' : 'none',
           }}
         >
           {/* Header */}
@@ -640,4 +642,4 @@ const AssigneeSelector: React.FC<AssigneeSelectorProps> = ({
   );
 };
 
-export default AssigneeSelector; 
+export default AssigneeSelector;
