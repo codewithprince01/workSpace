@@ -953,7 +953,7 @@ const initializeSocket = (server) => {
                 project_id: projectId,
                 user_id: socket.user._id,
                 content: message.trim(),
-                readBy: [{ user_id: socket.user._id }]
+                readBy: [{ user_id: socket.user._id, name: socket.user.name }]
             });
             const payload = {
                 id: comment._id.toString(),
@@ -963,47 +963,59 @@ const initializeSocket = (server) => {
                 avatar: socket.user.avatar_url || null,
                 message: message.trim(),
                 timestamp: comment.created_at,
-                readBy: [socket.user._id.toString()]
+                isDeleted: false,
+                readBy: [{ user_id: socket.user._id.toString(), name: socket.user.name }]
             };
             io.to(`project:${projectId}`).emit('chat:message', payload);
         } catch(e) { console.error('chat:send error', e); }
     });
 
-    // chat:delete - Delete own message
+    // message_deleted - Soft delete message
     socket.on('chat:delete', async ({ projectId, messageId }) => {
         try {
             const comment = await ProjectComment.findById(messageId);
             if (!comment) return;
             if (comment.user_id.toString() !== socket.user._id.toString()) return;
-            await ProjectComment.deleteOne({ _id: messageId });
-            io.to(`project:${projectId}`).emit('chat:deleted', { messageId });
+            
+            await ProjectComment.updateOne(
+                { _id: messageId },
+                { $set: { isDeleted: true, content: 'This message was deleted' } }
+            );
+            
+            io.to(`project:${projectId}`).emit('message_deleted', { messageId });
         } catch(e) { console.error('chat:delete error', e); }
     });
 
-    // chat:typing - Broadcast typing indicator (don't save)
-    socket.on('chat:typing', ({ projectId, isTyping }) => {
-        socket.to(`project:${projectId}`).emit('chat:typing', {
+    // typing_start / typing_stop
+    socket.on('typing_start', ({ projectId }) => {
+        socket.to(`project:${projectId}`).emit('typing_start', {
             user_id: socket.user._id.toString(),
-            username: socket.user.name,
-            isTyping
+            username: socket.user.name
         });
     });
 
-    // chat:read - Mark messages as read by current user
-    socket.on('chat:read', async ({ projectId }) => {
+    socket.on('typing_stop', ({ projectId }) => {
+        socket.to(`project:${projectId}`).emit('typing_stop', {
+            user_id: socket.user._id.toString(),
+            username: socket.user.name
+        });
+    });
+
+    // message_read - Mark messages as read by current user
+    socket.on('message_read', async ({ projectId }) => {
         try {
             await ProjectComment.updateMany(
                 {
                     project_id: projectId,
                     'readBy.user_id': { $ne: socket.user._id }
                 },
-                { $addToSet: { readBy: { user_id: socket.user._id, read_at: new Date() } } }
+                { $addToSet: { readBy: { user_id: socket.user._id, name: socket.user.name, read_at: new Date() } } }
             );
-            io.to(`project:${projectId}`).emit('chat:read', {
+            io.to(`project:${projectId}`).emit('message_read', {
                 user_id: socket.user._id.toString(),
                 username: socket.user.name
             });
-        } catch(e) { console.error('chat:read error', e); }
+        } catch(e) { console.error('message_read error', e); }
     });
     // ======= END GROUP CHAT EVENTS =======
 

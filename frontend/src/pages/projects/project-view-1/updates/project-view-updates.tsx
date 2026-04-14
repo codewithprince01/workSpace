@@ -19,7 +19,8 @@ interface ChatMessage {
   avatar: string | null;
   message: string;
   timestamp: string | Date;
-  readBy: string[];
+  readBy: { user_id: string; name: string }[];
+  isDeleted?: boolean;
   pending?: boolean;
 }
 
@@ -32,6 +33,7 @@ interface TypingUser {
 const getInitials = (name: string) =>
   name
     .split(' ')
+    .filter(Boolean)
     .slice(0, 2)
     .map(n => n[0])
     .join('')
@@ -58,22 +60,30 @@ const formatDateLabel = (ts: string | Date) => {
   return d.format('MMM D, YYYY');
 };
 
-// ─── Read-Receipt Ticks ───────────────────────────────────────────────────────
-const SeenStatus = ({ msg, currentUserId, memberCount }: {
+// ─── Read-Receipt Text ───────────────────────────────────────────────────────
+const SeenStatus = ({ msg, currentUserId }: {
   msg: ChatMessage;
   currentUserId: string;
-  memberCount: number;
 }) => {
-  if (msg.user_id !== currentUserId) return null;
-  const isRead = (msg.readBy || []).some(uid => uid !== currentUserId);
-  const color = isRead ? '#1890ff' : '#8c8c8c';
-  const label = isRead ? 'Seen' : 'Sent';
+  if (msg.user_id !== currentUserId || msg.isDeleted) return null;
+  const readers = (msg.readBy || []).filter(r => r.user_id !== currentUserId);
+  if (readers.length === 0) return (
+    <Tooltip title="Sent">
+      <CheckOutlined style={{ fontSize: 9, color: '#8c8c8c', marginLeft: 4 }} />
+    </Tooltip>
+  );
+
+  const names = readers.map(r => r.name).join(', ');
+  const label = readers.length > 2 
+    ? `Seen by ${readers.length} people` 
+    : `Seen by ${names}`;
 
   return (
-    <Tooltip title={label}>
-      <span style={{ fontSize: 10, color, marginLeft: 4, display: 'inline-flex', alignItems: 'center', gap: 0 }}>
-        <CheckOutlined style={{ fontSize: 9 }} />
-        {isRead && <CheckOutlined style={{ fontSize: 9, marginLeft: -3 }} />}
+    <Tooltip title={names}>
+      <span style={{ fontSize: 10, color: '#1890ff', marginLeft: 4, display: 'inline-flex', alignItems: 'center', gap: 0 }}>
+        <CheckOutlined style={{ fontSize: 13 }} />
+        <CheckOutlined style={{ fontSize: 13, marginLeft: -9 }} />
+        <span style={{ marginLeft: 4, fontSize: 9, opacity: 0.8 }}>{label}</span>
       </span>
     </Tooltip>
   );
@@ -93,17 +103,15 @@ const ProjectViewUpdates = () => {
   const currentUserId = (profile?.id || profile?._id || '') as string;
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  // ... (rest of state)
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
-  const [memberCount] = useState(10); // approximate; used for "seen by everyone" threshold
+  const [isTyping, setIsTyping] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const typingTimeouts = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const isNearBottom = useRef(true);
-  const typingEmitTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasJoined = useRef(false);
 
   // ── Scroll helpers ──────────────────────────────────────────────────────────
@@ -116,25 +124,21 @@ const ProjectViewUpdates = () => {
   const handleScroll = useCallback(() => {
     const el = scrollContainerRef.current;
     if (!el) return;
-    isNearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
+    isNearBottom.current = (el.scrollHeight - el.scrollTop - el.clientHeight) < 100;
   }, []);
 
   // ── Socket events ───────────────────────────────────────────────────────────
   useEffect(() => {
     if (!socket || !projectId) return;
 
-    // Ensure we join the project room (project-view also joins it, belt-and-suspenders)
     if (!hasJoined.current || !connected) {
       socket.emit('join:project', projectId);
       hasJoined.current = true;
     }
 
-    // Load message history
     setLoading(true);
     socket.emit('chat:history', { projectId, limit: 50 });
-
-    // Mark messages as read when opening
-    socket.emit('chat:read', { projectId });
+    socket.emit('message_read', { projectId });
 
     const onHistory = (msgs: ChatMessage[]) => {
       setMessages(msgs);
@@ -144,52 +148,49 @@ const ProjectViewUpdates = () => {
 
     const onMessage = (msg: ChatMessage) => {
       setMessages(prev => {
-        // Remove matching optimistic (pending) message, then add confirmed one.
-        // Match by content + sender to be safe against ID format mismatches.
         const withoutOptimistic = prev.filter(m => 
           !(m.pending && m.message.trim() === msg.message.trim() && m.user_id === msg.user_id)
         );
-        
-        // Prevent duplicate server messages
         if (withoutOptimistic.some(m => m.id === msg.id)) return withoutOptimistic;
-        
         return [...withoutOptimistic, msg];
       });
-      socket.emit('chat:read', { projectId });
+      socket.emit('message_read', { projectId });
       setTimeout(() => scrollToBottom(), 60);
     };
 
-    const onDeleted = ({ messageId }: { messageId: string }) => {
-      setMessages(prev => prev.filter(m => m.id !== messageId));
+    const onMessageDeleted = ({ messageId }: { messageId: string }) => {
+      setMessages(prev => prev.map(m => 
+        m.id === messageId ? { ...m, isDeleted: true, message: 'This message was deleted' } : m
+      ));
     };
 
-    const onTyping = ({ user_id, username, isTyping }: TypingUser & { isTyping: boolean }) => {
+    const onTypingStart = ({ user_id, username }: TypingUser) => {
       if (user_id === currentUserId) return;
-      if (isTyping) {
-        setTypingUsers(prev =>
-          prev.some(u => u.user_id === user_id) ? prev : [...prev, { user_id, username }]
-        );
-        // Auto-clear after 4s if stop signal never comes
-        const prev = typingTimeouts.current.get(user_id);
-        if (prev) clearTimeout(prev);
-        const timeout = setTimeout(() => {
-          setTypingUsers(p => p.filter(u => u.user_id !== user_id));
-          typingTimeouts.current.delete(user_id);
-        }, 4000);
-        typingTimeouts.current.set(user_id, timeout);
-      } else {
-        const prev = typingTimeouts.current.get(user_id);
-        if (prev) clearTimeout(prev);
-        typingTimeouts.current.delete(user_id);
+      setTypingUsers(prev => prev.some(u => u.user_id === user_id) ? prev : [...prev, { user_id, username }]);
+      
+      const existing = typingTimeouts.current.get(user_id);
+      if (existing) clearTimeout(existing);
+      
+      const timeout = setTimeout(() => {
         setTypingUsers(p => p.filter(u => u.user_id !== user_id));
-      }
+        typingTimeouts.current.delete(user_id);
+      }, 4000);
+      typingTimeouts.current.set(user_id, timeout);
     };
 
-    const onRead = ({ user_id }: { user_id: string }) => {
+    const onTypingStop = ({ user_id }: { user_id: string }) => {
+      setTypingUsers(p => p.filter(u => u.user_id !== user_id));
+      const existing = typingTimeouts.current.get(user_id);
+      if (existing) clearTimeout(existing);
+      typingTimeouts.current.delete(user_id);
+    };
+
+    const onMessageRead = ({ user_id, username }: { user_id: string; username: string }) => {
       if (user_id === currentUserId) return;
       setMessages(prev => prev.map(m => {
-        if (!m.readBy.includes(user_id)) {
-          return { ...m, readBy: [...m.readBy, user_id] };
+        const isAlreadyRead = m.readBy.some(r => r.user_id === user_id);
+        if (!isAlreadyRead) {
+          return { ...m, readBy: [...m.readBy, { user_id, name: username }] };
         }
         return m;
       }));
@@ -197,20 +198,22 @@ const ProjectViewUpdates = () => {
 
     socket.on('chat:history', onHistory);
     socket.on('chat:message', onMessage);
-    socket.on('chat:deleted', onDeleted);
-    socket.on('chat:typing', onTyping);
-    socket.on('chat:read', onRead);
+    socket.on('message_deleted', onMessageDeleted);
+    socket.on('typing_start', onTypingStart);
+    socket.on('typing_stop', onTypingStop);
+    socket.on('message_read', onMessageRead);
 
     return () => {
       socket.off('chat:history', onHistory);
       socket.off('chat:message', onMessage);
-      socket.off('chat:deleted', onDeleted);
-      socket.off('chat:typing', onTyping);
-      socket.off('chat:read', onRead);
+      socket.off('message_deleted', onMessageDeleted);
+      socket.off('typing_start', onTypingStart);
+      socket.off('typing_stop', onTypingStop);
+      socket.off('message_read', onMessageRead);
       typingTimeouts.current.forEach(t => clearTimeout(t));
       typingTimeouts.current.clear();
     };
-  }, [socket, projectId, connected]);
+  }, [socket, projectId, connected, currentUserId]);
 
   // ── Reset when switching projects ───────────────────────────────────────────
   useEffect(() => {
@@ -256,20 +259,22 @@ const ProjectViewUpdates = () => {
       avatar: profile?.avatar_url || null,
       message: text,
       timestamp: new Date().toISOString(),
-      readBy: [currentUserId],
+      readBy: [{ user_id: currentUserId, name: profile?.name || 'You' }],
       pending: true,
     };
     setMessages(prev => [...prev, optimistic]);
     setInput('');
     setTimeout(() => scrollToBottom(true), 30);
 
-    // Clear typing indicator
-    if (typingEmitTimeout.current) clearTimeout(typingEmitTimeout.current);
-    socket.emit('chat:typing', { projectId, isTyping: false });
+    // Stop typing indicator on send
+    if (isTyping) {
+      socket.emit('typing_stop', { projectId });
+      setIsTyping(false);
+    }
 
     // Send to server
     socket.emit('chat:send', { projectId, message: text });
-  }, [input, socket, projectId, currentUserId, profile]);
+  }, [input, socket, projectId, currentUserId, profile, isTyping]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -281,16 +286,41 @@ const ProjectViewUpdates = () => {
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value);
     if (!socket || !projectId) return;
-    if (typingEmitTimeout.current) clearTimeout(typingEmitTimeout.current);
-    socket.emit('chat:typing', { projectId, isTyping: true });
-    typingEmitTimeout.current = setTimeout(() => {
-      socket.emit('chat:typing', { projectId, isTyping: false });
-    }, 3000);
+    
+    if (!isTyping) {
+      socket.emit('typing_start', { projectId });
+      setIsTyping(true);
+    }
+    
+    // Auto-stop after 2.5s of silence
+    const timer = setTimeout(() => {
+      socket.emit('typing_stop', { projectId });
+      setIsTyping(false);
+    }, 2500);
+    
+    return () => clearTimeout(timer); // Note: this won't work in a raw handler, using ref instead
+  };
+
+  // Ref-based debounce for typing_stop
+  const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleInputWithDebounce = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(e.target.value);
+    if (!socket || !projectId) return;
+
+    if (!isTyping) {
+      socket.emit('typing_start', { projectId });
+      setIsTyping(true);
+    }
+
+    if (typingTimer.current) clearTimeout(typingTimer.current);
+    typingTimer.current = setTimeout(() => {
+      socket.emit('typing_stop', { projectId });
+      setIsTyping(false);
+    }, 2500);
   };
 
   const deleteMessage = (msg: ChatMessage) => {
-    if (!socket || !projectId || msg.user_id !== currentUserId || msg.pending) return;
-    setMessages(prev => prev.filter(m => m.id !== msg.id));
+    if (!socket || !projectId || msg.user_id !== currentUserId || msg.pending || msg.isDeleted) return;
     socket.emit('chat:delete', { projectId, messageId: msg.id });
   };
 
@@ -299,7 +329,7 @@ const ProjectViewUpdates = () => {
     if (typingUsers.length === 0) return null;
     if (typingUsers.length === 1) return `${typingUsers[0].username} is typing...`;
     if (typingUsers.length === 2) return `${typingUsers[0].username} and ${typingUsers[1].username} are typing...`;
-    return `${typingUsers.length} people are typing...`;
+    return `${typingUsers[0].username} and ${typingUsers.length - 1} others are typing...`;
   }, [typingUsers]);
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -465,16 +495,18 @@ const ProjectViewUpdates = () => {
                           padding: '7px 13px',
                           borderRadius: isOwn ? '14px 4px 14px 14px' : '4px 14px 14px 14px',
                           background: isOwn
-                            ? 'linear-gradient(135deg, #1677ff, #0958d9)'
+                            ? (msg.isDeleted ? '#1f1f1f' : 'linear-gradient(135deg, #1677ff, #0958d9)')
                             : '#1f1f1f',
-                          color: isOwn ? '#fff' : '#d9d9d9',
+                          color: msg.isDeleted ? '#595959' : (isOwn ? '#fff' : '#d9d9d9'),
                           fontSize: 14, lineHeight: 1.5,
+                          fontStyle: msg.isDeleted ? 'italic' : 'normal',
                           wordBreak: 'break-word', whiteSpace: 'pre-wrap',
-                          boxShadow: isOwn
+                          boxShadow: isOwn && !msg.isDeleted
                             ? '0 2px 6px rgba(22,119,255,0.3)'
                             : '0 1px 3px rgba(0,0,0,0.25)',
                           opacity: msg.pending ? 0.55 : 1,
-                          transition: 'opacity 0.2s',
+                          transition: 'all 0.2s',
+                          border: msg.isDeleted ? '1px dashed #434343' : 'none',
                         }}>
                           {msg.message}
                         </div>
@@ -486,10 +518,10 @@ const ProjectViewUpdates = () => {
                           <span style={{ color: '#303030', fontSize: 10 }}>
                             {formatTime(msg.timestamp)}
                           </span>
-                          <SeenStatus msg={msg} currentUserId={currentUserId} memberCount={memberCount} />
+                          <SeenStatus msg={msg} currentUserId={currentUserId} />
                         </div>
                       )}
-                      {showHeader && <SeenStatus msg={msg} currentUserId={currentUserId} memberCount={memberCount} />}
+                      {showHeader && <SeenStatus msg={msg} currentUserId={currentUserId} />}
                     </div>
 
                     {/* Spacer for own side */}
@@ -528,7 +560,7 @@ const ProjectViewUpdates = () => {
         <div style={{ flex: 1, position: 'relative' }}>
           <TextArea
             value={input}
-            onChange={handleInputChange}
+            onChange={handleInputWithDebounce}
             onKeyDown={handleKeyDown}
             placeholder="Type a message... (Enter ↵ sends, Shift+Enter for new line)"
             autoSize={{ minRows: 1, maxRows: 5 }}

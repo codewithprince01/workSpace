@@ -22,8 +22,13 @@ const projectCommentSchema = new Schema({
   }],
   readBy: [{
     user_id: { type: Schema.Types.ObjectId, ref: 'User' },
+    name: String,
     read_at: { type: Date, default: Date.now }
   }],
+  isDeleted: {
+    type: Boolean,
+    default: false
+  },
   is_edited: {
     type: Boolean,
     default: false
