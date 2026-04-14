@@ -26,6 +26,7 @@ const TaskByMembersTable = () => {
 
   const getProjectOverviewMembers = async () => {
     if (!projectId) return;
+    setLoading(true);
     try {
       const res = await projectsApiService.getOverViewMembersById(projectId);
       if (res.done) {
@@ -36,7 +37,6 @@ const TaskByMembersTable = () => {
     } finally {
       setLoading(false);
     }
-    setLoading(true);
   };
 
   useEffect(() => {

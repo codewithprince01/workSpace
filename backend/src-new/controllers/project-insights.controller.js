@@ -1,5 +1,33 @@
 const { Task, TaskStatus, ActivityLog, ProjectMember, TimeLog, Project } = require('../models');
 
+/**
+ * Format hours into a readable duration string (e.g., "24h", "2h 30m", "45m")
+ * @param {number} hours 
+ * @returns {string}
+ */
+const formatDuration = (hours) => {
+  if (!hours || hours === 0) return '0h';
+  
+  const h = Math.floor(hours);
+  const m = Math.round((hours - h) * 60);
+  
+  if (h > 0 && m > 0) return `${h}h ${m}m`;
+  if (h > 0) return `${h}h`;
+  if (m > 0) return `${m}m`;
+  
+  return '0h';
+};
+
+/**
+ * Format a date into a localized string
+ * @param {Date|string} date 
+ * @returns {string}
+ */
+const formatDate = (date) => {
+  if (!date) return 'N/A';
+  return new Date(date).toLocaleDateString();
+};
+
 exports.getProjectInsights = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -97,19 +125,6 @@ exports.getProjectOverviewData = async (req, res, next) => {
       totalLoggedHours = 0;
     }
 
-    // Format hours as string (e.g., "24h" or "2d 4h")
-    const formatHours = (hours) => {
-      if (!hours || hours === 0) return '0h';
-      
-      // If less than 1 hour, show minutes
-      if (hours < 1) {
-          const mins = Math.round(hours * 60);
-          return `${mins}m`;
-      }
-      
-      return `${parseFloat(hours.toFixed(1))}h`;
-    };
-
     const responseBody = {
       total_tasks: totalTasks,
       completed_tasks: completedTasks,
@@ -117,12 +132,12 @@ exports.getProjectOverviewData = async (req, res, next) => {
       todo_tasks_count: todoTasks,
       overdue_count: overdueTasks,
       overdue_hours: overdueHours,
-      overdue_hours_string: formatHours(overdueHours),
+      overdue_hours_string: formatDuration(overdueHours),
       progress: totalTasks > 0 ? Math.round((completedTasks/totalTasks)*100) : 0,
       total_estimated_hours: totalEstimatedHours,
-      total_estimated_hours_string: formatHours(totalEstimatedHours),
+      total_estimated_hours_string: formatDuration(totalEstimatedHours),
       total_logged_hours: totalLoggedHours,
-      total_logged_hours_string: formatHours(totalLoggedHours)
+      total_logged_hours_string: formatDuration(totalLoggedHours)
     };
 
 
@@ -423,7 +438,56 @@ exports.getMemberInsightAStats = async (req, res, next) => {
 };
 
 exports.getMemberTasks = async (req, res, next) => {
-    res.json({ done: true, body: [] });
+  try {
+    const { member_id, project_id, archived } = req.body;
+    const includeArchived = archived === true;
+
+    if (!member_id || !project_id) {
+      return res.status(400).json({ done: false, message: 'member_id and project_id are required' });
+    }
+
+    const query = {
+      project_id,
+      assignees: member_id
+    };
+
+    if (!includeArchived) {
+      query.is_archived = false;
+    }
+
+    const tasks = await Task.find(query)
+      .populate('status_id', 'name color_code')
+      .sort({ updated_at: -1 })
+      .lean();
+
+    const formattedTasks = tasks.map(task => {
+      const deadline = task.end_date || task.due_date;
+      let daysOverdue = 0;
+      
+      if (deadline) {
+        const diff = new Date() - new Date(deadline);
+        daysOverdue = Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+      }
+
+      return {
+        id: task._id,
+        name: task.name,
+        status: task.status_id?.name || 'No Status',
+        status_color: task.status_id?.color_code || '#cccccc',
+        end_date: deadline,
+        updated_at: task.updated_at,
+        days_overdue: daysOverdue,
+        completed_at: task.completed_at,
+        total_minutes: formatDuration(task.estimated_hours),
+        overlogged_time: 'N/A' // Placeholder for now
+      };
+    });
+
+    res.json({ done: true, body: formattedTasks });
+  } catch (error) {
+    console.error('Error in getMemberTasks:', error);
+    next(error);
+  }
 };
 
 exports.getProjectDeadlineStats = async (req, res, next) => {
@@ -463,27 +527,11 @@ exports.getProjectDeadlineStats = async (req, res, next) => {
     ]);
     const totalOverdueHours = logStats.length > 0 ? logStats[0].total : 0;
 
-    // Format hours
-    const formatHours = (hours) => {
-      if (!hours || hours === 0) return '0h';
-      if (hours < 1) {
-          const mins = Math.round(hours * 60);
-          return `${mins}m`;
-      }
-      return `${parseFloat(hours.toFixed(1))}h`;
-    };
-    
-    // Format Date
-    const formatDate = (date) => {
-        if (!date) return 'N/A';
-        return new Date(date).toLocaleDateString(); 
-    };
-
     res.json({ 
       done: true, 
       body: { 
         deadline_tasks_count: overdueTasks.length,
-        deadline_logged_hours_string: formatHours(totalOverdueHours),
+        deadline_logged_hours_string: formatDuration(totalOverdueHours),
         project_end_date: formatDate(project?.end_date),
         tasks: overdueTasks.map(task => ({
           taskId: task._id,
@@ -532,15 +580,6 @@ exports.getOverloggedTasks = async (req, res, next) => {
       return logged > task.estimated_hours;
     });
 
-    // Format hours
-    const formatHours = (hours) => {
-      if (!hours || hours === 0) return '0h';
-      const h = Math.floor(hours);
-      const m = Math.round((hours - h) * 60);
-      if (m > 0) return `${h}h ${m}m`;
-      return `${h}h`;
-    };
-
     const formattedTasks = overloggedTasks.map(task => {
       const logged = timeLogMap[task._id.toString()] || 0;
       const overloggedTime = logged - task.estimated_hours;
@@ -551,7 +590,7 @@ exports.getOverloggedTasks = async (req, res, next) => {
         status_name: task.status_id?.name || '',
         status_color: task.status_id?.color_code || '#cccccc',
         members: task.assignees?.map(a => ({ id: a._id, name: a.name, avatar_url: a.avatar_url })) || [],
-        overlogged_time_string: formatHours(overloggedTime),
+        overlogged_time_string: formatDuration(overloggedTime),
         estimated_hours: task.estimated_hours,
         logged_hours: logged
       };

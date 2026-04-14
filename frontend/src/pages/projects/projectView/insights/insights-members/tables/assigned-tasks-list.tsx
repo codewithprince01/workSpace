@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Flex, Tooltip, Typography } from '@/shared/antd-imports';
+import { Flex, Spin, Tooltip, Typography } from '@/shared/antd-imports';
 
 import { projectInsightsApiService } from '@/api/projects/insights/project-insights.api.service';
 import { useAppSelector } from '@/hooks/useAppSelector';
@@ -105,35 +105,60 @@ const AssignedTasksListTable: React.FC<AssignedTasksListTableProps> = ({
 
   return (
     <div
-      className="min-h-0 max-w-full overflow-x-auto py-2 pl-12 pr-4"
-      style={{ backgroundColor: themeWiseColor('#f0f2f5', '#000', themeMode) }}
+      className="min-h-0 max-w-full overflow-x-auto py-4 pl-12 pr-4"
+      style={{ backgroundColor: themeWiseColor('#f8f7f9', '#141414', themeMode) }}
     >
-      <table className="w-full min-w-max border-collapse">
-        <thead>
-          <tr>
-            {columnsList.map(column => (
-              <th
-                key={column.key}
-                className="p-2 text-left"
-                style={{ width: column.width, fontWeight: 500 }}
-              >
-                {column.columnHeader}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {memberTasks.map(task => (
-            <tr key={task.id} className="h-[42px] border-t">
+      {loading ? (
+        <Flex justify="center" align="center" style={{ height: 100 }}>
+          <Spin />
+        </Flex>
+      ) : memberTasks.length > 0 ? (
+        <table className="w-full min-w-max border-collapse">
+          <thead>
+            <tr style={{ borderBottom: `1px solid ${themeWiseColor('#e8e8e8', '#303030', themeMode)}` }}>
               {columnsList.map(column => (
-                <td key={column.key} className="p-2" style={{ width: column.width }}>
-                  {renderColumnContent(column.key, task)}
-                </td>
+                <th
+                  key={column.key}
+                  className="p-2 text-left"
+                  style={{
+                    width: column.width,
+                    fontWeight: 500,
+                    fontSize: 12,
+                    color: themeWiseColor('#8c8c8c', '#bfbfbf', themeMode)
+                  }}
+                >
+                  {column.columnHeader}
+                </th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {memberTasks.map(task => (
+              <tr key={task.id} className="h-10 hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+                {columnsList.map(column => (
+                  <td
+                    key={column.key}
+                    className="p-2"
+                    style={{
+                      width: column.width,
+                      fontSize: 13,
+                      borderBottom: `1px solid ${themeWiseColor('#f0f0f0', '#262626', themeMode)}`
+                    }}
+                  >
+                    {renderColumnContent(column.key, task)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <Flex justify="center" align="center" style={{ height: 60 }}>
+          <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+            No tasks found for this member
+          </Typography.Text>
+        </Flex>
+      )}
     </div>
   );
 };
