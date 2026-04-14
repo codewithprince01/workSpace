@@ -25,6 +25,10 @@ const projectCommentSchema = new Schema({
     name: String,
     read_at: { type: Date, default: Date.now }
   }],
+  reactions: [{
+    emoji: String,
+    users: [{ type: Schema.Types.ObjectId, ref: 'User' }]
+  }],
   isDeleted: {
     type: Boolean,
     default: false

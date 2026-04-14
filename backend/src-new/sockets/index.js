@@ -1017,6 +1017,60 @@ const initializeSocket = (server) => {
             });
         } catch(e) { console.error('message_read error', e); }
     });
+
+    // add_reaction - Add emoji reaction to message
+    socket.on('add_reaction', async ({ projectId, messageId, emoji }) => {
+        try {
+            const updated = await ProjectComment.findOneAndUpdate(
+                { _id: messageId, 'reactions.emoji': emoji },
+                { $addToSet: { 'reactions.$.users': socket.user._id } },
+                { new: true }
+            );
+
+            if (!updated) {
+                // If the emoji doesn't exist yet, add it to the reactions array
+                const refreshed = await ProjectComment.findByIdAndUpdate(
+                    messageId,
+                    { $push: { reactions: { emoji, users: [socket.user._id] } } },
+                    { new: true }
+                );
+                io.to(`project:${projectId}`).emit('message_reaction_updated', {
+                    messageId,
+                    reactions: refreshed.reactions
+                });
+            } else {
+                io.to(`project:${projectId}`).emit('message_reaction_updated', {
+                    messageId,
+                    reactions: updated.reactions
+                });
+            }
+        } catch(e) { console.error('add_reaction error', e); }
+    });
+
+    // remove_reaction - Remove emoji reaction
+    socket.on('remove_reaction', async ({ projectId, messageId, emoji }) => {
+        try {
+            const updated = await ProjectComment.findOneAndUpdate(
+                { _id: messageId, 'reactions.emoji': emoji },
+                { $pull: { 'reactions.$.users': socket.user._id } },
+                { new: true }
+            );
+
+            if (updated) {
+                // Remove the reaction entry if no users left
+                const cleaned = await ProjectComment.findOneAndUpdate(
+                    { _id: messageId, 'reactions.emoji': emoji, 'reactions.users': { $size: 0 } },
+                    { $pull: { reactions: { emoji } } },
+                    { new: true }
+                ) || updated;
+
+                io.to(`project:${projectId}`).emit('message_reaction_updated', {
+                    messageId,
+                    reactions: cleaned.reactions
+                });
+            }
+        } catch(e) { console.error('remove_reaction error', e); }
+    });
     // ======= END GROUP CHAT EVENTS =======
 
     socket.on('disconnect', async () => {

@@ -1,17 +1,25 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Avatar, Input, Tooltip, Typography, Spin } from 'antd';
-import { CheckOutlined, DeleteOutlined, SendOutlined } from '@ant-design/icons';
+import { Avatar, Input, Tooltip, Typography, Spin, Popover, Button } from 'antd';
+import { CheckOutlined, DeleteOutlined, SendOutlined, SmileOutlined } from '@ant-design/icons';
 import { useAppSelector } from '@/hooks/useAppSelector';
 import { useSocket } from '@/socket/socketContext';
 import { getUserSession } from '@/utils/session-helper';
 import { useParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
+import data from '@emoji-mart/data';
+import Picker from '@emoji-mart/react';
+
 dayjs.extend(relativeTime);
 
 const { TextArea } = Input;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+interface ChatReaction {
+  emoji: string;
+  users: string[]; // user IDs
+}
+
 interface ChatMessage {
   id: string;
   user_id: string;
@@ -20,6 +28,7 @@ interface ChatMessage {
   message: string;
   timestamp: string | Date;
   readBy: { user_id: string; name: string }[];
+  reactions?: ChatReaction[];
   isDeleted?: boolean;
   pending?: boolean;
 }
@@ -59,6 +68,67 @@ const formatDateLabel = (ts: string | Date) => {
   if (d.format('YYYY-MM-DD') === today.subtract(1, 'day').format('YYYY-MM-DD')) return 'Yesterday';
   return d.format('MMM D, YYYY');
 };
+
+// ─── Reaction Components ──────────────────────────────────────────────────────
+const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
+
+const ReactionDisplay = ({ 
+  reactions, 
+  currentUserId, 
+  onToggle 
+}: { 
+  reactions: ChatReaction[]; 
+  currentUserId: string;
+  onToggle: (emoji: string, alreadyReacted: boolean) => void;
+}) => {
+  if (!reactions || reactions.length === 0) return null;
+
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+      {reactions.map(r => {
+        const isSelected = r.users.includes(currentUserId);
+        return (
+          <Tooltip key={r.emoji} title={`${r.users.length} people reacted with ${r.emoji}`}>
+            <div
+              onClick={() => onToggle(r.emoji, isSelected)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '2px 6px',
+                background: isSelected ? '#1677ff20' : '#1f1f1f',
+                border: `1px solid ${isSelected ? '#1677ff' : '#303030'}`,
+                borderRadius: 8,
+                cursor: 'pointer',
+                fontSize: 12,
+                transition: 'all 0.2s',
+              }}
+            >
+              <span>{r.emoji}</span>
+              <span style={{ color: isSelected ? '#1677ff' : '#8c8c8c', fontWeight: 600 }}>{r.users.length}</span>
+            </div>
+          </Tooltip>
+        );
+      })}
+    </div>
+  );
+};
+
+const ReactionActions = ({ onSelect }: { onSelect: (emoji: string) => void }) => (
+  <div style={{ display: 'flex', gap: 8, padding: '4px 8px', background: '#1a1a1a', borderRadius: 8, border: '1px solid #303030', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
+    {QUICK_REACTIONS.map(emoji => (
+      <span
+        key={emoji}
+        onClick={() => onSelect(emoji)}
+        style={{ fontSize: 18, cursor: 'pointer', transition: 'transform 0.1s' }}
+        onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.3)')}
+        onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+      >
+        {emoji}
+      </span>
+    ))}
+  </div>
+);
 
 // ─── Read-Receipt Text ───────────────────────────────────────────────────────
 const SeenStatus = ({ msg, currentUserId }: {
@@ -107,9 +177,11 @@ const ProjectViewUpdates = () => {
   const [loading, setLoading] = useState(true);
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
   const [isTyping, setIsTyping] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const textAreaRef = useRef<any>(null);
   const typingTimeouts = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const isNearBottom = useRef(true);
   const hasJoined = useRef(false);
@@ -196,12 +268,17 @@ const ProjectViewUpdates = () => {
       }));
     };
 
+    const onReactionUpdated = ({ messageId, reactions }: { messageId: string; reactions: ChatReaction[] }) => {
+      setMessages(prev => prev.map(m => m.id === messageId ? { ...m, reactions } : m));
+    };
+
     socket.on('chat:history', onHistory);
     socket.on('chat:message', onMessage);
     socket.on('message_deleted', onMessageDeleted);
     socket.on('typing_start', onTypingStart);
     socket.on('typing_stop', onTypingStop);
     socket.on('message_read', onMessageRead);
+    socket.on('message_reaction_updated', onReactionUpdated);
 
     return () => {
       socket.off('chat:history', onHistory);
@@ -210,6 +287,7 @@ const ProjectViewUpdates = () => {
       socket.off('typing_start', onTypingStart);
       socket.off('typing_stop', onTypingStop);
       socket.off('message_read', onMessageRead);
+      socket.off('message_reaction_updated', onReactionUpdated);
       typingTimeouts.current.forEach(t => clearTimeout(t));
       typingTimeouts.current.clear();
     };
@@ -322,6 +400,36 @@ const ProjectViewUpdates = () => {
   const deleteMessage = (msg: ChatMessage) => {
     if (!socket || !projectId || msg.user_id !== currentUserId || msg.pending || msg.isDeleted) return;
     socket.emit('chat:delete', { projectId, messageId: msg.id });
+  };
+
+  const handleReactionToggle = (messageId: string, emoji: string, alreadyReacted: boolean) => {
+    if (!socket || !projectId) return;
+    socket.emit(alreadyReacted ? 'remove_reaction' : 'add_reaction', { projectId, messageId, emoji });
+  };
+
+  const onEmojiSelect = (emojiData: any) => {
+    const emoji = emojiData.native;
+    const textArea = textAreaRef.current?.resizableTextArea?.textArea;
+    if (!textArea) {
+      setInput(prev => prev + emoji);
+      return;
+    }
+
+    const start = textArea.selectionStart;
+    const end = textArea.selectionEnd;
+    const text = input;
+    const before = text.substring(0, start);
+    const after = text.substring(end);
+    
+    setInput(before + emoji + after);
+    setShowEmojiPicker(false);
+
+    // Maintain focus and set cursor after the new emoji
+    setTimeout(() => {
+      textArea.focus();
+      const newPos = start + emoji.length;
+      textArea.setSelectionRange(newPos, newPos);
+    }, 0);
   };
 
   // ── Typing text ─────────────────────────────────────────────────────────────
@@ -471,14 +579,17 @@ const ProjectViewUpdates = () => {
                         </div>
                       )}
 
-                      {/* Bubble + delete */}
-                      <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                        {/* Delete button (own, on left of bubble) */}
-                        {isOwn && !msg.pending && (
+                      {/* Bubble + actions */}
+                      <div 
+                        className="msg-wrapper"
+                        style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                      >
+                        {/* Delete button (own) */}
+                        {isOwn && !msg.pending && !msg.isDeleted && (
                           <button
                             onClick={() => deleteMessage(msg)}
                             title="Delete"
-                            className="msg-delete"
+                            className="chat-action-btn"
                             style={{
                               background: 'transparent', border: 'none',
                               cursor: 'pointer', color: '#ff4d4f',
@@ -489,6 +600,29 @@ const ProjectViewUpdates = () => {
                           >
                             <DeleteOutlined />
                           </button>
+                        )}
+
+                        {/* Reaction button (anyone) */}
+                        {!msg.isDeleted && !msg.pending && (
+                          <Popover
+                            content={<ReactionActions onSelect={(emoji) => handleReactionToggle(msg.id, emoji, false)} />}
+                            trigger="click"
+                            placement="top"
+                            overlayInnerStyle={{ padding: 0 }}
+                          >
+                            <button
+                              className="chat-action-btn"
+                              style={{
+                                background: 'transparent', border: 'none',
+                                cursor: 'pointer', color: '#8c8c8c',
+                                padding: '2px 4px', borderRadius: 4,
+                                opacity: 0, transition: 'opacity 0.15s',
+                                fontSize: 13,
+                              }}
+                            >
+                              <SmileOutlined />
+                            </button>
+                          </Popover>
                         )}
 
                         <div style={{
@@ -511,6 +645,15 @@ const ProjectViewUpdates = () => {
                           {msg.message}
                         </div>
                       </div>
+
+                      {/* Reactions List */}
+                      {!msg.isDeleted && msg.reactions && (
+                        <ReactionDisplay 
+                          reactions={msg.reactions} 
+                          currentUserId={currentUserId} 
+                          onToggle={(emoji, alreadyReacted) => handleReactionToggle(msg.id, emoji, alreadyReacted)} 
+                        />
+                      )}
 
                       {/* Timestamp for grouped messages + seen */}
                       {!showHeader && (
@@ -559,6 +702,7 @@ const ProjectViewUpdates = () => {
       }}>
         <div style={{ flex: 1, position: 'relative' }}>
           <TextArea
+            ref={textAreaRef}
             value={input}
             onChange={handleInputWithDebounce}
             onKeyDown={handleKeyDown}
@@ -572,16 +716,42 @@ const ProjectViewUpdates = () => {
               borderRadius: 12, color: '#d9d9d9',
               resize: 'none', fontSize: 14,
               transition: 'border-color 0.2s',
+              paddingRight: 45,
             }}
           />
-          {input.length > 0 && (
-            <span style={{
-              position: 'absolute', bottom: 6, right: 10,
-              color: '#303030', fontSize: 10, pointerEvents: 'none',
-            }}>
-              {input.length}/2000
-            </span>
-          )}
+
+          {/* Emoji Trigger */}
+          <div style={{ position: 'absolute', bottom: 6, right: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Popover
+              content={
+                <div style={{ height: 435 }}>
+                  <Picker 
+                    data={data} 
+                    onEmojiSelect={onEmojiSelect}
+                    theme="dark"
+                    set="native"
+                  />
+                </div>
+              }
+              trigger="click"
+              open={showEmojiPicker}
+              onOpenChange={setShowEmojiPicker}
+              placement="topRight"
+              overlayInnerStyle={{ padding: 0 }}
+            >
+              <Button
+                type="text"
+                icon={<SmileOutlined style={{ fontSize: 20, color: showEmojiPicker ? '#1677ff' : '#8c8c8c' }} />}
+                style={{ height: 32, width: 32, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              />
+            </Popover>
+
+            {input.length > 0 && (
+              <span style={{ color: '#303030', fontSize: 10, pointerEvents: 'none' }}>
+                {input.length}/2000
+              </span>
+            )}
+          </div>
         </div>
 
         <button
@@ -606,7 +776,7 @@ const ProjectViewUpdates = () => {
 
       {/* ── Scoped styles ── */}
       <style>{`
-        .chat-row:hover .msg-delete { opacity: 1 !important; }
+        .msg-wrapper:hover .chat-action-btn { opacity: 1 !important; }
         @keyframes typingBounce {
           0%, 60%, 100% { transform: translateY(0); }
           30% { transform: translateY(-5px); }
