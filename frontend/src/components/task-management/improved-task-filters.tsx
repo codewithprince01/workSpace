@@ -16,6 +16,7 @@ import {
   CheckOutlined,
   SortAscendingOutlined,
   SortDescendingOutlined,
+  SettingOutlined,
 } from '@/shared/antd-imports';
 import { RootState } from '@/app/store';
 import { useAppSelector } from '@/hooks/useAppSelector';
@@ -101,27 +102,21 @@ const FILTER_DEBOUNCE_DELAY = 300; // ms
 const SEARCH_DEBOUNCE_DELAY = 500; // ms
 const MAX_FILTER_OPTIONS = 100;
 
-// Sort order enum
-enum SORT_ORDER {
-  ASCEND = 'ascend',
-  DESCEND = 'descend',
-}
-
 // Optimized selectors with proper transformation logic
 const selectFilterData = createSelector(
   [
-    (state: any) => state.priorityReducer.priorities,
-    (state: any) => state.taskReducer.priorities,
-    (state: any) => state.boardReducer.priorities,
-    (state: any) => state.taskReducer.labels,
-    (state: any) => state.boardReducer.labels,
-    (state: any) => state.taskReducer.taskAssignees,
-    (state: any) => state.boardReducer.taskAssignees,
-    (state: any) => state.projectReducer.project,
+    (state: RootState) => state.priorityReducer.priorities,
+    (state: RootState) => state.taskReducer.priorities,
+    (state: RootState) => state.boardReducer.priorities,
+    (state: RootState) => state.taskReducer.labels,
+    (state: RootState) => state.boardReducer.labels,
+    (state: RootState) => state.taskReducer.taskAssignees,
+    (state: RootState) => state.boardReducer.taskAssignees,
+    (state: RootState) => state.projectReducer.project,
     // Enhanced kanban data
-    (state: any) => state.enhancedKanbanReducer.originalTaskAssignees,
-    (state: any) => state.enhancedKanbanReducer.originalLabels,
-    (state: any) => state.enhancedKanbanReducer.priorities,
+    (state: RootState) => state.enhancedKanbanReducer.originalTaskAssignees,
+    (state: RootState) => state.enhancedKanbanReducer.originalLabels,
+    (state: RootState) => state.enhancedKanbanReducer.priorities,
   ],
   (
     priorities,
@@ -207,7 +202,6 @@ function createDebouncedFunction<T extends (...args: any[]) => void>(
 const useFilterData = (position: 'board' | 'list'): FilterSection[] => {
   const { t } = useTranslation('task-list-filters');
   const [searchParams] = useSearchParams();
-  const { projectView } = useTabSearchParam();
 
   const filterData = useAppSelector(selectFilterData);
   const currentGrouping = useAppSelector(selectCurrentGrouping);
@@ -295,13 +289,10 @@ const useFilterData = (position: 'board' | 'list'): FilterSection[] => {
         },
       ];
     } else {
-      const currentPriorities =
-        currentProjectView === 'list' ? filterData.taskPriorities : filterData.boardPriorities;
-      const currentLabels =
-        currentProjectView === 'list' ? filterData.taskLabels : filterData.boardLabels;
-      const currentAssignees =
-        currentProjectView === 'list' ? filterData.taskAssignees : filterData.boardAssignees;
+      const currentLabels = filterData.taskLabels;
+      const currentAssignees = filterData.taskAssignees;
       const groupByValue = currentGrouping || 'status';
+
       return [
         {
           id: 'priority',
@@ -372,7 +363,6 @@ const useFilterData = (position: 'board' | 'list'): FilterSection[] => {
   }, [isBoard, kanbanState, kanbanProject, filterData, currentProjectView, t, currentGrouping]);
 };
 
-// Filter Dropdown Component
 const FilterDropdown: React.FC<{
   section: FilterSection;
   onSelectionChange: (sectionId: string, values: string[]) => void;
@@ -381,7 +371,6 @@ const FilterDropdown: React.FC<{
   themeClasses: any;
   isDarkMode: boolean;
   className?: string;
-  dispatch?: any;
   onManageStatus?: () => void;
   onManagePhase?: () => void;
   projectPhaseLabel?: string;
@@ -393,7 +382,6 @@ const FilterDropdown: React.FC<{
   themeClasses,
   isDarkMode,
   className = '',
-  dispatch,
   onManageStatus,
   onManagePhase,
   projectPhaseLabel,
@@ -403,7 +391,6 @@ const FilterDropdown: React.FC<{
   const isProjectManager = useIsProjectManager();
   const canConfigure = isOwnerOrAdmin || isProjectManager;
   const [searchTerm, setSearchTerm] = useState('');
-  const [filteredOptions, setFilteredOptions] = useState(section.options);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const filteredOptionsMemo = useMemo(() => {
@@ -413,21 +400,17 @@ const FilterDropdown: React.FC<{
           option.label.toLowerCase().includes(searchTerm.toLowerCase())
         );
 
-    if (section.id === 'labels') {
+    if (section.id === 'labels' || section.id === 'assignees') {
       return [...baseOptions].sort((a, b) => {
         const aSelected = section.selectedValues.includes(a.value) ? 1 : 0;
         const bSelected = section.selectedValues.includes(b.value) ? 1 : 0;
         if (aSelected !== bSelected) return bSelected - aSelected;
-        return a.label.localeCompare(b.label, undefined, { sensitivity: 'base' });
+        return a.label.localeCompare(b.label);
       });
     }
 
     return baseOptions;
-  }, [searchTerm, section.options, section.searchable, section.id, section.selectedValues]);
-
-  useEffect(() => {
-    setFilteredOptions(filteredOptionsMemo);
-  }, [filteredOptionsMemo]);
+  }, [searchTerm, section]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -435,16 +418,9 @@ const FilterDropdown: React.FC<{
         if (isOpen) onToggle();
       }
     };
-
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen, onToggle]);
-
-  useEffect(() => {
-    if (!isOpen) {
-      setSearchTerm('');
-    }
-  }, [isOpen]);
 
   const handleOptionToggle = useCallback(
     (optionValue: string) => {
@@ -470,271 +446,201 @@ const FilterDropdown: React.FC<{
         onClick={onToggle}
         className={`
           inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md
-          border transition-all duration-300 ease-in-out
+          border transition-all duration-200 ease-in-out
           ${
             selectedCount > 0
               ? isDarkMode
-                ? 'bg-blue-600/10 text-blue-400 border-blue-500/30'
-                : 'bg-blue-50 text-blue-700 border-blue-200'
+                ? 'bg-blue-600/10 text-blue-400 border-blue-500/30 font-semibold'
+                : 'bg-blue-50 text-blue-700 border-blue-200 font-bold'
               : `${themeClasses.buttonBg} ${themeClasses.buttonBorder} ${themeClasses.buttonText}`
           }
-          hover:shadow-md focus:outline-none focus:ring-1 focus:ring-blue-500/50
+          hover:shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500/50
         `}
       >
-        <IconComponent className="w-3.5 h-3.5" />
-        <span>{section.label}</span>
-        {selectedCount > 0 && (
+        <IconComponent className="w-3.5 h-3.5 opacity-80" />
+        <span className="truncate flex items-center gap-1.5">
+          {section.label}
+          {section.id === 'groupBy' && (
+            <span className={`font-medium opacity-100 ${isDarkMode ? 'text-gray-200' : 'text-gray-900'}`}>
+              {section.options.find(o => o.value === section.selectedValues[0])?.label}
+            </span>
+          )}
+        </span>
+        {selectedCount > 0 && section.id !== 'groupBy' && (
           <span className={`
-            text-[11px] font-semibold border-l px-1.5 ml-0.5 truncate max-w-[100px]
-            ${isDarkMode ? 'text-blue-300 border-blue-500/30' : 'text-blue-700 border-blue-200'}
+            inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 text-[9px] font-bold rounded-full ml-0.5
+            ${isDarkMode ? 'bg-[#333333] text-white' : 'bg-gray-200 text-gray-700'}
           `}>
-            {selectedCount <= 2
-              ? section.options
-                  .filter(opt => section.selectedValues.includes(opt.value))
-                  .map(opt => opt.label)
-                  .join(', ')
-              : `${selectedCount} ${t('filtersActive')}`}
+            {selectedCount}
           </span>
         )}
-        <DownOutlined
-          className={`text-[10px] transition-transform duration-200 ${isOpen ? 'rotate-180' : ''} ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}
-        />
+        <DownOutlined className={`text-[10px] opacity-50 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
-      {section.id === 'groupBy' && canConfigure && (
-        <div className="inline-flex items-center gap-1 ml-2">
-          {section.selectedValues[0] === 'phase' && (
-            <button
-              onClick={() => {
-                onToggle();
-                onManagePhase?.();
-              }}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md border transition-all duration-200 ease-in-out hover:shadow-sm ${themeClasses.buttonBg} ${themeClasses.buttonBorder} ${themeClasses.buttonText}`}
-            >
-              {t('manage')} {projectPhaseLabel || t('phasesText')}
-            </button>
-          )}
-          {section.selectedValues[0] === 'status' && (
-            <button
-              onClick={() => {
-                onToggle();
-                onManageStatus?.();
-              }}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md border transition-all duration-200 ease-in-out hover:shadow-sm ${themeClasses.buttonBg} ${themeClasses.buttonBorder} ${themeClasses.buttonText}`}
-            >
-              {t('manageStatuses')}
-            </button>
-          )}
-        </div>
-      )}
-
       {isOpen && (
-        <div className={`absolute top-full left-0 z-50 mt-1 w-64 ${themeClasses.dropdownBg} rounded-md shadow-sm border ${themeClasses.dropdownBorder}`}>
+        <div className={`absolute top-full left-0 z-50 mt-1 w-64 ${themeClasses.dropdownBg} rounded-md shadow-lg border ${themeClasses.dropdownBorder}`}>
           {section.searchable && (
             <div className={`p-2 border-b ${themeClasses.dividerBorder}`}>
-              <div className="relative w-full">
-                <SearchOutlined className="absolute left-2.5 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <div className="relative">
+                <SearchOutlined className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
                 <input
+                  autoFocus
                   value={searchTerm}
                   onChange={e => setSearchTerm(e.target.value)}
-                  placeholder={`${t('searchPlaceholder')} ${section.label.toLowerCase()}...`}
-                  className={`w-full pl-8 pr-2 py-1 rounded border focus:outline-none transition-colors duration-150 ${
-                    isDarkMode
-                      ? 'bg-gray-700 text-gray-100 placeholder-gray-400 border-gray-600'
-                      : 'bg-white text-gray-900 placeholder-gray-400 border-gray-300'
-                  }`}
+                  placeholder={`Search ${section.label.toLowerCase()}...`}
+                  className={`w-full pl-8 pr-2 py-1.5 text-xs rounded border focus:outline-none focus:ring-1 focus:ring-blue-500 ${isDarkMode ? 'bg-gray-800 text-gray-100 border-gray-700' : 'bg-white text-gray-900 border-gray-300'}`}
                 />
               </div>
             </div>
           )}
 
-          <div className="max-h-48 overflow-y-auto">
-            {filteredOptions.length === 0 ? (
-              <div className={`p-2 text-xs text-center ${themeClasses.secondaryText}`}>
-                {t('noOptionsFound')}
-              </div>
-            ) : (
-              <div className="p-0.5">
-                {filteredOptions.map(option => {
-                  const isSelected = section.selectedValues.includes(option.value);
-                  return (
-                    <button
-                      key={option.id}
-                      onClick={() => handleOptionToggle(option.value)}
-                      className={`
-                        w-full flex items-center gap-2 px-2 py-1.5 text-xs rounded transition-colors duration-150 text-left
-                        ${
-                          isSelected
-                            ? isDarkMode ? 'bg-gray-600 text-white' : 'bg-gray-200 text-gray-800 font-semibold'
-                            : `${themeClasses.optionText} ${themeClasses.optionHover}`
-                        }
-                      `}
-                    >
-                      {section.id !== 'groupBy' && (
-                        <div className={`flex items-center justify-center w-3.5 h-3.5 border rounded ${isSelected ? 'bg-blue-500 border-blue-400 text-white' : 'border-gray-300 dark:border-gray-600'}`}>
-                          {isSelected && <CheckOutlined className="text-[8px] font-bold" />}
-                        </div>
-                      )}
-                      {option.color && <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: option.color }} />}
-                      {(option.avatar || section.id === 'assignees') ? (
-                        <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-sm" style={{ backgroundColor: option.avatar ? 'transparent' : AvatarNamesMap[(option.label?.[0] || 'U').toUpperCase()] || '#1890ff' }}>
-                          {option.avatar ? <img src={option.avatar} alt={option.label} className="w-5 h-5 rounded-full object-cover" /> : <span>{(option.label?.[0] || 'U').toUpperCase()}</span>}
-                        </div>
-                      ) : null}
-                      <div className="flex-1 flex items-center justify-between">
-                        <span className="truncate">{option.label}</span>
-                        {option.count !== undefined && <span className="text-xs text-gray-500 dark:text-gray-400">{option.count}</span>}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+          <div className="max-h-60 overflow-y-auto p-1">
+            {filteredOptionsMemo.map(option => {
+              const isSelected = section.selectedValues.includes(option.value);
+              return (
+                <button
+                  key={option.id}
+                  onClick={() => handleOptionToggle(option.value)}
+                  className={`
+                    w-full flex items-center gap-2 px-2 py-2 text-xs rounded transition-colors text-left
+                    ${isSelected ? (isDarkMode ? 'bg-blue-600/20 text-white' : 'bg-blue-50 text-blue-700 font-semibold') : themeClasses.optionText + ' ' + themeClasses.optionHover}
+                  `}
+                >
+                  {section.id !== 'groupBy' && (
+                    <div className={`flex items-center justify-center w-3.5 h-3.5 border rounded shrink-0 ${isSelected ? 'bg-blue-500 border-blue-400 text-white' : 'border-gray-300 dark:border-gray-600'}`}>
+                      {isSelected && <CheckOutlined className="text-[8px] font-bold" />}
+                    </div>
+                  )}
+                  {option.avatar ? (
+                    <img src={option.avatar} className="w-5 h-5 rounded-full object-cover" alt="" />
+                  ) : option.color ? (
+                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: option.color }} />
+                  ) : null}
+                  <span className="truncate flex-1">{option.label}</span>
+                </button>
+              );
+            })}
           </div>
+
+          {section.id === 'groupBy' && canConfigure && (
+            <div className={`p-1 border-t ${themeClasses.dividerBorder}`}>
+              {section.selectedValues[0] === 'status' && (
+                <button onClick={() => { onToggle(); onManageStatus?.(); }} className={`w-full px-2 py-1.5 text-[11px] text-left rounded ${themeClasses.optionText} ${themeClasses.optionHover}`}>
+                  Manage Statuses...
+                </button>
+              )}
+              {section.selectedValues[0] === 'phase' && (
+                <button onClick={() => { onToggle(); onManagePhase?.(); }} className={`w-full px-2 py-1.5 text-[11px] text-left rounded ${themeClasses.optionText} ${themeClasses.optionHover}`}>
+                  Manage {projectPhaseLabel}...
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
   );
 };
 
-// Search Component
 const SearchFilter: React.FC<{
   value: string;
   onChange: (value: string) => void;
-  placeholder?: string;
   themeClasses: any;
-  className?: string;
-}> = ({ value, onChange, placeholder, themeClasses, className = '' }) => {
+}> = ({ value, onChange, themeClasses }) => {
   const { t } = useTranslation('task-list-filters');
-  const [isExpanded, setIsExpanded] = useState(false);
   const [localValue, setLocalValue] = useState(value);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    setLocalValue(value);
-    if (value) setIsExpanded(true);
-  }, [value]);
-
-  const handleSubmit = useCallback((e: React.FormEvent) => {
-    e.preventDefault();
-    onChange(localValue);
-  }, [localValue, onChange]);
-
-  const handleCancel = useCallback(() => {
-    setLocalValue(value);
-    setIsExpanded(false);
-  }, [value]);
-
+  const [isExpanded, setIsExpanded] = useState(!!value);
   const isDarkMode = useAppSelector(state => state.themeReducer?.mode === 'dark');
 
+  useEffect(() => { setLocalValue(value); }, [value]);
+
   return (
-    <div className={`relative ${className}`}>
+    <div className="relative">
       {!isExpanded ? (
-        <button
-          onClick={() => setIsExpanded(true)}
+        <button 
+          onClick={() => setIsExpanded(true)} 
           className={`
-            inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md
-            border transition-all duration-200 ease-in-out
+            inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md border 
+            transition-all duration-200
             ${themeClasses.buttonBg} ${themeClasses.buttonBorder} ${themeClasses.buttonText}
+            hover:border-gray-500
           `}
         >
-          <SearchOutlined className="text-xs" />
-          <span className="truncate max-w-[120px]">{value || t('searchPlaceholder')}</span>
+          <SearchOutlined className="text-[11px] opacity-70" />
+          <span>{value || 'Search'}</span>
         </button>
       ) : (
-        <form onSubmit={handleSubmit} className="flex items-center gap-1.5">
-          <div className="relative w-full">
-            <SearchOutlined className="absolute left-2.5 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <div className="flex items-center gap-1.5 animate-in fade-in slide-in-from-left-2">
+          <div className="relative w-48">
+            <SearchOutlined className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
             <input
-              ref={inputRef}
               autoFocus
-              type="text"
               value={localValue}
               onChange={e => setLocalValue(e.target.value)}
-              placeholder={placeholder || t('searchTasks') || 'Search...'}
-              className={`w-full pr-4 pl-8 py-1 rounded border focus:outline-none transition-colors duration-150 ${isDarkMode ? 'bg-gray-700 text-gray-100 border-gray-600' : 'bg-white text-gray-900 border-gray-300'}`}
+              onKeyDown={e => e.key === 'Enter' && onChange(localValue)}
+              placeholder="Search..."
+              className={`w-full pl-8 pr-2 py-1.5 text-xs rounded border focus:outline-none transition-all ${isDarkMode ? 'bg-gray-800 text-gray-100 border-gray-600' : 'bg-white text-gray-900 border-gray-300'}`}
             />
           </div>
-          <button type="submit" className="px-3 py-1.5 text-xs font-medium rounded-md bg-blue-600 hover:bg-blue-700 text-white">
-            {t('search')}
-          </button>
-          <button type="button" onClick={handleCancel} className={`px-3 py-1.5 text-xs font-medium rounded-md ${isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-800'}`}>
-            {t('cancel')}
-          </button>
-        </form>
+          <button onClick={() => onChange(localValue)} className="px-3 py-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors">Apply</button>
+          <button onClick={() => { setIsExpanded(false); setLocalValue(''); onChange(''); }} className={`px-2 py-1.5 text-xs ${isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-800'}`}>Cancel</button>
+        </div>
       )}
     </div>
   );
 };
 
-// Sort Dropdown
 const SortDropdown: React.FC<{ themeClasses: any; isDarkMode: boolean }> = ({ themeClasses, isDarkMode }) => {
   const { t } = useTranslation('task-list-filters');
   const dispatch = useAppDispatch();
   const { projectId } = useAppSelector(state => state.projectReducer);
   const currentSortField = useAppSelector(selectSortField);
   const currentSortOrder = useAppSelector(selectSortOrder);
-  const [open, setOpen] = React.useState(false);
+  const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!open) return;
-    const handleClick = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setOpen(false);
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) setOpen(false);
     };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [open]);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
-  const sortFieldsList = [
+  const SORT_FIELDS = [
     { label: t('taskText'), key: 'name' },
     { label: t('statusText'), key: 'status' },
     { label: t('priorityText'), key: 'priority' },
     { label: t('startDateText'), key: 'start_date' },
-    { label: t('endDateText'), key: 'end_date' },
-    { label: t('completedDateText'), key: 'completed_at' },
+    { label: t('dueDateText'), key: 'end_date' },
     { label: t('createdDateText'), key: 'created_at' },
-    { label: t('lastUpdatedText'), key: 'updated_at' },
   ];
 
-  const handleSortFieldChange = (fieldKey: string) => {
-    const newOrder = currentSortField === fieldKey && currentSortOrder === 'ASC' ? 'DESC' : 'ASC';
-    dispatch(setSort({ field: fieldKey, order: newOrder }));
+  const handleSort = (fieldKey: string) => {
+    const order = currentSortField === fieldKey && currentSortOrder === 'ASC' ? 'DESC' : 'ASC';
+    dispatch(setSort({ field: fieldKey, order }));
     if (projectId) dispatch(fetchTasksV3(projectId));
     setOpen(false);
   };
 
-  const isActive = currentSortField !== '';
-  const currentFieldLabel = sortFieldsList.find(f => f.key === currentSortField)?.label;
+  const isActive = !!currentSortField;
 
   return (
     <div className="relative" ref={dropdownRef}>
-      <button
-        onClick={() => setOpen(!open)}
-        className={`inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md border transition-all duration-300 ${isActive ? (isDarkMode ? 'bg-blue-600/10 text-blue-400 border-blue-500/30' : 'bg-blue-50 text-blue-700 border-blue-200') : `${themeClasses.buttonBg} ${themeClasses.buttonBorder} ${themeClasses.buttonText}`}`}
-      >
+      <button onClick={() => setOpen(!open)} className={`inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md border ${isActive ? (isDarkMode ? 'bg-blue-600/10 text-blue-400 border-blue-500/30' : 'bg-blue-50 text-blue-700 border-blue-200 font-bold') : themeClasses.buttonBg + ' ' + themeClasses.buttonBorder + ' ' + themeClasses.buttonText}`}>
         {currentSortOrder === 'ASC' ? <SortAscendingOutlined className="text-xs" /> : <SortDescendingOutlined className="text-xs" />}
-        <span>{t('sortText')}</span>
-        {isActive && currentFieldLabel && <span className={`text-[11px] font-semibold border-l px-1.5 ml-0.5 ${isDarkMode ? 'text-blue-300 border-blue-500/30' : 'text-blue-700 border-blue-200'}`}>{currentFieldLabel}</span>}
-        <DownOutlined className={`text-[10px] transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+        <span>Sort {isActive && `| ${SORT_FIELDS.find(f => f.key === currentSortField)?.label}`}</span>
+        <DownOutlined className={`text-[10px] transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
-
       {open && (
-        <div className={`absolute top-full left-0 z-50 mt-1 w-64 ${themeClasses.dropdownBg} rounded-md shadow-sm border ${themeClasses.dropdownBorder}`}>
-          <div className="p-0.5">
-            {sortFieldsList.map(sortField => {
-              const isSelected = currentSortField === sortField.key;
-              return (
-                <button
-                  key={sortField.key}
-                  onClick={() => handleSortFieldChange(sortField.key)}
-                  className={`w-full flex items-center justify-between px-2 py-1.5 text-xs rounded-md transition-all duration-150 ${isSelected ? (isDarkMode ? 'bg-blue-600/20 text-blue-400' : 'bg-blue-50 text-blue-700 font-semibold') : `${themeClasses.optionText} ${themeClasses.optionHover}`}`}
-                >
-                  <span>{sortField.label}</span>
-                  {isSelected && (currentSortOrder === 'ASC' ? <SortAscendingOutlined className="text-[10px]" /> : <SortDescendingOutlined className="text-[10px]" />)}
-                </button>
-              );
-            })}
+        <div className={`absolute top-full left-0 z-50 mt-1 w-56 ${themeClasses.dropdownBg} rounded-md shadow-lg border ${themeClasses.dropdownBorder}`}>
+          <div className="p-1">
+            {SORT_FIELDS.map(f => (
+              <button key={f.key} onClick={() => handleSort(f.key)} className={`w-full flex items-center justify-between px-2 py-1.5 text-xs rounded transition-all ${currentSortField === f.key ? (isDarkMode ? 'bg-blue-600/20 text-white font-semibold' : 'bg-blue-50 text-blue-700 font-bold') : themeClasses.optionText + ' ' + themeClasses.optionHover}`}>
+                <span>{f.label}</span>
+                {currentSortField === f.key && (currentSortOrder === 'ASC' ? <SortAscendingOutlined /> : <SortDescendingOutlined />)}
+              </button>
+            ))}
           </div>
         </div>
       )}
@@ -744,57 +650,60 @@ const SortDropdown: React.FC<{ themeClasses: any; isDarkMode: boolean }> = ({ th
 
 const FieldsDropdown: React.FC<{ themeClasses: any; isDarkMode: boolean }> = ({ themeClasses, isDarkMode }) => {
   const { t } = useTranslation('task-list-filters');
-  const { t: tTable } = useTranslation('task-list-table');
   const dispatch = useAppDispatch();
   const fieldsRaw = useSelector((state: RootState) => state.taskManagementFields);
   const columns = useSelector(selectColumns);
-  const projectId = useAppSelector(state => state.projectReducer.projectId);
+  const { projectId } = useAppSelector(state => state.projectReducer);
   const fields = Array.isArray(fieldsRaw) ? fieldsRaw : [];
-  const sortedFields = useMemo(() => [...fields].sort((a, b) => a.order - b.order), [fields]);
-  const [open, setOpen] = React.useState(false);
+  const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!open) return;
-    const handleClick = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setOpen(false);
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) setOpen(false);
     };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [open]);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
-  const visibleCount = sortedFields.filter(f => f.visible).length;
+  const visibleCount = fields.filter(f => f.visible).length;
 
   return (
     <div className="relative" ref={dropdownRef}>
-      <button onClick={() => setOpen(!open)} className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md border transition-all ${visibleCount > 0 ? (isDarkMode ? 'bg-gray-600 text-white' : 'bg-gray-200 text-gray-800 font-semibold') : `${themeClasses.buttonBg} ${themeClasses.buttonBorder} ${themeClasses.buttonText}`}`}>
-        <EyeOutlined className="text-xs" />
-        <span>{t('fieldsText')}</span>
-        {visibleCount > 0 && <span className="ml-1 px-1.5 bg-gray-500 text-white rounded-full text-[10px]">{visibleCount}</span>}
-        <DownOutlined className="text-[10px]" />
+      <button 
+        onClick={() => setOpen(!open)} 
+        className={`
+          inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border 
+          ${visibleCount > 0 
+            ? (isDarkMode ? 'bg-[#1f1f1f] border-[#333333] text-white' : 'bg-gray-100 text-gray-800 font-semibold') 
+            : themeClasses.buttonBg + ' ' + themeClasses.buttonBorder + ' ' + themeClasses.buttonText}
+        `}
+      >
+        <EyeOutlined className="text-xs opacity-80" />
+        <span>Fields</span>
+        {visibleCount > 0 && (
+          <span className={`
+            ml-1 px-1.5 h-4 flex items-center justify-center text-[9px] font-bold rounded-full
+            ${isDarkMode ? 'bg-[#333333] text-white' : 'bg-gray-200 text-gray-700'}
+          `}>
+            {visibleCount}
+          </span>
+        )}
       </button>
-
       {open && (
-        <div className={`absolute top-full right-0 z-50 mt-1 w-64 ${themeClasses.dropdownBg} rounded-md shadow-sm border ${themeClasses.dropdownBorder}`}>
-          <div className="max-h-48 overflow-y-auto p-0.5">
-            {sortedFields.map(field => (
-              <button
-                key={field.key}
-                onClick={() => {
-                  dispatch(toggleField(field.key));
-                  const targetColumn = columns.find(col => col.key === field.key || (col as any).id === field.key);
-                  if (targetColumn?.custom_column) {
-                    dispatch(updateCustomColumnPinned({ columnKey: targetColumn.key || (targetColumn as any).id || field.key, isVisible: !field.visible }));
-                  } else if (projectId) {
-                    dispatch(syncFieldWithDatabase({ projectId, fieldKey: field.key, visible: !field.visible, columns }));
-                  }
-                }}
-                className={`w-full flex items-center gap-2 px-2 py-1.5 text-xs rounded transition-colors ${field.visible ? 'font-semibold' : themeClasses.optionText + ' ' + themeClasses.optionHover}`}
-              >
-                <div className={`w-3.5 h-3.5 border rounded flex items-center justify-center ${field.visible ? 'bg-blue-500 border-blue-400 text-white' : 'border-gray-300'}`}>
-                  {field.visible && <CheckOutlined className="text-[8px]" />}
+        <div className={`absolute top-full right-0 z-50 mt-1 w-64 ${themeClasses.dropdownBg} rounded-md shadow-lg border ${themeClasses.dropdownBorder}`}>
+          <div className="max-h-60 overflow-y-auto p-1">
+            {fields.map(f => (
+              <button key={f.key} onClick={() => {
+                dispatch(toggleField(f.key));
+                const col = columns.find(c => c.key === f.key || (c as any).id === f.key);
+                if (col?.custom_column) dispatch(updateCustomColumnPinned({ columnKey: col.key || (col as any).id || f.key, isVisible: !f.visible }));
+                else if (projectId) dispatch(syncFieldWithDatabase({ projectId, fieldKey: f.key, visible: !f.visible, columns }));
+              }} className={`w-full flex items-center gap-2 px-2 py-2 text-xs rounded transition-all ${f.visible ? 'font-semibold text-blue-600' : themeClasses.optionText + ' ' + themeClasses.optionHover}`}>
+                <div className={`w-3.5 h-3.5 border rounded shrink-0 flex items-center justify-center ${f.visible ? 'bg-blue-500 border-blue-400 text-white' : 'border-gray-300'}`}>
+                  {f.visible && <CheckOutlined className="text-[8px]" />}
                 </div>
-                <span>{field.label}</span>
+                <span className="truncate">{f.label}</span>
               </button>
             ))}
           </div>
@@ -807,27 +716,24 @@ const FieldsDropdown: React.FC<{ themeClasses: any; isDarkMode: boolean }> = ({ 
 const ImprovedTaskFilters: React.FC<ImprovedTaskFiltersProps> = ({ position, className = '' }) => {
   const { t } = useTranslation('task-list-filters');
   const dispatch = useAppDispatch();
-  const currentTaskAssignees = useAppSelector(state => state.taskReducer.taskAssignees);
-  const currentTaskLabels = useAppSelector(state => state.taskReducer.labels);
-  const kanbanState = useAppSelector((state: RootState) => state.enhancedKanbanReducer);
-  const taskManagementArchived = useAppSelector(selectArchived);
-  const taskReducerArchived = useAppSelector(state => state.taskReducer.archived);
-  const showArchived = position === 'list' ? taskManagementArchived : taskReducerArchived;
+  const { projectId } = useAppSelector(state => state.projectReducer);
+  const projectPhaseLabel = useAppSelector(state => state.projectReducer.project?.phase_label);
+  const isDarkMode = useAppSelector(state => state.themeReducer?.mode === 'dark');
   const taskManagementSearch = useAppSelector(state => state.taskManagement?.search || '');
   const kanbanSearch = useAppSelector(state => state.enhancedKanbanReducer?.search || '');
   const searchValue = position === 'board' ? kanbanSearch : taskManagementSearch;
 
+  const currentTaskAssignees = useAppSelector(state => state.taskReducer.taskAssignees);
+  const currentTaskLabels = useAppSelector(state => state.taskReducer.labels);
+  const kanbanTaskAssignees = useAppSelector(state => state.enhancedKanbanReducer.taskAssignees);
+  const kanbanLabels = useAppSelector(state => state.enhancedKanbanReducer.labels);
+
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
-  const [clearingFilters, setClearingFilters] = useState(false);
   const [showManageStatusModal, setShowManageStatusModal] = useState(false);
   const [showManagePhaseModal, setShowManagePhaseModal] = useState(false);
 
+  useFilterDataLoader();
   const filterSectionsData = useFilterData(position);
-  const isDataLoaded = filterSectionsData.length > 0;
-
-  const isDarkMode = useAppSelector(state => state.themeReducer?.mode === 'dark');
-  const { projectId } = useAppSelector(state => state.projectReducer);
-  const projectPhaseLabel = useAppSelector(state => state.projectReducer.project?.phase_label);
 
   const themeClasses = useMemo(() => ({
     containerBg: isDarkMode ? 'bg-[#141414]' : 'bg-white',
@@ -839,68 +745,177 @@ const ImprovedTaskFilters: React.FC<ImprovedTaskFiltersProps> = ({ position, cla
     dropdownBorder: isDarkMode ? 'border-[#303030]' : 'border-gray-200',
     optionText: isDarkMode ? 'text-[#d1d5db]' : 'text-gray-700',
     optionHover: isDarkMode ? 'hover:bg-[#262626]' : 'hover:bg-gray-50',
-    secondaryText: isDarkMode ? 'text-[#9ca3af]' : 'text-gray-500',
     dividerBorder: isDarkMode ? 'border-[#404040]' : 'border-gray-200',
+    activeBlue: isDarkMode ? 'bg-blue-600/20 text-blue-400 border-blue-500/40' : 'bg-blue-50 text-blue-700 border-blue-200',
   }), [isDarkMode]);
+
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (searchValue) count++;
+    if (filterSectionsData[0]?.selectedValues.length > 0) count++; // Priority
+    if (filterSectionsData[1]?.selectedValues.length > 0) count++; // Assignees
+    if (filterSectionsData[2]?.selectedValues.length > 0) count++; // Labels
+    return count;
+  }, [searchValue, filterSectionsData]);
 
   const handleSelectionChange = useCallback((sectionId: string, values: string[]) => {
     if (!projectId) return;
+    
+    const getSafeId = (obj: any) => String(obj?.id || obj?._id || obj?.team_member_id || '');
+
     if (position === 'board') {
-      if (sectionId === 'groupBy' && values.length > 0) {
+      if (sectionId === 'groupBy') {
         dispatch(setKanbanGroupBy(values[0] as any));
         dispatch(fetchEnhancedKanbanGroups(projectId));
-      } else if (sectionId === 'priority') {
+      }
+      else if (sectionId === 'priority') {
         dispatch(setKanbanPriorities(values));
+        dispatch(setPriorities(values)); // Sync with list view just in case
         dispatch(fetchEnhancedKanbanGroups(projectId));
       }
-      // ... other board filters
+      else if (sectionId === 'assignees' || sectionId === 'members') {
+        const updated = (kanbanTaskAssignees || []).map((m: any) => ({
+          ...m,
+          selected: values.includes(getSafeId(m)),
+        }));
+        dispatch(setKanbanTaskAssignees(updated));
+        dispatch(fetchEnhancedKanbanGroups(projectId));
+      }
+      else if (sectionId === 'labels') {
+        const updated = (kanbanLabels || []).map((l: any) => ({
+          ...l,
+          selected: values.includes(getSafeId(l)),
+        }));
+        dispatch(setKanbanLabels(updated));
+        dispatch(fetchEnhancedKanbanGroups(projectId));
+      }
     } else {
-      if (sectionId === 'groupBy' && values.length > 0) {
+      if (sectionId === 'groupBy') {
         dispatch(setCurrentGrouping(values[0] as any));
         dispatch(fetchTasksV3(projectId));
-      } else if (sectionId === 'priority') {
+      }
+      else if (sectionId === 'priority') {
         dispatch(setPriorities(values));
         dispatch(fetchTasksV3(projectId));
       }
-      // ... other list filters
+      else if (sectionId === 'assignees' || sectionId === 'members') {
+        const updated = currentTaskAssignees.map((m: any) => ({
+          ...m,
+          selected: values.includes(getSafeId(m)),
+        }));
+        dispatch(setMembers(updated));
+        dispatch(fetchTasksV3(projectId));
+      }
+      else if (sectionId === 'labels') {
+        const updated = currentTaskLabels.map((l: any) => ({
+          ...l,
+          selected: values.includes(getSafeId(l)),
+        }));
+        dispatch(setLabels(updated));
+        dispatch(fetchTasksV3(projectId));
+      }
     }
-  }, [dispatch, projectId, position]);
+  }, [dispatch, projectId, position, currentTaskAssignees, currentTaskLabels, kanbanTaskAssignees, kanbanLabels]);
 
   const handleSearchChange = (val: string) => {
     if (!projectId) return;
-    if (position === 'board') {
-      dispatch(setKanbanSearch(val));
-      dispatch(fetchEnhancedKanbanGroups(projectId));
-    } else {
-      dispatch(setTaskManagementSearch(val));
-      dispatch(fetchTasksV3(projectId));
-    }
+    if (position === 'board') { dispatch(setKanbanSearch(val)); dispatch(fetchEnhancedKanbanGroups(projectId)); }
+    else { dispatch(setTaskManagementSearch(val)); dispatch(fetchTasksV3(projectId)); }
   };
 
   const clearAllFilters = () => {
     if (!projectId) return;
     dispatch(setTaskManagementSearch(''));
     dispatch(setPriorities([]));
-    dispatch(setMembers([]));
-    dispatch(setLabels([]));
-    if (projectId) dispatch(fetchTasksV3(projectId));
+    dispatch(setMembers(currentTaskAssignees.map(m => ({ ...m, selected: false }))));
+    dispatch(setLabels(currentTaskLabels.map(l => ({ ...l, selected: false }))));
+    dispatch(setSort({ field: '', order: 'ASC' }));
+    if (position === 'board') { dispatch(setKanbanSearch('')); dispatch(resetKanbanState()); dispatch(fetchEnhancedKanbanGroups(projectId)); }
+    else dispatch(fetchTasksV3(projectId));
   };
 
+  const isArchived = position === 'board' 
+    ? useAppSelector(state => state.enhancedKanbanReducer.archived)
+    : useAppSelector(state => state.taskManagement.archived);
+
   return (
-    <div className={`${themeClasses.containerBg} border ${themeClasses.containerBorder} rounded-md p-1.5 shadow-sm ${className}`}>
-      <div className="flex flex-wrap items-center justify-between gap-2 min-h-[36px]">
+    <div className={`${themeClasses.containerBg} border ${themeClasses.containerBorder} rounded-md p-2 shadow-sm mb-2 ${className}`}>
+      <div className="flex flex-wrap items-center justify-between gap-3 min-h-[40px]">
+        {/* Left Side: Filters */}
         <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
           <SearchFilter value={searchValue} onChange={handleSearchChange} themeClasses={themeClasses} />
+          
           {position === 'list' && <SortDropdown themeClasses={themeClasses} isDarkMode={isDarkMode} />}
-          {isDataLoaded ? filterSectionsData.map(section => (
-            <FilterDropdown key={section.id} section={section} onSelectionChange={handleSelectionChange} isOpen={openDropdown === section.id} onToggle={() => setOpenDropdown(openDropdown === section.id ? null : section.id)} themeClasses={themeClasses} isDarkMode={isDarkMode} projectPhaseLabel={projectPhaseLabel} onManageStatus={() => setShowManageStatusModal(true)} onManagePhase={() => setShowManagePhaseModal(true)} />
-          )) : <div className="text-xs text-gray-500">Loading...</div>}
+          
+          {filterSectionsData.map(section => (
+            <FilterDropdown 
+              key={section.id} 
+              section={section} 
+              onSelectionChange={handleSelectionChange} 
+              isOpen={openDropdown === section.id} 
+              onToggle={() => setOpenDropdown(openDropdown === section.id ? null : section.id)} 
+              themeClasses={themeClasses} 
+              isDarkMode={isDarkMode} 
+              projectPhaseLabel={projectPhaseLabel} 
+              onManageStatus={() => setShowManageStatusModal(true)} 
+              onManagePhase={() => setShowManagePhaseModal(true)} 
+            />
+          ))}
+
+          {/* Manage Statuses Button - Solid Blue as per image */}
+          <button
+            onClick={() => setShowManageStatusModal(true)}
+            className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-bold rounded-md bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+          >
+            <SettingOutlined className="w-3.5 h-3.5" />
+            <span>Manage Statuses</span>
+          </button>
         </div>
-        <div className="flex items-center gap-2 ml-auto">
-          {searchValue || position === 'list' ? <button onClick={clearAllFilters} className="text-xs text-blue-600 hover:text-blue-700 font-medium">{t('clearAll')}</button> : null}
+
+        {/* Right Side: Active count, Clear, Archived, Fields */}
+        <div className="flex items-center gap-4 ml-auto">
+          {activeFilterCount > 0 && (
+            <span className={`text-[11px] opacity-60 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+              {activeFilterCount} filter active
+            </span>
+          )}
+
+          <button 
+            onClick={clearAllFilters} 
+            className="text-xs text-blue-500 hover:text-blue-600 font-medium whitespace-nowrap transition-colors"
+          >
+            Clear all
+          </button>
+
+          <div 
+            className="flex items-center gap-2 cursor-pointer group"
+            onClick={() => {
+              if (position === 'board') {
+                 dispatch(setKanbanArchived(!isArchived));
+                 dispatch(fetchEnhancedKanbanGroups(projectId || ''));
+              } else {
+                 dispatch(toggleTaskManagementArchived());
+                 dispatch(fetchTasksV3(projectId || ''));
+              }
+            }}
+          >
+            <div className={`
+              w-4 h-4 rounded border flex items-center justify-center transition-all
+              ${isArchived 
+                ? 'bg-blue-600 border-blue-600 text-white' 
+                : `${isDarkMode ? 'border-gray-600 group-hover:border-gray-400' : 'border-gray-300 group-hover:border-gray-500'}`}
+            `}>
+              {isArchived && <CheckOutlined className="text-[10px]" />}
+            </div>
+            <span className={`text-xs ${isDarkMode ? 'text-gray-400 group-hover:text-gray-200' : 'text-gray-600 group-hover:text-gray-900'} transition-colors`}>
+              Show archived
+            </span>
+          </div>
+
           {position === 'list' && <FieldsDropdown themeClasses={themeClasses} isDarkMode={isDarkMode} />}
         </div>
       </div>
+      
       <ManageStatusModal open={showManageStatusModal} onClose={() => setShowManageStatusModal(false)} projectId={projectId || undefined} />
       <ManagePhaseModal open={showManagePhaseModal} onClose={() => setShowManagePhaseModal(false)} projectId={projectId || undefined} />
     </div>

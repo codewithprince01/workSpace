@@ -104,13 +104,20 @@ const TaskPriorityDropdown: React.FC<TaskPriorityDropdownProps> = ({
     const name = priorityName?.toLowerCase();
     switch (name) {
       case 'low':
-        return <MinusOutlined className="w-3 h-3" />;
+        return <MinusOutlined className="w-3" />;
       case 'medium':
-        return <PauseOutlined className="w-3 h-3" style={{ transform: 'rotate(90deg)' }} />;
+        return <PauseOutlined className="w-3" style={{ transform: 'rotate(90deg)' }} />;
       case 'high':
-        return <DoubleRightOutlined className="w-3 h-3" style={{ transform: 'rotate(90deg)' }} />;
+        return <DoubleRightOutlined className="w-3" style={{ transform: 'rotate(90deg)' }} />;
+      case 'urgent':
+      case 'critical':
+        return (
+          <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2L1 21h22L12 2zm1 14h-2v2h2v-2zm0-6h-2v4h2v-4z" />
+          </svg>
+        );
       default:
-        return <MinusOutlined className="w-3 h-3" />;
+        return <MinusOutlined className="w-3" />;
     }
   }, []);
 
@@ -133,31 +140,37 @@ const TaskPriorityDropdown: React.FC<TaskPriorityDropdownProps> = ({
           setIsOpen(!isOpen);
         }}
         className={`
-          inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium
-          transition-all duration-200 hover:opacity-80 border-0 min-w-[70px] max-w-full justify-center
+          inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold
+          transition-all duration-200 hover:brightness-110 active:scale-95 border-0 
+          min-w-[85px] max-w-full justify-center shadow-sm
           whitespace-nowrap
         `}
         style={{
           backgroundColor: currentPriority
             ? getPriorityColor(currentPriority)
-            : isDarkMode
-              ? '#4b5563'
-              : '#9ca3af',
+            : task.priority?.toLowerCase() === 'urgent' || task.priority?.toLowerCase() === 'critical'
+              ? '#ef4444' // Red for urgent
+              : isDarkMode
+                ? '#4b5563'
+                : '#9ca3af',
           color: 'white',
         }}
       >
+        <div className="flex items-center justify-center shrink-0">
+          {getPriorityIcon(currentPriority?.name || task.priority || '')}
+        </div>
         <span className="truncate">
           {currentPriority
             ? formatPriorityName(currentPriority.name || '')
             : formatPriorityName(task.priority)}
         </span>
         <svg
-          className={`w-3 h-3 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+          className={`w-2.5 h-2.5 transition-transform duration-200 opacity-80 ${isOpen ? 'rotate-180' : ''}`}
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
         >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
 
