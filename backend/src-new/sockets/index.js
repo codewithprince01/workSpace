@@ -939,7 +939,15 @@ const initializeSocket = (server) => {
                 avatar: m.user_id?.avatar_url || null,
                 message: m.content,
                 timestamp: m.created_at,
-                readBy: (m.readBy || []).map(r => r.user_id?.toString())
+                isDeleted: !!m.isDeleted,
+                reactions: m.reactions || [],
+                hiddenFor: (m.hiddenFor || []).map(id => id.toString()),
+                readBy: (m.readBy || []).map(r => ({
+                    user_id: r.user_id?.toString(),
+                    name: r.name,
+                    avatar: r.avatar || null,
+                    read_at: r.read_at
+                }))
             }));
             socket.emit('chat:history', formatted);
         } catch(e) { console.error('chat:history error', e); }
@@ -970,19 +978,37 @@ const initializeSocket = (server) => {
         } catch(e) { console.error('chat:send error', e); }
     });
 
-    // message_deleted - Soft delete message
-    socket.on('chat:delete', async ({ projectId, messageId }) => {
+    // Soft delete or hide message
+    socket.on('chat:delete', async ({ projectId, messageId, type = 'everyone' }) => {
         try {
             const comment = await ProjectComment.findById(messageId);
             if (!comment) return;
-            if (comment.user_id.toString() !== socket.user._id.toString()) return;
-            
-            await ProjectComment.updateOne(
-                { _id: messageId },
-                { $set: { isDeleted: true, content: 'This message was deleted' } }
-            );
-            
-            io.to(`project:${projectId}`).emit('message_deleted', { messageId });
+
+            if (type === 'everyone') {
+                // Only sender can delete for everyone
+                if (comment.user_id.toString() !== socket.user._id.toString()) return;
+                
+                await ProjectComment.updateOne(
+                    { _id: messageId },
+                    { 
+                        $set: { isDeleted: true, content: 'This message was deleted' },
+                        $addToSet: { hiddenFor: socket.user._id } // Auto-hide for sender
+                    }
+                );
+                
+                io.to(`project:${projectId}`).emit('message_deleted', { messageId });
+                // Also tell the sender specifically to hide it instantly
+                socket.emit('message_hidden', { messageId });
+            } else if (type === 'me') {
+                // Add user ID to hiddenFor array (Delete for Me / Remove from chat)
+                await ProjectComment.updateOne(
+                    { _id: messageId },
+                    { $addToSet: { hiddenFor: socket.user._id } }
+                );
+                
+                // Tell the specific user to hide it locally
+                socket.emit('message_hidden', { messageId });
+            }
         } catch(e) { console.error('chat:delete error', e); }
     });
 
@@ -1007,43 +1033,56 @@ const initializeSocket = (server) => {
             await ProjectComment.updateMany(
                 {
                     project_id: projectId,
+                    user_id: { $ne: socket.user._id }, // Don't mark own messages as read by self
                     'readBy.user_id': { $ne: socket.user._id }
                 },
-                { $addToSet: { readBy: { user_id: socket.user._id, name: socket.user.name, read_at: new Date() } } }
+                { 
+                    $addToSet: { 
+                        readBy: { 
+                            user_id: socket.user._id, 
+                            name: socket.user.name, 
+                            avatar: socket.user.avatar_url || null,
+                            read_at: new Date() 
+                        } 
+                    } 
+                }
             );
             io.to(`project:${projectId}`).emit('message_read', {
                 user_id: socket.user._id.toString(),
-                username: socket.user.name
+                username: socket.user.name,
+                avatar: socket.user.avatar_url || null
             });
         } catch(e) { console.error('message_read error', e); }
     });
 
-    // add_reaction - Add emoji reaction to message
+    // add_reaction - Add emoji reaction to message (Constraint: 1 per user)
     socket.on('add_reaction', async ({ projectId, messageId, emoji }) => {
         try {
-            const updated = await ProjectComment.findOneAndUpdate(
+            // First, remove any existing reactions by this user on this message
+            await ProjectComment.updateOne(
+                { _id: messageId },
+                { $pull: { 'reactions.$[].users': { user_id: socket.user._id } } }
+            );
+
+            // Add the new reaction
+            let updated = await ProjectComment.findOneAndUpdate(
                 { _id: messageId, 'reactions.emoji': emoji },
-                { $addToSet: { 'reactions.$.users': socket.user._id } },
+                { $addToSet: { 'reactions.$.users': { user_id: socket.user._id, name: socket.user.name } } },
                 { new: true }
             );
 
             if (!updated) {
-                // If the emoji doesn't exist yet, add it to the reactions array
-                const refreshed = await ProjectComment.findByIdAndUpdate(
+                updated = await ProjectComment.findByIdAndUpdate(
                     messageId,
-                    { $push: { reactions: { emoji, users: [socket.user._id] } } },
+                    { $push: { reactions: { emoji, users: [{ user_id: socket.user._id, name: socket.user.name }] } } },
                     { new: true }
                 );
-                io.to(`project:${projectId}`).emit('message_reaction_updated', {
-                    messageId,
-                    reactions: refreshed.reactions
-                });
-            } else {
-                io.to(`project:${projectId}`).emit('message_reaction_updated', {
-                    messageId,
-                    reactions: updated.reactions
-                });
             }
+
+            io.to(`project:${projectId}`).emit('message_reaction_updated', {
+                messageId,
+                reactions: updated.reactions
+            });
         } catch(e) { console.error('add_reaction error', e); }
     });
 
@@ -1052,10 +1091,10 @@ const initializeSocket = (server) => {
         try {
             const updated = await ProjectComment.findOneAndUpdate(
                 { _id: messageId, 'reactions.emoji': emoji },
-                { $pull: { 'reactions.$.users': socket.user._id } },
+                { $pull: { 'reactions.$.users': { user_id: socket.user._id } } },
                 { new: true }
             );
-
+            
             if (updated) {
                 // Remove the reaction entry if no users left
                 const cleaned = await ProjectComment.findOneAndUpdate(

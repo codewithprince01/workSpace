@@ -23,11 +23,15 @@ const projectCommentSchema = new Schema({
   readBy: [{
     user_id: { type: Schema.Types.ObjectId, ref: 'User' },
     name: String,
+    avatar: String,
     read_at: { type: Date, default: Date.now }
   }],
   reactions: [{
     emoji: String,
-    users: [{ type: Schema.Types.ObjectId, ref: 'User' }]
+    users: [{
+      user_id: { type: Schema.Types.ObjectId, ref: 'User' },
+      name: String
+    }]
   }],
   isDeleted: {
     type: Boolean,
@@ -36,7 +40,11 @@ const projectCommentSchema = new Schema({
   is_edited: {
     type: Boolean,
     default: false
-  }
+  },
+  hiddenFor: [{
+    type: Schema.Types.ObjectId,
+    ref: 'User'
+  }]
 }, {
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }
 });

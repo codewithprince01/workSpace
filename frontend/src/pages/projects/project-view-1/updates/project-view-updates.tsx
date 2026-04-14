@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Avatar, Input, Tooltip, Typography, Spin, Popover, Button } from 'antd';
+import { Avatar, Input, Tooltip, Typography, Spin, Popover, Button, Modal } from 'antd';
 import { CheckOutlined, DeleteOutlined, SendOutlined, SmileOutlined } from '@ant-design/icons';
 import { useAppSelector } from '@/hooks/useAppSelector';
 import { useSocket } from '@/socket/socketContext';
@@ -17,7 +17,7 @@ const { TextArea } = Input;
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface ChatReaction {
   emoji: string;
-  users: string[]; // user IDs
+  users: { user_id: string; name: string }[];
 }
 
 interface ChatMessage {
@@ -27,9 +27,10 @@ interface ChatMessage {
   avatar: string | null;
   message: string;
   timestamp: string | Date;
-  readBy: { user_id: string; name: string }[];
+  readBy: { user_id: string; name: string; avatar?: string | null; read_at: string }[];
   reactions?: ChatReaction[];
   isDeleted?: boolean;
+  hiddenFor?: string[]; // user IDs who have hidden this message
   pending?: boolean;
 }
 
@@ -86,9 +87,11 @@ const ReactionDisplay = ({
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
       {reactions.map(r => {
-        const isSelected = r.users.includes(currentUserId);
+        const isSelected = r.users.some(u => u.user_id === currentUserId);
+        const nameList = r.users.map(u => u.name).join(', ');
+        
         return (
-          <Tooltip key={r.emoji} title={`${r.users.length} people reacted with ${r.emoji}`}>
+          <Tooltip key={r.emoji} title={`${nameList} reacted with ${r.emoji}`}>
             <div
               onClick={() => onToggle(r.emoji, isSelected)}
               style={{
@@ -130,30 +133,42 @@ const ReactionActions = ({ onSelect }: { onSelect: (emoji: string) => void }) =>
   </div>
 );
 
-// ─── Read-Receipt Text ───────────────────────────────────────────────────────
 const SeenStatus = ({ msg, currentUserId }: {
   msg: ChatMessage;
   currentUserId: string;
 }) => {
   if (msg.user_id !== currentUserId || msg.isDeleted) return null;
   const readers = (msg.readBy || []).filter(r => r.user_id !== currentUserId);
-  if (readers.length === 0) return (
-    <Tooltip title="Sent">
-      <CheckOutlined style={{ fontSize: 9, color: '#8c8c8c', marginLeft: 4 }} />
-    </Tooltip>
-  );
+  
+  if (readers.length === 0) {
+    return (
+      <Tooltip title="Sent">
+        <div style={{ display: 'flex', alignItems: 'center', marginTop: 4 }}>
+          <CheckOutlined style={{ fontSize: 10, color: '#8c8c8c' }} />
+        </div>
+      </Tooltip>
+    );
+  }
 
   const names = readers.map(r => r.name).join(', ');
   const label = readers.length > 2 
     ? `Seen by ${readers.length} people` 
-    : `Seen by ${names}`;
+    : `Seen by ${readers.map(r => r.name).join(', ')}`;
 
   return (
-    <Tooltip title={names}>
-      <span style={{ fontSize: 10, color: '#1890ff', marginLeft: 4, display: 'inline-flex', alignItems: 'center', gap: 0 }}>
-        <CheckOutlined style={{ fontSize: 13 }} />
-        <CheckOutlined style={{ fontSize: 13, marginLeft: -9 }} />
-        <span style={{ marginLeft: 4, fontSize: 9, opacity: 0.8 }}>{label}</span>
+    <Tooltip title={
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {readers.map(r => (
+          <div key={r.user_id} style={{ fontSize: 11 }}>{r.name} • {dayjs(r.read_at).format('HH:mm')}</div>
+        ))}
+      </div>
+    }>
+      <span style={{ fontSize: 10, color: '#1890ff', marginLeft: 4, display: 'inline-flex', alignItems: 'center', gap: 2, cursor: 'help' }}>
+        <div style={{ display: 'flex' }}>
+          <CheckOutlined style={{ fontSize: 12 }} />
+          <CheckOutlined style={{ fontSize: 12, marginLeft: -8 }} />
+        </div>
+        <span style={{ opacity: 0.8 }}>{label}</span>
       </span>
     </Tooltip>
   );
@@ -178,9 +193,10 @@ const ProjectViewUpdates = () => {
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [messageToDelete, setMessageToDelete] = useState<ChatMessage | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const textAreaRef = useRef<any>(null);
   const typingTimeouts = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const isNearBottom = useRef(true);
@@ -272,6 +288,14 @@ const ProjectViewUpdates = () => {
       setMessages(prev => prev.map(m => m.id === messageId ? { ...m, reactions } : m));
     };
 
+    const onMessageHidden = ({ messageId }: { messageId: string }) => {
+      setMessages(prev => prev.map(m => 
+        m.id === messageId 
+          ? { ...m, hiddenFor: [...(m.hiddenFor || []), currentUserId] } 
+          : m
+      ));
+    };
+
     socket.on('chat:history', onHistory);
     socket.on('chat:message', onMessage);
     socket.on('message_deleted', onMessageDeleted);
@@ -279,6 +303,7 @@ const ProjectViewUpdates = () => {
     socket.on('typing_stop', onTypingStop);
     socket.on('message_read', onMessageRead);
     socket.on('message_reaction_updated', onReactionUpdated);
+    socket.on('message_hidden', onMessageHidden);
 
     return () => {
       socket.off('chat:history', onHistory);
@@ -288,6 +313,7 @@ const ProjectViewUpdates = () => {
       socket.off('typing_stop', onTypingStop);
       socket.off('message_read', onMessageRead);
       socket.off('message_reaction_updated', onReactionUpdated);
+      socket.off('message_hidden', onMessageHidden);
       typingTimeouts.current.forEach(t => clearTimeout(t));
       typingTimeouts.current.clear();
     };
@@ -307,6 +333,9 @@ const ProjectViewUpdates = () => {
     let lastSender = '';
 
     for (const msg of messages) {
+      if (msg.isDeleted) continue; // Hide all placeholders globally for a clean chat
+      if (msg.hiddenFor?.includes(String(currentUserId))) continue;
+      
       const dateLabel = formatDateLabel(msg.timestamp);
       const isNewDate = dateLabel !== lastDate;
       const isNewSender = msg.user_id !== lastSender;
@@ -398,8 +427,22 @@ const ProjectViewUpdates = () => {
   };
 
   const deleteMessage = (msg: ChatMessage) => {
-    if (!socket || !projectId || msg.user_id !== currentUserId || msg.pending || msg.isDeleted) return;
-    socket.emit('chat:delete', { projectId, messageId: msg.id });
+    if (!socket || !projectId || msg.pending) return;
+    setMessageToDelete(msg);
+    setDeleteModalVisible(true);
+  };
+
+  const handleDeleteFinal = (type: 'me' | 'everyone') => {
+    if (!socket || !projectId || !messageToDelete) return;
+    
+    // Safety check: only sender can delete for everyone
+    if (type === 'everyone' && String(messageToDelete.user_id) !== currentUserId) {
+      return;
+    }
+
+    socket.emit('chat:delete', { projectId, messageId: messageToDelete.id, type });
+    setDeleteModalVisible(false);
+    setMessageToDelete(null);
   };
 
   const handleReactionToggle = (messageId: string, emoji: string, alreadyReacted: boolean) => {
@@ -422,13 +465,16 @@ const ProjectViewUpdates = () => {
     const after = text.substring(end);
     
     setInput(before + emoji + after);
-    setShowEmojiPicker(false);
+    // setShowEmojiPicker(false); // Fix: Keep open for multi-select
 
     // Maintain focus and set cursor after the new emoji
     setTimeout(() => {
-      textArea.focus();
-      const newPos = start + emoji.length;
-      textArea.setSelectionRange(newPos, newPos);
+      if (textAreaRef.current?.resizableTextArea?.textArea) {
+        const textArea = textAreaRef.current.resizableTextArea.textArea;
+        textArea.focus();
+        const newPos = start + emoji.length;
+        textArea.setSelectionRange(newPos, newPos);
+      }
     }, 0);
   };
 
@@ -582,68 +628,78 @@ const ProjectViewUpdates = () => {
                       {/* Bubble + actions */}
                       <div 
                         className="msg-wrapper"
-                        style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                        style={{ 
+                          position: 'relative', 
+                          display: 'inline-flex', 
+                          alignItems: 'center', 
+                          gap: 4,
+                          flexDirection: isOwn ? 'row-reverse' : 'row' // My messages: Icon-Bubble, Others: Bubble-Icon
+                        }}
                       >
-                        {/* Delete button (own) */}
-                        {isOwn && !msg.pending && !msg.isDeleted && (
-                          <button
-                            onClick={() => deleteMessage(msg)}
-                            title="Delete"
-                            className="chat-action-btn"
-                            style={{
-                              background: 'transparent', border: 'none',
-                              cursor: 'pointer', color: '#ff4d4f',
-                              padding: '2px 4px', borderRadius: 4,
-                              opacity: 0, transition: 'opacity 0.15s',
-                              fontSize: 11,
-                            }}
-                          >
-                            <DeleteOutlined />
-                          </button>
-                        )}
-
-                        {/* Reaction button (anyone) */}
-                        {!msg.isDeleted && !msg.pending && (
-                          <Popover
-                            content={<ReactionActions onSelect={(emoji) => handleReactionToggle(msg.id, emoji, false)} />}
-                            trigger="click"
-                            placement="top"
-                            overlayInnerStyle={{ padding: 0 }}
-                          >
-                            <button
-                              className="chat-action-btn"
-                              style={{
-                                background: 'transparent', border: 'none',
-                                cursor: 'pointer', color: '#8c8c8c',
-                                padding: '2px 4px', borderRadius: 4,
-                                opacity: 0, transition: 'opacity 0.15s',
-                                fontSize: 13,
-                              }}
-                            >
-                              <SmileOutlined />
-                            </button>
-                          </Popover>
-                        )}
-
                         <div style={{
                           padding: '7px 13px',
                           borderRadius: isOwn ? '14px 4px 14px 14px' : '4px 14px 14px 14px',
-                          background: isOwn
-                            ? (msg.isDeleted ? '#1f1f1f' : 'linear-gradient(135deg, #1677ff, #0958d9)')
-                            : '#1f1f1f',
-                          color: msg.isDeleted ? '#595959' : (isOwn ? '#fff' : '#d9d9d9'),
+                          background: msg.isDeleted || msg.message === 'This message was deleted'
+                            ? '#262626' // Always neutral grey for deleted
+                            : (isOwn ? 'linear-gradient(135deg, #1677ff, #0958d9)' : '#1f1f1f'),
+                          color: (msg.isDeleted || msg.message === 'This message was deleted') ? '#8c8c8c' : (isOwn ? '#fff' : '#d9d9d9'),
                           fontSize: 14, lineHeight: 1.5,
-                          fontStyle: msg.isDeleted ? 'italic' : 'normal',
+                          fontStyle: (msg.isDeleted || msg.message === 'This message was deleted') ? 'italic' : 'normal',
                           wordBreak: 'break-word', whiteSpace: 'pre-wrap',
-                          boxShadow: isOwn && !msg.isDeleted
-                            ? '0 2px 6px rgba(22,119,255,0.3)'
-                            : '0 1px 3px rgba(0,0,0,0.25)',
+                          boxShadow: (msg.isDeleted || msg.message === 'This message was deleted')
+                            ? 'none' 
+                            : (isOwn ? '0 2px 6px rgba(22,119,255,0.3)' : 'none'),
                           opacity: msg.pending ? 0.55 : 1,
                           transition: 'all 0.2s',
-                          border: msg.isDeleted ? '1px dashed #434343' : 'none',
+                          border: msg.isDeleted ? '1px solid #303030' : 'none',
                         }}>
                           {msg.message}
                         </div>
+
+                        {/* Actions */}
+                        {!msg.pending && (
+                          <div style={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                            {/* Remove/Delete button (For everyone) */}
+                            <button
+                              onClick={() => deleteMessage(msg)}
+                              title={msg.isDeleted ? 'Remove from chat' : 'Delete options'}
+                              className="chat-action-btn"
+                              style={{
+                                background: 'transparent', border: 'none',
+                                cursor: 'pointer', color: '#ff4d4f',
+                                padding: '2px 4px', borderRadius: 4,
+                                opacity: 0, transition: 'opacity 0.15s',
+                                fontSize: 11,
+                              }}
+                            >
+                              <DeleteOutlined />
+                            </button>
+
+                            {/* Reaction button (ONLY for non-deleted) */}
+                            {!msg.isDeleted && (
+                              <Popover
+                                content={<ReactionActions onSelect={(emoji) => handleReactionToggle(msg.id, emoji, false)} />}
+                                trigger="click"
+                                placement="top"
+                                overlayInnerStyle={{ padding: 0 }}
+                                getPopupContainer={(trigger) => trigger.parentElement || document.body}
+                              >
+                                <button
+                                  className="chat-action-btn"
+                                  style={{
+                                    background: 'transparent', border: 'none',
+                                    cursor: 'pointer', color: '#8c8c8c',
+                                    padding: '2px 4px', borderRadius: 4,
+                                    opacity: 0, transition: 'opacity 0.15s',
+                                    fontSize: 13,
+                                  }}
+                                >
+                                  <SmileOutlined />
+                                </button>
+                              </Popover>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       {/* Reactions List */}
@@ -706,7 +762,7 @@ const ProjectViewUpdates = () => {
             value={input}
             onChange={handleInputWithDebounce}
             onKeyDown={handleKeyDown}
-            placeholder="Type a message... (Enter ↵ sends, Shift+Enter for new line)"
+            placeholder="Type a message..."
             autoSize={{ minRows: 1, maxRows: 5 }}
             maxLength={2000}
             disabled={!connected}
@@ -716,15 +772,32 @@ const ProjectViewUpdates = () => {
               borderRadius: 12, color: '#d9d9d9',
               resize: 'none', fontSize: 14,
               transition: 'border-color 0.2s',
-              paddingRight: 45,
+              paddingRight: 55, // Increased padding
+              paddingTop: 8,
+              paddingBottom: 8,
             }}
           />
 
           {/* Emoji Trigger */}
-          <div style={{ position: 'absolute', bottom: 6, right: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ 
+            position: 'absolute', 
+            top: '50%', 
+            right: 14, 
+            transform: 'translateY(-50%)', 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 8,
+            zIndex: 10
+          }}>
             <Popover
               content={
-                <div style={{ height: 435 }}>
+                <div style={{ 
+                  height: 435, 
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.5)', 
+                  borderRadius: 12, 
+                  overflow: 'hidden',
+                  zIndex: 9999
+                }}>
                   <Picker 
                     data={data} 
                     onEmojiSelect={onEmojiSelect}
@@ -738,6 +811,7 @@ const ProjectViewUpdates = () => {
               onOpenChange={setShowEmojiPicker}
               placement="topRight"
               overlayInnerStyle={{ padding: 0 }}
+              getPopupContainer={(trigger) => trigger.parentElement || document.body}
             >
               <Button
                 type="text"
@@ -773,6 +847,53 @@ const ProjectViewUpdates = () => {
           <SendOutlined style={{ fontSize: 16 }} />
         </button>
       </div>
+
+      <Modal
+        title="Delete Message"
+        open={deleteModalVisible}
+        onCancel={() => {
+          setDeleteModalVisible(false);
+          setMessageToDelete(null);
+        }}
+        footer={null}
+        width={350}
+        centered
+        styles={{ body: { padding: '20px 24px' } }}
+      >
+        <div style={{ marginBottom: 20, color: '#d9d9d9' }}>
+          What would you like to do with this message?
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <Button 
+            onClick={() => handleDeleteFinal('me')}
+            style={{ borderRadius: 6, background: '#1f1f1f', color: '#d9d9d9', border: '1px solid #303030' }}
+          >
+            Remove from my chat
+          </Button>
+
+          {messageToDelete && String(messageToDelete.user_id) === currentUserId && !messageToDelete.isDeleted && (
+            <Button 
+              type="primary" 
+              danger 
+              onClick={() => handleDeleteFinal('everyone')}
+              style={{ borderRadius: 6 }}
+            >
+              Delete for Everyone
+            </Button>
+          )}
+
+          <Button 
+            type="text"
+            onClick={() => {
+              setDeleteModalVisible(false);
+              setMessageToDelete(null);
+            }}
+            style={{ color: '#8c8c8c' }}
+          >
+            Cancel
+          </Button>
+        </div>
+      </Modal>
 
       {/* ── Scoped styles ── */}
       <style>{`
