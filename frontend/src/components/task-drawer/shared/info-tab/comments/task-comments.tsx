@@ -15,6 +15,7 @@ import './task-comments.css';
 import { useAppSelector } from '@/hooks/useAppSelector';
 import { useAppDispatch } from '@/hooks/useAppDispatch';
 import { updateTaskCounts } from '@/features/task-management/task-management.slice';
+import { updateTaskIndicators } from '@/features/tasks/tasks.slice';
 import { themeWiseColor } from '@/utils/themeWiseColor';
 import { colors } from '@/styles/colors';
 import AttachmentsGrid from '../attachments/attachments-grid';
@@ -129,6 +130,14 @@ const TaskComments = ({ taskId, t }: { taskId?: string; t: TFunction }) => {
               comments_count: sortedComments.length
             }
           }));
+          dispatch(
+            updateTaskIndicators({
+              taskId,
+              indicators: {
+                comments_count: sortedComments.length,
+              },
+            })
+          );
         }
 
         setLoading(false);

@@ -45,6 +45,27 @@ const TaskListTaskCell = ({
 
   const dispatch = useAppDispatch();
 
+  const commentsCount = Number(
+    (task as any)?.comments_count ?? (task as any)?.comment_count ?? (task as any)?.commentsCount ?? 0
+  );
+  const attachmentsCount = Number(
+    (task as any)?.attachments_count ??
+      (task as any)?.attachment_count ??
+      (task as any)?.attachmentsCount ??
+      0
+  );
+  const hasSubscribers = Boolean(
+    (task as any)?.has_subscribers ??
+      (task as any)?.hasSubscribers ??
+      ((task as any)?.subscribers_count ?? 0) > 0
+  );
+  const hasDependencies = Boolean(
+    (task as any)?.has_dependencies ??
+      (task as any)?.hasDependencies ??
+      ((task as any)?.dependencies_count ?? 0) > 0
+  );
+  const scheduleId = (task as any)?.schedule_id ?? (task as any)?.scheduleId;
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
@@ -198,21 +219,21 @@ const TaskListTaskCell = ({
         {!editTaskName &&
           renderSubtasksCountLabel(task.id || '', isSubTask, task.sub_tasks_count || 0)}
 
-        {task?.comments_count ? (
+        {commentsCount > 0 ? (
           <CommentOutlined type="secondary" style={{ fontSize: 14 }} />
         ) : null}
 
-        {task?.has_subscribers ? <EyeOutlined type="secondary" style={{ fontSize: 14 }} /> : null}
+        {hasSubscribers ? <EyeOutlined type="secondary" style={{ fontSize: 14 }} /> : null}
 
-        {task?.attachments_count ? (
+        {attachmentsCount > 0 ? (
           <PaperClipOutlined type="secondary" style={{ fontSize: 14 }} />
         ) : null}
 
-        {task?.has_dependencies ? (
+        {hasDependencies ? (
           <MinusCircleOutlined type="secondary" style={{ fontSize: 14 }} />
         ) : null}
 
-        {task?.schedule_id ? (
+        {scheduleId ? (
           <Tooltip title="Recurring Task">
             <RetweetOutlined type="secondary" style={{ fontSize: 14 }} />
           </Tooltip>

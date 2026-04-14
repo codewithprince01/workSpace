@@ -45,9 +45,10 @@ router.get('/tasks/:taskId', async (req, res) => {
         const formatted = attachments.map(a => ({
             id: a._id,
             task_id: a.task_id,
-            file_name: a.file_name,
-            file_size: a.file_size,
-            file_type: a.file_type,
+            // Frontend ITaskAttachmentViewModel expects: name, size, type, url
+            name: a.file_name,
+            size: a.file_size,
+            type: a.file_type,
             url: a.url,
             created_at: a.created_at,
             user_name: a.user_id?.name,
@@ -72,9 +73,9 @@ router.post('/tasks', async (req, res) => {
 
         // Handle case where frontend sends "file" (base64) and "size" instead of key/url
         const finalKey = file_key || `task-files/${Date.now()}-${file_name}`;
-        const finalUrl = url || file; // In a real app, this would be an S3 URL
+        const finalUrl = url || file; 
         const finalSize = file_size || size || 0;
-        const finalType = file_type || (file_name.split('.').pop() || 'file');
+        const finalType = file_type || (file_name.split('.').pop() || 'file').toLowerCase();
 
         const attachment = await TaskAttachment.create({
             task_id,
@@ -89,14 +90,18 @@ router.post('/tasks', async (req, res) => {
         const populated = await TaskAttachment.findById(attachment._id)
             .populate('user_id', 'name email avatar_url');
 
+        // Update task's attachment count
+        await Task.findByIdAndUpdate(task_id, { $inc: { attachments_count: 1 } });
+
         res.status(201).json({ 
             done: true, 
+            message: 'Attachment uploaded successfully',
             body: {
                 id: populated._id,
                 task_id: populated.task_id,
-                file_name: populated.file_name,
-                file_size: populated.file_size,
-                file_type: populated.file_type,
+                name: populated.file_name,
+                size: populated.file_size,
+                type: populated.file_type,
                 url: populated.url,
                 created_at: populated.created_at,
                 user_name: populated.user_id?.name
@@ -104,7 +109,7 @@ router.post('/tasks', async (req, res) => {
         });
     } catch (error) {
         console.error('Create task attachment error:', error);
-        res.status(500).json({ done: false, message: 'Failed to create task attachment' });
+        res.status(500).json({ done: false, message: 'Failed to create task attachment: ' + error.message });
     }
 });
 
@@ -116,20 +121,30 @@ router.delete('/tasks/:id', async (req, res) => {
             return res.status(404).json({ done: false, message: 'Attachment not found' });
         }
 
-        // Check permission
-        if (attachment.user_id.toString() !== req.user._id.toString()) {
-            return res.status(403).json({ done: false, message: 'Not authorized' });
+        // Check permission 
+        const attachmentOwnerId = attachment.user_id?._id
+            ? attachment.user_id._id.toString()
+            : attachment.user_id.toString();
+        const requestUserId = req.user._id.toString();
+        const isOwner = attachmentOwnerId === requestUserId;
+        const isAdmin = req.user.is_admin === true;
+
+        if (!isOwner && !isAdmin) {
+            return res.status(403).json({ done: false, message: 'Not authorized to delete this attachment' });
         }
 
-        // 1. Physically delete file from storage
         if (attachment.file_key) {
-            await storageService.deleteFile(attachment.file_key);
+            try {
+                await storageService.deleteFile(attachment.file_key);
+            } catch (storageErr) {
+                logger.warn('Storage delete failed (continuing): %s', storageErr.message);
+            }
         }
 
-        // 2. Delete database record
         await TaskAttachment.deleteOne({ _id: attachment._id });
+        await Task.findByIdAndUpdate(attachment.task_id, { $inc: { attachments_count: -1 } });
         
-        res.json({ done: true });
+        res.json({ done: true, message: 'Attachment deleted successfully' });
     } catch (error) {
         logger.error('Delete attachment error: %s', error.message);
         res.status(500).json({ done: false, message: 'Failed to delete attachment' });
@@ -146,7 +161,6 @@ router.get('/project/:projectId', async (req, res) => {
         const limit = parseInt(size) || 20;
         const skip = (page - 1) * limit;
 
-        // Find tasks in project
         const tasks = await Task.find({ project_id: projectId }).select('_id');
         const taskIds = tasks.map(t => t._id);
 
@@ -184,6 +198,21 @@ router.get('/project/:projectId', async (req, res) => {
     } catch (error) {
         console.error('Fetch project attachments error:', error);
         res.status(500).json({ done: false, message: 'Failed to fetch project attachments' });
+    }
+});
+
+// GET /api/attachments/download
+router.get('/download', async (req, res) => {
+    try {
+        const { id, file } = req.query;
+        const attachment = await TaskAttachment.findById(id);
+        if (!attachment) {
+            return res.status(404).json({ done: false, message: 'Attachment not found' });
+        }
+        res.json({ done: true, body: attachment.url });
+    } catch (error) {
+        console.error('Download error:', error);
+        res.status(500).json({ done: false, message: 'Failed to generate download link' });
     }
 });
 

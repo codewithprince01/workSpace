@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { PaperClipOutlined, DeleteOutlined, PlusOutlined } from '@/shared/antd-imports';
 import { useAppSelector } from '@/hooks/useAppSelector';
 import { useAppDispatch } from '@/hooks/useAppDispatch';
+import { updateTaskCounts } from '@/features/task-management/task-management.slice';
+import { updateTaskIndicators } from '@/features/tasks/tasks.slice';
 import { colors } from '@/styles/colors';
 import { themeWiseColor } from '@/utils/themeWiseColor';
 import {
@@ -47,6 +49,19 @@ const InfoTabFooter = () => {
 
   const { taskFormViewModel, selectedTaskId } = useAppSelector(state => state.taskDrawerReducer);
   const { projectId } = useAppSelector(state => state.projectReducer);
+  const listTask = useAppSelector(state =>
+    selectedTaskId ? state.taskManagement.entities[selectedTaskId] : undefined
+  );
+  const listTaskFromGroups = useAppSelector(state =>
+    selectedTaskId
+      ? state.taskReducer.taskGroups
+          .flatMap(group => [
+            ...group.tasks,
+            ...group.tasks.flatMap(task => task.sub_tasks || []),
+          ])
+          .find(task => task.id === selectedTaskId)
+      : undefined
+  );
   const dispatch = useAppDispatch();
 
   const [members, setMembers] = useState<ITeamMember[]>([]);
@@ -176,6 +191,26 @@ const InfoTabFooter = () => {
 
       const res = await taskCommentsApiService.create(body);
       if (res.done) {
+        const nextCommentsCount =
+          Number(listTask?.comments_count ?? listTaskFromGroups?.comments_count ?? 0) + 1;
+
+        dispatch(
+          updateTaskCounts({
+            taskId: selectedTaskId,
+            counts: {
+              comments_count: nextCommentsCount,
+            },
+          })
+        );
+        dispatch(
+          updateTaskIndicators({
+            taskId: selectedTaskId,
+            indicators: {
+              comments_count: nextCommentsCount,
+            },
+          })
+        );
+
         form.resetFields(['comment']);
         setCharacterLength(0);
         setSelectedFiles([]);
@@ -201,8 +236,12 @@ const InfoTabFooter = () => {
     selectedFiles,
     selectedTaskId,
     projectId,
+    listTask?.comments_count,
+    listTaskFromGroups?.comments_count,
+    dispatch,
     form,
     isCommentValid,
+    t,
   ]);
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {

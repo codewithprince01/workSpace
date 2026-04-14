@@ -167,6 +167,7 @@ export const fetchTaskGroups = createAsyncThunk(
       const config: ITaskListConfigV2 = {
         id: projectId,
         archived: taskReducer.archived,
+        count: true,
         group: taskReducer.groupBy,
         field: taskReducer.fields.map(field => `${field.key} ${field.sort_order}`).join(','),
         order: '',
@@ -243,6 +244,7 @@ export const fetchSubTasks = createAsyncThunk(
     const config: ITaskListConfigV2 = {
       id: projectId,
       archived: taskReducer.archived,
+      count: true,
       group: taskReducer.groupBy,
       field: taskReducer.fields.map(field => `${field.key} ${field.sort_order}`).join(','),
       order: '',
@@ -1097,6 +1099,61 @@ const taskSlice = createSlice({
       const { task } = taskInfo;
       task.schedule_id = id;
     },
+
+    updateTaskIndicators: (
+      state,
+      action: PayloadAction<{
+        taskId: string;
+        indicators: {
+          comments_count?: number;
+          attachments_count?: number;
+          has_subscribers?: boolean;
+          has_dependencies?: boolean;
+          schedule_id?: string | null;
+        };
+      }>
+    ) => {
+      const { taskId, indicators } = action.payload;
+      const taskInfo = findTaskInGroups(state.taskGroups, taskId);
+      if (!taskInfo) return;
+
+      const { task } = taskInfo;
+
+      if (indicators.comments_count !== undefined) {
+        task.comments_count = indicators.comments_count;
+      }
+      if (indicators.attachments_count !== undefined) {
+        task.attachments_count = indicators.attachments_count;
+      }
+      if (indicators.has_subscribers !== undefined) {
+        task.has_subscribers = indicators.has_subscribers;
+      }
+      if (indicators.has_dependencies !== undefined) {
+        task.has_dependencies = indicators.has_dependencies;
+      }
+      if (indicators.schedule_id !== undefined) {
+        task.schedule_id = indicators.schedule_id || undefined;
+      }
+
+      const allTask = state.allTasks.find(t => t.id === taskId);
+      if (allTask) {
+        if (indicators.comments_count !== undefined) {
+          allTask.comments_count = indicators.comments_count;
+        }
+        if (indicators.attachments_count !== undefined) {
+          allTask.attachments_count = indicators.attachments_count;
+        }
+        if (indicators.has_subscribers !== undefined) {
+          allTask.has_subscribers = indicators.has_subscribers;
+        }
+        if (indicators.has_dependencies !== undefined) {
+          allTask.has_dependencies = indicators.has_dependencies;
+        }
+        if (indicators.schedule_id !== undefined) {
+          allTask.schedule_id = indicators.schedule_id || undefined;
+        }
+      }
+    },
   },
 
   extraReducers: builder => {
@@ -1325,6 +1382,7 @@ export const {
   updateCustomColumnValue,
   updateCustomColumnPinned,
   updateRecurringChange,
+  updateTaskIndicators,
 } = taskSlice.actions;
 
 export default taskSlice.reducer;

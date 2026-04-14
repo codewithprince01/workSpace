@@ -633,9 +633,30 @@ export const useTaskSocketHandlers = () => {
   );
 
   const handleTaskSubscribersChange = useCallback(
-    (subscribers: InlineMember[]) => {
-      if (!subscribers) return;
+    (payload: InlineMember[] | { task_id?: string; subscribers?: InlineMember[] }) => {
+      if (!payload) return;
+
+      if (Array.isArray(payload)) {
+        dispatch(setTaskSubscribers(payload));
+        return;
+      }
+
+      const subscribers = Array.isArray(payload.subscribers) ? payload.subscribers : [];
       dispatch(setTaskSubscribers(subscribers));
+
+      if (payload.task_id) {
+        const currentTask = store.getState().taskManagement.entities[payload.task_id];
+        if (currentTask) {
+          dispatch(
+            updateTask({
+              ...currentTask,
+              has_subscribers: subscribers.length > 0,
+              updatedAt: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            })
+          );
+        }
+      }
     },
     [dispatch]
   );

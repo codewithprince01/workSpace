@@ -216,6 +216,23 @@ export const tasksApiService = {
         toNumber(task?.total_logged_time) ||
         toNumber(task?.time_spent) ||
         toNumber(task?.total_minutes_spent) / 60;
+      const commentsCount = Number(
+        task?.comments_count ?? task?.comment_count ?? task?.commentsCount ?? 0
+      );
+      const attachmentsCount = Number(
+        task?.attachments_count ?? task?.attachment_count ?? task?.attachmentsCount ?? 0
+      );
+      const hasSubscribers = Boolean(
+        task?.has_subscribers ??
+          task?.hasSubscribers ??
+          ((task?.subscribers_count ?? task?.subscribersCount ?? 0) > 0)
+      );
+      const hasDependencies = Boolean(
+        task?.has_dependencies ??
+          task?.hasDependencies ??
+          ((task?.dependencies_count ?? task?.dependenciesCount ?? 0) > 0)
+      );
+      const scheduleId = task?.schedule_id ?? task?.scheduleId ?? null;
 
       return {
         ...task,
@@ -278,6 +295,11 @@ export const tasksApiService = {
             : task?.reporter_id
               ? String(task?.reporter_id)
               : null,
+        comments_count: Number.isFinite(commentsCount) ? commentsCount : 0,
+        attachments_count: Number.isFinite(attachmentsCount) ? attachmentsCount : 0,
+        has_subscribers: hasSubscribers,
+        has_dependencies: hasDependencies,
+        schedule_id: scheduleId,
         completedAt: task?.completedAt || task?.completed_at || null,
         completed_at: task?.completed_at || task?.completedAt || null,
       };
@@ -504,7 +526,33 @@ export const tasksApiService = {
 
     const fetchV3 = async () => {
       const response = await apiClient.get(`/tasks/list/v3/${config.id}${q}`, silentErrorConfig);
-      return response.data as IServerResponse<ITaskListV3Response>;
+      const data = response.data as IServerResponse<ITaskListV3Response>;
+      const groups = Array.isArray(data?.body?.groups)
+        ? data.body.groups.map((group: any) => {
+            const tasks = Array.isArray(group?.tasks) ? group.tasks.map(normalizeTask) : [];
+            return {
+              ...group,
+              title: group?.title || group?.name || '',
+              name: group?.name || group?.title || '',
+              tasks,
+              taskIds: tasks.map((task: any) => String(task?.id ?? '')),
+            };
+          })
+        : [];
+      const allTasks = Array.isArray(data?.body?.allTasks)
+        ? data.body.allTasks.map(normalizeTask)
+        : groups.flatMap((group: any) => group.tasks || []);
+
+      return {
+        ...data,
+        body: {
+          ...(data?.body || {}),
+          groups,
+          allTasks,
+          totalTasks:
+            typeof data?.body?.totalTasks === 'number' ? data.body.totalTasks : allTasks.length,
+        },
+      } as IServerResponse<ITaskListV3Response>;
     };
 
     const fetchV2 = async () => {

@@ -59,7 +59,10 @@ export interface ITaskViewModel extends ITask {
   is_sub_task?: boolean;
   status_color?: string;
   status_color_dark?: string;
+  comments_count?: number;
   attachments_count?: number;
+  has_subscribers?: boolean;
+  has_dependencies?: boolean;
   complete_ratio?: number;
   assignee_names?: InlineMember[];
   task_labels?: ITaskLabel[];

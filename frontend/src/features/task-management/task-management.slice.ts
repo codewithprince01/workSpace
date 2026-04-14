@@ -38,6 +38,29 @@ const convertTimeValue = (value: any): number => {
   return 0;
 };
 
+const toIndicatorCount = (task: any, keys: string[]): number => {
+  for (const key of keys) {
+    const value = task?.[key];
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (typeof value === 'string') {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+  }
+  return 0;
+};
+
+const toIndicatorBoolean = (task: any, keys: string[], countKeys: string[] = []): boolean => {
+  for (const key of keys) {
+    const value = task?.[key];
+    if (typeof value === 'boolean') return value;
+  }
+  if (countKeys.length > 0) {
+    return toIndicatorCount(task, countKeys) > 0;
+  }
+  return false;
+};
+
 export enum IGroupBy {
   STATUS = 'status',
   PRIORITY = 'priority',
@@ -80,6 +103,7 @@ export const fetchTasks = createAsyncThunk(
       const config: ITaskListConfigV2 = {
         id: projectId,
         archived: false,
+        count: true,
         group: currentGrouping || '',
         field: '',
         order: '',
@@ -201,10 +225,23 @@ export const fetchTasks = createAsyncThunk(
           color: task.color || undefined,
           statusColor: task.statusColor || undefined,
           priorityColor: task.priorityColor || undefined,
-          comments_count: task.comments_count || 0,
-          attachments_count: task.attachments_count || 0,
-          has_dependencies: task.has_dependencies || false,
-          schedule_id: task.schedule_id || null,
+          comments_count: toIndicatorCount(task, ['comments_count', 'comment_count', 'commentsCount']),
+          attachments_count: toIndicatorCount(task, [
+            'attachments_count',
+            'attachment_count',
+            'attachmentsCount',
+          ]),
+          has_subscribers: toIndicatorBoolean(
+            task,
+            ['has_subscribers', 'hasSubscribers'],
+            ['subscribers_count', 'subscribersCount']
+          ),
+          has_dependencies: toIndicatorBoolean(
+            task,
+            ['has_dependencies', 'hasDependencies'],
+            ['dependencies_count', 'dependenciesCount']
+          ),
+          schedule_id: task.schedule_id ?? task.scheduleId ?? null,
           reporter:
             task.reporter ||
             task.reporter_name ||
@@ -265,6 +302,7 @@ export const fetchTasksV3 = createAsyncThunk(
       const config: ITaskListConfigV2 = {
         id: projectId,
         archived: archivedState,
+        count: true,
         group: currentGrouping || '',
         field: sortField,
         order: sortOrder,
@@ -280,98 +318,161 @@ export const fetchTasksV3 = createAsyncThunk(
 
       const response = await tasksApiService.getTaskListV3(config);
 
+      const groups = Array.isArray(response.body.groups) ? response.body.groups : [];
+      const groupedTasksFlat = groups.flatMap((group: any) =>
+        Array.isArray(group?.tasks) ? group.tasks : []
+      );
+      const groupedTasksById = new Map<string, any>();
+      groupedTasksFlat.forEach((task: any) => {
+        const id = String(task?.id || task?._id || '');
+        if (id) groupedTasksById.set(id, task);
+      });
+
+      const responseAllTasks = Array.isArray(response.body.allTasks) ? response.body.allTasks : [];
+      const sourceTasks = responseAllTasks.length > 0 ? responseAllTasks : groupedTasksFlat;
+
       // Ensure tasks are properly normalized
-      const tasks: Task[] = response.body.allTasks.map((task: any) => {
+      const tasks: Task[] = sourceTasks.map((task: any) => {
+        const taskId = String(task?.id || task?._id || '');
+        const groupedTask = groupedTasksById.get(taskId) || {};
+        const mergedTask = { ...groupedTask, ...task };
         const now = new Date().toISOString();
+        const commentsCountFromTask = toIndicatorCount(task, [
+          'comments_count',
+          'comment_count',
+          'commentsCount',
+        ]);
+        const commentsCountFromGroup = toIndicatorCount(groupedTask, [
+          'comments_count',
+          'comment_count',
+          'commentsCount',
+        ]);
+        const attachmentsCountFromTask = toIndicatorCount(task, [
+          'attachments_count',
+          'attachment_count',
+          'attachmentsCount',
+        ]);
+        const attachmentsCountFromGroup = toIndicatorCount(groupedTask, [
+          'attachments_count',
+          'attachment_count',
+          'attachmentsCount',
+        ]);
+        const hasSubscribersFromTask = toIndicatorBoolean(
+          task,
+          ['has_subscribers', 'hasSubscribers'],
+          ['subscribers_count', 'subscribersCount']
+        );
+        const hasSubscribersFromGroup = toIndicatorBoolean(
+          groupedTask,
+          ['has_subscribers', 'hasSubscribers'],
+          ['subscribers_count', 'subscribersCount']
+        );
+        const hasDependenciesFromTask = toIndicatorBoolean(
+          task,
+          ['has_dependencies', 'hasDependencies'],
+          ['dependencies_count', 'dependenciesCount']
+        );
+        const hasDependenciesFromGroup = toIndicatorBoolean(
+          groupedTask,
+          ['has_dependencies', 'hasDependencies'],
+          ['dependencies_count', 'dependenciesCount']
+        );
+        const scheduleId =
+          task?.schedule_id ??
+          task?.scheduleId ??
+          groupedTask?.schedule_id ??
+          groupedTask?.scheduleId ??
+          null;
         
         const transformedTask = {
-          id: task.id,
-          task_key: task.task_key || task.key || '',
-          title: (task.title && task.title.trim()) ? task.title.trim() : DEFAULT_TASK_NAME,
-          description: task.description || '',
-          status: task.status || 'todo',
-          priority: task.priority || 'medium',
-          phase: task.phase_name || task.phase || '',
-          phase_id: task.phase_id || null,
-          phase_name: task.phase_name || task.phase || null,
+          id: mergedTask.id,
+          task_key: mergedTask.task_key || mergedTask.key || '',
+          title: (mergedTask.title && mergedTask.title.trim()) ? mergedTask.title.trim() : DEFAULT_TASK_NAME,
+          description: mergedTask.description || '',
+          status: mergedTask.status || 'todo',
+          priority: mergedTask.priority || 'medium',
+          phase: mergedTask.phase_name || mergedTask.phase || '',
+          phase_id: mergedTask.phase_id || null,
+          phase_name: mergedTask.phase_name || mergedTask.phase || null,
           progress:
-            typeof task.progress === 'number'
-              ? task.progress
-              : typeof task.complete_ratio === 'number'
-                ? task.complete_ratio
+            typeof mergedTask.progress === 'number'
+              ? mergedTask.progress
+              : typeof mergedTask.complete_ratio === 'number'
+                ? mergedTask.complete_ratio
                 : 0,
           assignees:
-            task.assignees?.map((a: any) => String(a?.team_member_id || a?.id || a?._id || '')) || [],
+            mergedTask.assignees?.map((a: any) => String(a?.team_member_id || a?.id || a?._id || '')) || [],
           assignee_names:
-            task.assignee_names ||
-            task.names ||
-            task.assignees?.map((a: any) => ({
+            mergedTask.assignee_names ||
+            mergedTask.names ||
+            mergedTask.assignees?.map((a: any) => ({
               team_member_id: String(a?.team_member_id || a?.id || a?._id || ''),
               id: String(a?.id || a?._id || a?.team_member_id || ''),
               name: a?.name || '',
               avatar_url: a?.avatar_url || '',
             })) ||
             [],
-          labels: task.labels?.map((l: { id?: string; label_id?: string; _id?: string; name: string; color: string; color_code?: string; end: boolean; names: string[] }) => ({
+          labels: mergedTask.labels?.map((l: { id?: string; label_id?: string; _id?: string; name: string; color: string; color_code?: string; end: boolean; names: string[] }) => ({
             id: String(l.id || l.label_id || l._id || ''),
             name: l.name,
             color: l.color || l.color_code || '#1890ff',
             end: l.end,
             names: l.names,
           })) || [],
-          all_labels: task.all_labels?.map((l: { id?: string; label_id?: string; _id?: string; name: string; color_code: string }) => ({
+          all_labels: mergedTask.all_labels?.map((l: { id?: string; label_id?: string; _id?: string; name: string; color_code: string }) => ({
             id: String(l.id || l.label_id || l._id || ''),
             name: l.name,
             color_code: l.color_code || '#1890ff',
           })) || [],
-          dueDate: task.dueDate || task.due_date || task.end_date || undefined,
-          due_date: task.due_date || task.dueDate || task.end_date || undefined,
-          startDate: task.startDate || task.start_date || undefined,
-          start_date: task.start_date || task.startDate || undefined,
+          dueDate: mergedTask.dueDate || mergedTask.due_date || mergedTask.end_date || undefined,
+          due_date: mergedTask.due_date || mergedTask.dueDate || mergedTask.end_date || undefined,
+          startDate: mergedTask.startDate || mergedTask.start_date || undefined,
+          start_date: mergedTask.start_date || mergedTask.startDate || undefined,
           timeTracking: {
             estimated:
-              task.timeTracking?.estimated ??
-              task.estimated_hours ??
-              task.total_time ??
+              mergedTask.timeTracking?.estimated ??
+              mergedTask.estimated_hours ??
+              mergedTask.total_time ??
               0,
             logged:
-              task.timeTracking?.logged ??
-              task.total_logged_time ??
-              task.time_spent ??
+              mergedTask.timeTracking?.logged ??
+              mergedTask.total_logged_time ??
+              mergedTask.time_spent ??
               0,
-            activeTimer: task.timeTracking?.activeTimer ?? task.timer_start_time ?? null,
+            activeTimer: mergedTask.timeTracking?.activeTimer ?? mergedTask.timer_start_time ?? null,
           },
           customFields: {},
-          custom_column_values: task.custom_column_values || {},
-          completedAt: task.completedAt || task.completed_at || undefined,
-          completed_at: task.completedAt || task.completed_at || undefined,
-          createdAt: task.createdAt || task.created_at || now,
-          updatedAt: task.updatedAt || task.updated_at || now,
-          created_at: task.createdAt || task.created_at || now,
-          updated_at: task.updatedAt || task.updated_at || now,
-          timer_start_time: task.timer_start_time || null,
-          order: typeof task.sort_order === 'number' ? task.sort_order : 0,
-          sub_tasks: task.sub_tasks || [],
-          sub_tasks_count: task.sub_tasks_count || 0,
-          show_sub_tasks: task.show_sub_tasks || false,
-          parent_task_id: task.parent_task_id || undefined,
-          weight: task.weight || 0,
-          color: task.color || undefined,
-          statusColor: task.statusColor || undefined,
-          priorityColor: task.priorityColor || undefined,
-          comments_count: task.comments_count || 0,
-          attachments_count: task.attachments_count || 0,
-          has_dependencies: task.has_dependencies || false,
-          schedule_id: task.schedule_id || null,
+          custom_column_values: mergedTask.custom_column_values || {},
+          completedAt: mergedTask.completedAt || mergedTask.completed_at || undefined,
+          completed_at: mergedTask.completedAt || mergedTask.completed_at || undefined,
+          createdAt: mergedTask.createdAt || mergedTask.created_at || now,
+          updatedAt: mergedTask.updatedAt || mergedTask.updated_at || now,
+          created_at: mergedTask.createdAt || mergedTask.created_at || now,
+          updated_at: mergedTask.updatedAt || mergedTask.updated_at || now,
+          timer_start_time: mergedTask.timer_start_time || null,
+          order: typeof mergedTask.sort_order === 'number' ? mergedTask.sort_order : 0,
+          sub_tasks: mergedTask.sub_tasks || [],
+          sub_tasks_count: mergedTask.sub_tasks_count || 0,
+          show_sub_tasks: mergedTask.show_sub_tasks || false,
+          parent_task_id: mergedTask.parent_task_id || undefined,
+          weight: mergedTask.weight || 0,
+          color: mergedTask.color || undefined,
+          statusColor: mergedTask.statusColor || undefined,
+          priorityColor: mergedTask.priorityColor || undefined,
+          comments_count: Math.max(commentsCountFromTask, commentsCountFromGroup),
+          attachments_count: Math.max(attachmentsCountFromTask, attachmentsCountFromGroup),
+          has_subscribers: hasSubscribersFromTask || hasSubscribersFromGroup,
+          has_dependencies: hasDependenciesFromTask || hasDependenciesFromGroup,
+          schedule_id: scheduleId,
           reporter:
-            task.reporter ||
-            task.reporter_name ||
-            task.reporter_id?.name ||
+            mergedTask.reporter ||
+            mergedTask.reporter_name ||
+            mergedTask.reporter_id?.name ||
             undefined,
           reporter_id:
-            typeof task.reporter_id === 'object'
-              ? (task.reporter_id?._id || task.reporter_id?.id || undefined)
-              : (task.reporter_id || undefined),
+            typeof mergedTask.reporter_id === 'object'
+              ? (mergedTask.reporter_id?._id || mergedTask.reporter_id?.id || undefined)
+              : (mergedTask.reporter_id || undefined),
         };
         
         return transformedTask;
@@ -379,7 +480,7 @@ export const fetchTasksV3 = createAsyncThunk(
 
       return {
         allTasks: tasks,
-        groups: response.body.groups,
+        groups,
         grouping: response.body.grouping,
         totalTasks: response.body.totalTasks,
       };
@@ -407,6 +508,7 @@ export const fetchSubTasks = createAsyncThunk(
       const config: ITaskListConfigV2 = {
         id: projectId,
         archived: false,
+        count: true,
         group: currentGrouping || '',
         field: '',
         order: '',
@@ -1153,6 +1255,27 @@ const taskManagementSlice = createSlice({
             is_sub_task: true,
             sub_tasks_count: subtask.sub_tasks_count || 0, // Use actual count from backend
             show_sub_tasks: false,
+            comments_count: toIndicatorCount(subtask, [
+              'comments_count',
+              'comment_count',
+              'commentsCount',
+            ]),
+            attachments_count: toIndicatorCount(subtask, [
+              'attachments_count',
+              'attachment_count',
+              'attachmentsCount',
+            ]),
+            has_subscribers: toIndicatorBoolean(
+              subtask,
+              ['has_subscribers', 'hasSubscribers'],
+              ['subscribers_count', 'subscribersCount']
+            ),
+            has_dependencies: toIndicatorBoolean(
+              subtask,
+              ['has_dependencies', 'hasDependencies'],
+              ['dependencies_count', 'dependenciesCount']
+            ),
+            schedule_id: subtask.schedule_id ?? subtask.scheduleId ?? null,
             reporter: subtask.reporter || subtask.reporter_name || undefined,
             reporter_id: subtask.reporter_id || undefined,
           }));

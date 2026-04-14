@@ -17,6 +17,7 @@ import { DeleteOutlined, ExclamationCircleFilled } from '@/shared/antd-imports';
 import { useAppSelector } from '@/hooks/useAppSelector';
 import { useAppDispatch } from '@/hooks/useAppDispatch';
 import { updateTaskCounts } from '@/features/task-management/task-management.slice';
+import { updateTaskIndicators } from '@/features/tasks/tasks.slice';
 import { colors } from '@/styles/colors';
 import { TFunction } from 'i18next';
 import { IDependencyType, ITaskDependency } from '@/types/tasks/task-dependency.types';
@@ -73,6 +74,14 @@ const DependenciesTable = ({
             has_dependencies: true
           }
         }));
+        dispatch(
+          updateTaskIndicators({
+            taskId: task.id,
+            indicators: {
+              has_dependencies: true,
+            },
+          })
+        );
       }
     } catch (error) {
       console.error('Error adding dependency:', error);
@@ -112,6 +121,14 @@ const DependenciesTable = ({
             has_dependencies: remainingDependencies.length > 0
           }
         }));
+        dispatch(
+          updateTaskIndicators({
+            taskId: task.id,
+            indicators: {
+              has_dependencies: remainingDependencies.length > 0,
+            },
+          })
+        );
       }
     } catch (error) {
       console.error('Error deleting dependency:', error);

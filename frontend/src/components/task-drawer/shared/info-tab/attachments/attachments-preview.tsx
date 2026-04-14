@@ -46,8 +46,17 @@ const AttachmentsPreview = ({
 
   const isImageFile = (): boolean => {
     const imageTypes = ['jpeg', 'jpg', 'bmp', 'gif', 'webp', 'png', 'ico'];
-    const type = attachment?.type;
-    if (type) return imageTypes.includes(type);
+    const typeStr = (attachment?.type || '').toLowerCase();
+    
+    // Check if it matches an extension
+    if (imageTypes.includes(typeStr)) return true;
+    
+    // Check if it's a MIME type (e.g. image/png)
+    if (typeStr.startsWith('image/')) return true;
+    
+    // Check if URL natively is a base64 image
+    if (attachment?.url?.startsWith('data:image/')) return true;
+
     return false;
   };
 
@@ -131,20 +140,22 @@ const AttachmentsPreview = ({
 
     setPreviewedFileId(id);
     setPreviewedFileName(fileName);
-
-    const extension = (fileUrl as string).split('.').pop()?.toLowerCase();
-
-    if (!extension) return;
+    
+    // Fallback to name if url is base64 and has no extension
+    const typeStr = attachment?.type || (fileName.split('.').pop() || '').toLowerCase();
+    
     setIsVisible(true);
 
-    if (isImage(extension)) {
+    if (isImage(typeStr)) {
       setCurrentFileType('image');
-    } else if (isVideo(extension)) {
+      setPreviewWidth(800);
+    } else if (isVideo(typeStr)) {
       setCurrentFileType('video');
-    } else if (isAudio(extension)) {
+      setPreviewWidth(800);
+    } else if (isAudio(typeStr)) {
       setPreviewWidth(600);
       setCurrentFileType('audio');
-    } else if (isDoc(extension)) {
+    } else if (isDoc(typeStr)) {
       setCurrentFileType('document');
       setPreviewWidth(1024);
     } else {
@@ -173,28 +184,53 @@ const AttachmentsPreview = ({
               placement="bottom"
             >
               <div className="ant-upload-list-item-info">
-                <img
-                  src={`/file-types/${getFileIcon(attachment.type)}`}
-                  className="file-icon"
-                  alt=""
-                />
+                {isImageFile() && (
+                  <img
+                    src={`/file-types/${getFileIcon(attachment.type)}`}
+                    className="file-icon"
+                    alt=""
+                  />
+                )}
                 <div
                   className="ant-upload-span"
                   style={{
                     backgroundImage: isImageFile() ? `url(${attachment.url})` : '',
+                    opacity: attachment.id?.startsWith('temp-') ? 0.5 : 1
                   }}
                 >
+                  {attachment.id?.startsWith('temp-') && (
+                    <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 10 }}>
+                      <Spin size="small" />
+                    </div>
+                  )}
                   <a
                     target="_blank"
                     rel="noopener noreferrer"
                     className="ant-upload-list-item-thumbnail"
                     href={attachment.url}
+                    style={{ 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      alignItems: 'center', 
+                      justifyContent: 'center', 
+                      height: '100%', 
+                      textDecoration: 'none' 
+                    }}
                   >
                     {!isImageFile() && (
-                      <span
-                        className="anticon anticon-file-unknown"
-                        style={{ fontSize: 34, color: '#cccccc' }}
-                      />
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', padding: '8px' }}>
+                        <img
+                          src={`/file-types/${getFileIcon(attachment.type)}`}
+                          style={{ width: 40, height: 40, objectFit: 'contain' }}
+                          alt=""
+                        />
+                        <Typography.Text 
+                          ellipsis 
+                          style={{ fontSize: '12px', marginTop: 8, width: '100%', textAlign: 'center' }}
+                        >
+                          {attachment.name}
+                        </Typography.Text>
+                      </div>
                     )}
                   </a>
                 </div>
@@ -289,19 +325,18 @@ const AttachmentsPreview = ({
           )}
 
           {currentFileType === 'document' && (
-            <>
+            <div style={{ width: '100%', height: '80vh' }}>
               {currentFileUrl && (
                 <iframe
-                  src={`https://docs.google.com/viewer?url=${encodeURIComponent(currentFileUrl)}&embedded=true`}
-                  width="100%"
-                  height="500px"
-                  style={{ border: 'none' }}
+                  src={currentFileUrl}
+                  style={{ width: '100%', height: '100%', border: 'none', background: '#333' }}
+                  title={previewedFileName || "Document preview"}
                 />
               )}
-            </>
+            </div>
           )}
 
-          {currentFileType === 'unknown' && <p>The preview for this file type is not available.</p>}
+          {currentFileType === 'unknown' && <p>The preview for this file type is not available natively in the browser.</p>}
         </div>
       </Modal>
     </>

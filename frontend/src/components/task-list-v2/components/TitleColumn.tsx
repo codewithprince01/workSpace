@@ -49,6 +49,17 @@ export const TitleColumn: React.FC<TitleColumnProps> = memo(({
   // Context menu state
   const [contextMenuVisible, setContextMenuVisible] = useState(false);
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
+  const commentsCount = Number((task as any)?.comments_count ?? (task as any)?.comment_count ?? 0);
+  const attachmentsCount = Number(
+    (task as any)?.attachments_count ?? (task as any)?.attachment_count ?? 0
+  );
+  const hasSubscribers = Boolean(
+    (task as any)?.has_subscribers ?? ((task as any)?.subscribers_count ?? 0) > 0
+  );
+  const hasDependencies = Boolean(
+    (task as any)?.has_dependencies ?? ((task as any)?.dependencies_count ?? 0) > 0
+  );
+  const scheduleId = (task as any)?.schedule_id ?? (task as any)?.scheduleId;
 
   // Handle task expansion toggle
   const handleToggleExpansion = useCallback((e: React.MouseEvent) => {
@@ -222,8 +233,8 @@ export const TitleColumn: React.FC<TitleColumnProps> = memo(({
                 )}
 
                 {/* Task indicators - compact layout */}
-                {task.comments_count != null && task.comments_count !== 0 && (
-                  <Tooltip title={t(`indicators.tooltips.comments${task.comments_count === 1 ? '' : '_plural'}`, { count: task.comments_count })}>
+                {commentsCount > 0 && (
+                  <Tooltip title={t(`indicators.tooltips.comments${commentsCount === 1 ? '' : '_plural'}`, { count: commentsCount })}>
                     <CommentOutlined 
                       className="text-gray-500 dark:text-gray-400" 
                       style={{ fontSize: 12 }} 
@@ -231,7 +242,7 @@ export const TitleColumn: React.FC<TitleColumnProps> = memo(({
                   </Tooltip>
                 )}
 
-                {task.has_subscribers && (
+                {hasSubscribers && (
                   <Tooltip title={t('indicators.tooltips.subscribers')}>
                     <EyeOutlined 
                       className="text-gray-500 dark:text-gray-400" 
@@ -240,8 +251,8 @@ export const TitleColumn: React.FC<TitleColumnProps> = memo(({
                   </Tooltip>
                 )}
 
-                {task.attachments_count != null && task.attachments_count !== 0 && (
-                  <Tooltip title={t(`indicators.tooltips.attachments${task.attachments_count === 1 ? '' : '_plural'}`, { count: task.attachments_count })}>
+                {attachmentsCount > 0 && (
+                  <Tooltip title={t(`indicators.tooltips.attachments${attachmentsCount === 1 ? '' : '_plural'}`, { count: attachmentsCount })}>
                     <PaperClipOutlined 
                       className="text-gray-500 dark:text-gray-400" 
                       style={{ fontSize: 12 }} 
@@ -249,7 +260,7 @@ export const TitleColumn: React.FC<TitleColumnProps> = memo(({
                   </Tooltip>
                 )}
 
-                {task.has_dependencies && (
+                {hasDependencies && (
                   <Tooltip title={t('indicators.tooltips.dependencies')}>
                     <MinusCircleOutlined 
                       className="text-gray-500 dark:text-gray-400" 
@@ -258,7 +269,7 @@ export const TitleColumn: React.FC<TitleColumnProps> = memo(({
                   </Tooltip>
                 )}
 
-                {task.schedule_id && (
+                {scheduleId && (
                   <Tooltip title={t('indicators.tooltips.recurring')}>
                     <RetweetOutlined 
                       className="text-gray-500 dark:text-gray-400" 

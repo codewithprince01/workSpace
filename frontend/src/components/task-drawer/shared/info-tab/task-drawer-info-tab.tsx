@@ -10,6 +10,7 @@ import { fetchTask } from '@/features/task-drawer/task-drawer.slice';
 import { useAppDispatch } from '@/hooks/useAppDispatch';
 import { updateTaskCounts } from '@/features/task-management/task-management.slice';
 import { updateTask } from '@/features/task-management/task-management.slice';
+import { updateTaskIndicators } from '@/features/tasks/tasks.slice';
 import { TFunction } from 'i18next';
 import { subTasksApiService } from '@/api/tasks/subtasks.api.service';
 import { ISubTask } from '@/types/tasks/subTask.types';
@@ -24,8 +25,6 @@ import {
 import taskAttachmentsApiService from '@/api/tasks/task-attachments.api.service';
 import AttachmentsGrid from './attachments/attachments-grid';
 import TaskComments from './comments/task-comments';
-import { ITaskCommentViewModel } from '@/types/tasks/task-comments.types';
-import taskCommentsApiService from '@/api/tasks/task-comments.api.service';
 import { ITaskViewModel } from '@/types/tasks/task.types';
 
 interface TaskDrawerInfoTabProps {
@@ -50,11 +49,18 @@ const TaskDrawerInfoTab = ({ t }: TaskDrawerInfoTabProps) => {
 
   const [taskAttachments, setTaskAttachments] = useState<ITaskAttachmentViewModel[]>([]);
   const [loadingTaskAttachments, setLoadingTaskAttachments] = useState<boolean>(false);
-
-  const [taskComments, setTaskComments] = useState<ITaskCommentViewModel[]>([]);
-  const [loadingTaskComments, setLoadingTaskComments] = useState<boolean>(false);
   const listTask = useAppSelector(state =>
     selectedTaskId ? state.taskManagement.entities[selectedTaskId] : undefined
+  );
+  const listTaskFromGroups = useAppSelector(state =>
+    selectedTaskId
+      ? state.taskReducer.taskGroups
+          .flatMap(group => [
+            ...group.tasks,
+            ...group.tasks.flatMap(task => task.sub_tasks || []),
+          ])
+          .find(task => task.id === selectedTaskId)
+      : undefined
   );
 
   const handleFilesSelected = async (files: File[]) => {
@@ -67,32 +73,105 @@ const TaskDrawerInfoTab = ({ t }: TaskDrawerInfoTabProps) => {
         const filesToUpload = [...files];
         selectedFilesRef.current = filesToUpload;
 
-        // Upload all files and wait for all promises to complete
+        // Process each file with optimistic UI
         await Promise.all(
           filesToUpload.map(async file => {
-            const base64 = await getBase64(file);
-            const body: ITaskAttachment = {
-              file: base64 as string,
-              file_name: file.name,
-              task_id: taskFormViewModel?.task?.id || '',
-              project_id: projectId,
-              size: file.size,
+            const tempId = `temp-${Date.now()}-${file.name}`;
+            
+            // Add a temporary loading item
+            const tempAttachment: ITaskAttachmentViewModel = {
+              id: tempId,
+              name: file.name,
+              type: (file.name.split('.').pop() || '').toLowerCase(),
+              size: (file.size / 1024).toFixed(2) + ' KB',
+              // Use local URL for instant image preview if it's an image
+              url: file.type.startsWith('image/') ? await getBase64(file) as string : undefined,
             };
-            await taskAttachmentsApiService.createTaskAttachment(body);
+
+            setTaskAttachments(prev => [...prev, tempAttachment]);
+
+            try {
+              const base64 = await getBase64(file);
+              const body: ITaskAttachment = {
+                file: base64 as string,
+                file_name: file.name,
+                task_id: taskFormViewModel?.task?.id || '',
+                project_id: projectId,
+                size: file.size,
+              };
+              const res = await taskAttachmentsApiService.createTaskAttachment(body);
+              if (res.done && res.body) {
+                // Replace temp item with real one
+                setTaskAttachments(prev => 
+                  prev.map(a => a.id === tempId ? (res.body as ITaskAttachmentViewModel) : a)
+                );
+              } else {
+                // Remove temp item if failed
+                setTaskAttachments(prev => prev.filter(a => a.id !== tempId));
+              }
+            } catch (err) {
+              logger.error('Error uploading file:', err);
+              setTaskAttachments(prev => prev.filter(a => a.id !== tempId));
+            }
           })
         );
+
+        // Update counts once at the end based on actual success
+        fetchTaskAttachments(); 
       } finally {
         setProcessingUpload(false);
         selectedFilesRef.current = [];
-        // Refetch attachments after all uploads are complete
-        fetchTaskAttachments();
       }
     }
   };
 
-  const fetchTaskData = () => {
+  const fetchTaskData = async () => {
     if (!loadingTask && selectedTaskId && projectId) {
-      dispatch(fetchTask({ taskId: selectedTaskId, projectId }));
+      const resultAction = await dispatch(fetchTask({ taskId: selectedTaskId, projectId }));
+
+      if (fetchTask.fulfilled.match(resultAction)) {
+        const task = resultAction.payload?.task;
+        if (task?.id) {
+          const counts: {
+            comments_count?: number;
+            attachments_count?: number;
+            has_subscribers?: boolean;
+            has_dependencies?: boolean;
+            schedule_id?: string | null;
+          } = {};
+
+          if (typeof task.comments_count === 'number') {
+            counts.comments_count = task.comments_count;
+          }
+          if (typeof task.attachments_count === 'number') {
+            counts.attachments_count = task.attachments_count;
+          }
+          if (typeof task.has_subscribers === 'boolean') {
+            counts.has_subscribers = task.has_subscribers;
+          }
+          if (typeof task.has_dependencies === 'boolean') {
+            counts.has_dependencies = task.has_dependencies;
+          }
+          if (task.schedule_id !== undefined) {
+            counts.schedule_id = task.schedule_id;
+          }
+
+          if (Object.keys(counts).length > 0) {
+            dispatch(
+              updateTaskCounts({
+                taskId: task.id,
+                counts,
+              })
+            );
+            dispatch(
+              updateTaskIndicators({
+                taskId: task.id,
+                indicators: counts,
+              })
+            );
+          }
+        }
+      }
     }
   };
 
@@ -132,7 +211,7 @@ const TaskDrawerInfoTab = ({ t }: TaskDrawerInfoTabProps) => {
             shape="circle"
             icon={<ReloadOutlined spin={loadingSubTasks} />}
             onClick={e => {
-              e.stopPropagation(); // Prevent click from bubbling up
+              e.stopPropagation();
               fetchSubTasks();
             }}
           />
@@ -171,7 +250,17 @@ const TaskDrawerInfoTab = ({ t }: TaskDrawerInfoTabProps) => {
         <Flex vertical gap={16}>
           <AttachmentsGrid
             attachments={taskAttachments}
-            onDelete={() => fetchTaskAttachments()}
+            onDelete={(id: string) => {
+              // Instantly remove from local state for snappy UX; server already updated
+              setTaskAttachments(prev => prev.filter(a => a.id !== id));
+              const currentCount = Number(
+                listTask?.attachments_count ?? listTaskFromGroups?.attachments_count ?? 0
+              );
+              if (selectedTaskId) {
+                dispatch(updateTaskCounts({ taskId: selectedTaskId, counts: { attachments_count: Math.max(0, currentCount - 1) } }));
+                dispatch(updateTaskIndicators({ taskId: selectedTaskId, indicators: { attachments_count: Math.max(0, currentCount - 1) } }));
+              }
+            }}
             onUpload={() => fetchTaskAttachments()}
             t={t}
             loadingTask={loadingTask}
@@ -237,6 +326,14 @@ const TaskDrawerInfoTab = ({ t }: TaskDrawerInfoTabProps) => {
             has_dependencies: res.body.length > 0
           }
         }));
+        dispatch(
+          updateTaskIndicators({
+            taskId: selectedTaskId,
+            indicators: {
+              has_dependencies: res.body.length > 0,
+            },
+          })
+        );
       }
     } catch (error) {
       logger.error('Error fetching task dependencies:', error);
@@ -260,6 +357,14 @@ const TaskDrawerInfoTab = ({ t }: TaskDrawerInfoTabProps) => {
             attachments_count: res.body.length
           }
         }));
+        dispatch(
+          updateTaskIndicators({
+            taskId: selectedTaskId,
+            indicators: {
+              attachments_count: res.body.length,
+            },
+          })
+        );
       }
     } catch (error) {
       logger.error('Error fetching task attachments:', error);
@@ -268,34 +373,17 @@ const TaskDrawerInfoTab = ({ t }: TaskDrawerInfoTabProps) => {
     }
   };
 
-  const fetchTaskComments = async () => {
-    if (!selectedTaskId || loadingTaskComments) return;
-    try {
-      setLoadingTaskComments(true);
-      const res = await taskCommentsApiService.getByTaskId(selectedTaskId);
-      if (res.done) {
-        setTaskComments(res.body);
-      }
-    } catch (error) {
-      logger.error('Error fetching task comments:', error);
-    } finally {
-      setLoadingTaskComments(false);
-    }
-  };
-
   useEffect(() => {
-    fetchTaskData();
+    void fetchTaskData();
     fetchSubTasks();
     fetchTaskDependencies();
     fetchTaskAttachments();
-    fetchTaskComments();
 
     return () => {
       setSubTasks([]);
       setTaskDependencies([]);
       setTaskAttachments([]);
       selectedFilesRef.current = [];
-      setTaskComments([]);
     };
   }, [selectedTaskId, projectId]);
 

@@ -22,6 +22,7 @@ import { useParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { HolderOutlined } from '@/shared/antd-imports';
 import { tasksCustomColumnsService } from '@/api/tasks/tasks-custom-columns.service';
+import { tasksApiService } from '@/api/tasks/tasks.api.service';
 
 // Redux hooks and selectors
 import { useAppSelector } from '@/hooks/useAppSelector';
@@ -38,6 +39,7 @@ import {
   selectCustomColumns,
   selectLoadingColumns,
   updateColumnVisibility,
+  updateTaskCounts,
 } from '@/features/task-management/task-management.slice';
 import {
   selectCurrentGrouping,
@@ -238,6 +240,7 @@ const TaskListV2Section: React.FC = () => {
   const [initializedFromDatabase, setInitializedFromDatabase] = useState(false);
   const [hasStoredFieldPrefs, setHasStoredFieldPrefs] = useState(false);
   const [addTaskRows, setAddTaskRows] = useState<{[groupId: string]: string[]}>({});
+  const [indicatorHydrationDone, setIndicatorHydrationDone] = useState(false);
 
   // Configure sensors for drag and drop
   const sensors = useSensors(
@@ -360,8 +363,75 @@ const TaskListV2Section: React.FC = () => {
       dispatch(fetchTasksV3(urlProjectId));
       dispatch(fetchTaskListColumns(urlProjectId));
       dispatch(fetchPhasesByProjectId(urlProjectId));
+      setIndicatorHydrationDone(false);
     }
   }, [dispatch, urlProjectId]);
+
+  useEffect(() => {
+    if (!urlProjectId || loading || indicatorHydrationDone || allTasks.length === 0) return;
+
+    const hasAnyIndicators = allTasks.some(task => {
+      const comments = Number((task as any).comments_count || 0);
+      const attachments = Number((task as any).attachments_count || 0);
+      const subscribers = Boolean(
+        (task as any).has_subscribers || Number((task as any).subscribers_count || 0) > 0
+      );
+      const dependencies = Boolean(
+        (task as any).has_dependencies || Number((task as any).dependencies_count || 0) > 0
+      );
+      const recurring = Boolean((task as any).schedule_id);
+      return comments > 0 || attachments > 0 || subscribers || dependencies || recurring;
+    });
+
+    if (hasAnyIndicators) {
+      setIndicatorHydrationDone(true);
+      return;
+    }
+
+    let cancelled = false;
+
+    const hydrateIndicators = async () => {
+      const targetTasks = allTasks.slice(0, 80).filter(task => task.id);
+      const chunkSize = 10;
+
+      for (let i = 0; i < targetTasks.length; i += chunkSize) {
+        if (cancelled) return;
+        const chunk = targetTasks.slice(i, i + chunkSize);
+        const results = await Promise.allSettled(
+          chunk.map(task => tasksApiService.getFormViewModel(task.id, urlProjectId))
+        );
+
+        if (cancelled) return;
+        results.forEach((result, idx) => {
+          if (result.status !== 'fulfilled') return;
+          const taskId = chunk[idx]?.id;
+          const taskInfo = result.value?.body?.task;
+          if (!taskId || !taskInfo) return;
+
+          dispatch(
+            updateTaskCounts({
+              taskId,
+              counts: {
+                comments_count: Number(taskInfo.comments_count || 0),
+                attachments_count: Number(taskInfo.attachments_count || 0),
+                has_subscribers: Boolean(taskInfo.has_subscribers),
+                has_dependencies: Boolean(taskInfo.has_dependencies),
+                schedule_id: taskInfo.schedule_id ?? null,
+              },
+            })
+          );
+        });
+      }
+
+      if (!cancelled) setIndicatorHydrationDone(true);
+    };
+
+    void hydrateIndicators();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [urlProjectId, loading, indicatorHydrationDone, allTasks, dispatch]);
 
   useEffect(() => {
     try {
