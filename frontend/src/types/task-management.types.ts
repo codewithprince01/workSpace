@@ -9,6 +9,13 @@ export interface Task {
   task_key?: string; // Task key field
   description?: string;
   status: string;
+  status_id?: string;
+  status_name?: string;
+  status_category?: {
+    is_todo?: boolean;
+    is_doing?: boolean;
+    is_done?: boolean;
+  };
   priority: string;
   phase?: string;
   phase_id?: string | null;
@@ -32,6 +39,14 @@ export interface Task {
   parent_task_id?: string;
   is_sub_task?: boolean; // Add this property
   progress?: number;
+  complete_ratio?: number;
+  progress_value?: number;
+  total_tasks_count?: number;
+  completed_count?: number;
+  manual_progress?: boolean;
+  project_use_manual_progress?: boolean;
+  project_use_time_progress?: boolean;
+  project_use_weighted_progress?: boolean;
   weight?: number;
   color?: string;
   statusColor?: string;

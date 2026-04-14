@@ -34,6 +34,17 @@ const TaskDrawerStatusDropdown = ({ statuses, task, teamId }: TaskDrawerStatusDr
   const handleStatusChange = async (statusId: string) => {
     if (!task.id || !statusId) return;
 
+    if (task.status_id !== statusId) {
+      const canContinue = await checkTaskDependencyStatus(task.id, statusId);
+      if (!canContinue) {
+        alertService.error(
+          'Task is not completed',
+          'Please complete the task dependencies before proceeding'
+        );
+        return;
+      }
+    }
+
     socket?.emit(
       SocketEvents.TASK_STATUS_CHANGE.toString(),
       JSON.stringify({
@@ -58,15 +69,6 @@ const TaskDrawerStatusDropdown = ({ statuses, task, teamId }: TaskDrawerStatusDr
         if (data.parent_task) getTaskProgress(data.parent_task);
       }
     );
-    if (task.status_id !== statusId) {
-      const canContinue = await checkTaskDependencyStatus(task.id, statusId);
-      if (!canContinue) {
-        alertService.error(
-          'Task is not completed',
-          'Please complete the task dependencies before proceeding'
-        );
-      }
-    }
   };
 
   const options = useMemo(

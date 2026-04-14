@@ -15,7 +15,7 @@ import { InlineMember } from '@/types/teamMembers/inlineMember.types';
 const rootUrl = `${API_BASE_URL}/tasks`;
 // This backend instance may not expose /list/v3 or /list/v2 consistently.
 // Start from generic to avoid noisy 404 retries in console.
-let preferredTaskListEndpoint: 'v3' | 'v2' | 'generic' = 'generic';
+let preferredTaskListEndpoint: 'v3' | 'v2' | 'generic' = 'v3';
 
 export interface ITaskListConfigV2 {
   id: string;
@@ -477,9 +477,10 @@ export const tasksApiService = {
         project_id: config.id,
         search: config.search || '',
         parent_task_id: config.parent_task || '',
-        priority: config.priorities,
-        assignee: config.members,
+        priorities: config.priorities,
+        members: config.members,
         labels: config.labels,
+        statuses: config.statuses,
         archived: Boolean(config.archived),
       });
       const genericResponse = await apiClient.get(`${rootUrl}${genericQuery}`, silentErrorConfig);
@@ -502,7 +503,7 @@ export const tasksApiService = {
     };
 
     const fetchV3 = async () => {
-      const response = await apiClient.get(`${rootUrl}/list/v3/${config.id}${q}`, silentErrorConfig);
+      const response = await apiClient.get(`/tasks/list/v3/${config.id}${q}`, silentErrorConfig);
       return response.data as IServerResponse<ITaskListV3Response>;
     };
 

@@ -89,6 +89,12 @@ exports.optionalAuth = async (req, res, next) => {
  */
 exports.authorize = (...roles) => {
   return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Not authorized to access this route'
+      });
+    }
     if (!roles.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
@@ -103,6 +109,12 @@ exports.authorize = (...roles) => {
  * Admin only
  */
 exports.adminOnly = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: 'Not authorized to access this route'
+    });
+  }
   if (!req.user.is_admin) {
     return res.status(403).json({
       success: false,
@@ -111,3 +123,4 @@ exports.adminOnly = (req, res, next) => {
   }
   next();
 };
+

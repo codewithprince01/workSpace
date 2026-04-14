@@ -201,6 +201,10 @@ export const useTaskSocketHandlers = () => {
           'Task is not completed',
           'Please complete the task dependencies before proceeding'
         );
+        // Hard rollback for any optimistic UI update paths.
+        if (projectId) {
+          dispatch(fetchTasksV3(projectId));
+        }
         return;
       }
 
@@ -230,13 +234,33 @@ export const useTaskSocketHandlers = () => {
             newStatusValue = 'todo';
           }
         }
+        const normalizedRatio = Number.isFinite(Number(response.complete_ratio))
+          ? Number(response.complete_ratio)
+          : Number(currentTask.progress || 0);
+        const syncedProgress =
+          response.statusCategory?.is_done
+            ? 100
+            : normalizedRatio === 100
+              ? 0
+              : normalizedRatio;
+        const syncedStatusName =
+          response.statusCategory?.is_done
+            ? 'Done'
+            : response.statusCategory?.is_doing
+              ? 'In Progress'
+              : 'To Do';
 
         // Update the task entity first
         dispatch(
           updateTask({
             ...currentTask,
             status: response.status_id || newStatusValue, // Use actual status_id instead of category
-            progress: response.complete_ratio || currentTask.progress,
+            status_id: response.status_id || currentTask.status_id,
+            status_name: syncedStatusName,
+            status_category: response.statusCategory,
+            progress: syncedProgress,
+            complete_ratio: syncedProgress,
+            progress_value: syncedProgress,
             completed_at:
               response.completed_at ||
               (response.statusCategory?.is_done ? new Date().toISOString() : undefined),

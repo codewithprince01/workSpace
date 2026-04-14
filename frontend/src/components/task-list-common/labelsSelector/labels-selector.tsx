@@ -16,11 +16,12 @@ import {
 import React, { useMemo, useRef, useState } from 'react';
 import { useAppSelector } from '@/hooks/useAppSelector';
 import { colors } from '@/styles/colors';
-import { useAppDispatch } from '@/hooks/useAppDispatch';
-import { nanoid } from '@reduxjs/toolkit';
-import { addLabel } from '@features/settings/label/labelSlice';
-import { useTranslation } from 'react-i18next';
 import { ITaskLabel } from '@/types/label.type';
+import { useSocket } from '@/socket/socketContext';
+import { useAuthService } from '@/hooks/useAuth';
+import { SocketEvents } from '@/shared/socket-events';
+import { isLabelSelected, getNormalizedLabelId } from '@/utils/labelUtils';
+import { updateTaskLabel } from '@features/tasks/tasks.slice';
 
 interface LabelsSelectorProps {
   taskId: string | null;
@@ -47,15 +48,42 @@ const LabelsSelector = ({ taskId, labels }: LabelsSelectorProps) => {
     return labels.filter(label => label.name?.toLowerCase().includes(searchQuery.toLowerCase()));
   }, [labels, searchQuery]);
 
-  const handleCreateLabel = (name: string) => {
-    if (name.length > 0) {
-      const newLabel: ITaskLabel = {
-        id: nanoid(),
-        name,
-        color_code: '#1E90FF',
-      };
+  const { socket } = useSocket();
+  const currentSession = useAuthService().getCurrentSession();
 
-      dispatch(addLabel(newLabel));
+  const handleLabelChange = (label: ITaskLabel) => {
+    if (!selectedTask) return;
+    try {
+      const labelId = getNormalizedLabelId(label);
+      if (!labelId) return;
+
+      const nextSelectedState = !isLabelSelected(labelId, selectedTask.labels as any);
+      const labelData = {
+        task_id: selectedTask.id,
+        label_id: labelId,
+        is_selected: nextSelectedState,
+        parent_task: selectedTask.parent_task_id,
+        team_id: currentSession?.team_id,
+      };
+      
+      const eventName = SocketEvents.TASK_LABELS_CHANGE.toString();
+      socket?.emit(eventName, JSON.stringify(labelData));
+      // Dispatch optimistic update if needed, but socket typically handles it
+    } catch (error) {
+      console.error('Error changing label:', error);
+    }
+  };
+
+  const handleCreateLabel = (name: string) => {
+    if (name.length > 0 && selectedTask) {
+      const labelData = {
+        task_id: selectedTask.id,
+        label: name.trim(),
+        parent_task: selectedTask.parent_task_id,
+        team_id: currentSession?.team_id,
+      };
+      const eventName = SocketEvents.CREATE_LABEL.toString();
+      socket?.emit(eventName, JSON.stringify(labelData));
       setSearchQuery('');
     }
   };
@@ -85,44 +113,60 @@ const LabelsSelector = ({ taskId, labels }: LabelsSelectorProps) => {
           }}
         />
 
-        <List style={{ padding: 0 }}>
-          {filteredLabelData.length ? (
-            filteredLabelData.map(label => (
-              <List.Item
-                className="custom-list-item"
-                key={label.id}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'flex-start',
-                  gap: 8,
-                  padding: '4px 8px',
-                  border: 'none',
-                }}
-              >
-                <Checkbox
-                  id={label.id}
-                  checked={
-                    selectedTask?.labels
-                      ? selectedTask?.labels.some(existingLabel => existingLabel.id === label.id)
-                      : false
-                  }
-                  onChange={() => console.log(123)}
-                />
-
-                <Flex gap={8}>
-                  <Badge color={label.color_code} />
-                  {label.name}
-                </Flex>
-              </List.Item>
-            ))
-          ) : (
-            <Typography.Text
-              style={{ color: colors.lightGray }}
+        <List style={{ padding: 0, maxHeight: 250, overflowY: 'auto' }}>
+          {searchQuery.trim() && !labels.some(l => l.name?.toLowerCase() === searchQuery.trim().toLowerCase()) && (
+            <List.Item
+              style={{
+                display: 'flex',
+                gap: 8,
+                padding: '8px 12px',
+                cursor: 'pointer',
+                borderBottom: '1px solid #f0f0f0'
+              }}
               onClick={() => handleCreateLabel(searchQuery)}
             >
-              {t('labelSelectorInputTip')}
-            </Typography.Text>
+              <PlusOutlined style={{ color: colors.primary }} />
+              <Typography.Text strong style={{ color: colors.primary }}>
+                {t('labelSelectorCreatePrefix', { defaultValue: 'Create' })} "{searchQuery.trim()}"
+              </Typography.Text>
+            </List.Item>
           )}
+
+          {filteredLabelData.length ? (
+            filteredLabelData.map(label => {
+              const labelId = getNormalizedLabelId(label);
+              const selected = isLabelSelected(labelId, selectedTask?.labels);
+              return (
+                <List.Item
+                  className="custom-list-item"
+                  key={labelId}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'flex-start',
+                    gap: 8,
+                    padding: '4px 8px',
+                    border: 'none',
+                    cursor: 'pointer'
+                  }}
+                  onClick={() => handleLabelChange(label)}
+                >
+                  <Checkbox
+                    checked={selected}
+                    onChange={() => {}} // Controlled
+                  />
+
+                  <Flex gap={8} style={{ marginLeft: 8 }}>
+                    <Badge color={label.color_code} />
+                    <Typography.Text>{label.name}</Typography.Text>
+                  </Flex>
+                </List.Item>
+              );
+            })
+          ) : !searchQuery.trim() ? (
+            <div style={{ padding: '16px', textAlign: 'center', color: colors.lightGray }}>
+              {t('labelSelectorNoLabels', { defaultValue: 'No labels' })}
+            </div>
+          ) : null}
         </List>
 
         <Divider style={{ margin: 0 }} />

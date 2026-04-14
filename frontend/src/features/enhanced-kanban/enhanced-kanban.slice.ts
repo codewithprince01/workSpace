@@ -167,25 +167,35 @@ export const fetchEnhancedKanbanGroups = createAsyncThunk(
   'enhancedKanban/fetchGroups',
   async (projectId: string, { rejectWithValue, getState }) => {
     try {
-      const state = getState() as { enhancedKanbanReducer: EnhancedKanbanState };
-      const { enhancedKanbanReducer } = state;
-      const selectedMembers = enhancedKanbanReducer.taskAssignees
-        .filter(member => member.selected)
-        .map(member => member.id)
-        .join(' ');
+      const rootState = getState() as any;
+      const { enhancedKanbanReducer, taskReducer } = rootState;
+      
+      // Robust Selection Merging: check both slices for selected filters
+      const getActiveIds = (list: any[]) => (list || [])
+        .filter((i: any) => i.selected)
+        .map((i: any) => {
+           const id = i.id || i._id || i.team_member_id;
+           return typeof id === 'object' ? String(id) : id;
+        })
+        .filter((id: any) => !!id);
 
-      const selectedLabels = enhancedKanbanReducer.labels
-        .filter(label => label.selected)
-        .map(label => label.id)
-        .join(' ');
+      const allMemberIds = new Set([
+        ...getActiveIds(taskReducer?.taskAssignees),
+        ...getActiveIds(enhancedKanbanReducer?.taskAssignees)
+      ]);
+      const selectedMembers = Array.from(allMemberIds).join(' ');
+
+      const allLabelIds = new Set([
+        ...getActiveIds(taskReducer?.labels),
+        ...getActiveIds(enhancedKanbanReducer?.labels)
+      ]);
+      const selectedLabels = Array.from(allLabelIds).join(' ');
 
       const config: ITaskListConfigV2 = {
         id: projectId,
         archived: enhancedKanbanReducer.archived,
-        group: enhancedKanbanReducer.groupBy,
-        field: enhancedKanbanReducer.fields
-          .map(field => `${field.key} ${field.sort_order}`)
-          .join(','),
+        group: enhancedKanbanReducer.groupBy || 'status',
+        field: enhancedKanbanReducer.fields.map(f => `${f.key} ${f.sort_order}`).join(','),
         order: '',
         search: enhancedKanbanReducer.search || '',
         statuses: '',
@@ -193,7 +203,7 @@ export const fetchEnhancedKanbanGroups = createAsyncThunk(
         projects: '',
         isSubtasksInclude: enhancedKanbanReducer.isSubtasksInclude,
         labels: selectedLabels,
-        priorities: enhancedKanbanReducer.priorities.join(' '),
+        priorities: (enhancedKanbanReducer.priorities || []).join(' '),
       };
 
       const response = await tasksApiService.getTaskListV3(config);
@@ -998,9 +1008,13 @@ const enhancedKanbanSlice = createSlice({
       })
       .addCase(fetchEnhancedKanbanTaskAssignees.fulfilled, (state, action) => {
         state.loadingAssignees = false;
-        // Store original data and current data
-        state.originalTaskAssignees = action.payload;
-        state.taskAssignees = action.payload;
+        // Normalize ids so filters and selection always work.
+        const normalizedAssignees = (action.payload || []).map((assignee: any) => ({
+          ...assignee,
+          id: String(assignee?.id || assignee?._id || assignee?.team_member_id || ''),
+        }));
+        state.originalTaskAssignees = normalizedAssignees;
+        state.taskAssignees = normalizedAssignees;
       })
       .addCase(fetchEnhancedKanbanTaskAssignees.rejected, (state, action) => {
         state.loadingAssignees = false;
@@ -1013,8 +1027,12 @@ const enhancedKanbanSlice = createSlice({
       })
       .addCase(fetchEnhancedKanbanLabels.fulfilled, (state, action) => {
         state.loadingLabels = false;
-        // Transform labels to include selected property
-        const newLabels = action.payload.map((label: any) => ({ ...label, selected: false }));
+        // Normalize ids from backend (_id) and include selected property.
+        const newLabels = (action.payload || []).map((label: any) => ({
+          ...label,
+          id: String(label?.id || label?._id || ''),
+          selected: Boolean(label?.selected),
+        }));
         // Store original data and current data
         state.originalLabels = newLabels;
         state.labels = newLabels;

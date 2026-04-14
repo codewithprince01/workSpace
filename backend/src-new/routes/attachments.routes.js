@@ -2,9 +2,37 @@ const express = require('express');
 const router = express.Router();
 const { protect } = require('../middlewares/auth.middleware');
 const { TaskAttachment, Task } = require('../models');
+const storageService = require('../services/storage.service');
+const logger = require('../utils/logger');
 
 // Apply protection
 router.use(protect);
+
+/**
+ * GET /api/attachments/upload-url
+ * Returns a presigned URL for secure frontend upload
+ */
+router.post('/upload-url', async (req, res) => {
+    try {
+        const { fileName, fileType } = req.body;
+        if (!fileName) return res.status(400).json({ done: false, message: 'fileName is required' });
+
+        const key = `task-attachments/${Date.now()}-${fileName}`;
+        const uploadUrl = await storageService.getUploadUrl(key, fileType || 'application/octet-stream');
+        
+        // Return both the signed URL and the final key to be saved later
+        res.json({
+            done: true,
+            body: {
+                upload_url: uploadUrl,
+                file_key: key
+            }
+        });
+    } catch (error) {
+        logger.error('Failed to generate upload URL: %s', error.message);
+        res.status(500).json({ done: false, message: 'Failed to generate upload URL' });
+    }
+});
 
 // GET /api/attachments/tasks/:taskId - Get attachments for a task
 router.get('/tasks/:taskId', async (req, res) => {
@@ -93,10 +121,17 @@ router.delete('/tasks/:id', async (req, res) => {
             return res.status(403).json({ done: false, message: 'Not authorized' });
         }
 
+        // 1. Physically delete file from storage
+        if (attachment.file_key) {
+            await storageService.deleteFile(attachment.file_key);
+        }
+
+        // 2. Delete database record
         await TaskAttachment.deleteOne({ _id: attachment._id });
+        
         res.json({ done: true });
     } catch (error) {
-        console.error('Delete attachment error:', error);
+        logger.error('Delete attachment error: %s', error.message);
         res.status(500).json({ done: false, message: 'Failed to delete attachment' });
     }
 });

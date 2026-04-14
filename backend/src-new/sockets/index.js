@@ -257,6 +257,30 @@ const initializeSocket = (server) => {
             const { task_id, status_id } = data;
             const status = await TaskStatus.findById(status_id).select('category color_code');
             const isDone = status?.category === 'done';
+            // Enforce dependency rule on server: a task cannot move to done
+            // while any of its blocking dependencies are not completed.
+            if (isDone) {
+              const TaskDependency = require('../models/TaskDependency');
+              const dependencies = await TaskDependency.find({ task_id }).populate({
+                path: 'related_task_id',
+                select: 'status_id',
+                populate: { path: 'status_id', select: 'category' }
+              });
+
+              const hasIncompleteDependency = dependencies.some(dep => {
+                const relatedCategory = dep?.related_task_id?.status_id?.category;
+                return relatedCategory !== 'done';
+              });
+
+              if (hasIncompleteDependency) {
+                socket.emit(SocketEvents.TASK_STATUS_CHANGE.toString(), {
+                  id: task_id,
+                  status_id,
+                  completed_deps: false,
+                });
+                return;
+              }
+            }
             const update = {
               status_id,
               progress: isDone ? 100 : undefined,

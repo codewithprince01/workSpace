@@ -173,10 +173,20 @@ const TaskListTable = ({
             {task.name}
           </Flex>
         ),
-        // Add other cell renderers as needed...
       }[columnKey];
 
-      return cellContent ? cellContent() : null;
+      if (cellContent) return cellContent();
+
+      // Handle custom columns
+      if (task.custom_column_values && task.custom_column_values[columnKey]) {
+        return (
+          <div className="pl-2 overflow-hidden text-ellipsis whitespace-nowrap">
+            {String(task.custom_column_values[columnKey])}
+          </div>
+        );
+      }
+
+      return null;
     },
     []
   );

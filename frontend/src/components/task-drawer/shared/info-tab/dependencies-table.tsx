@@ -10,6 +10,7 @@ import {
   TableProps,
   Tag,
   Typography,
+  Input,
 } from '@/shared/antd-imports';
 import React, { useState, useEffect } from 'react';
 import { DeleteOutlined, ExclamationCircleFilled } from '@/shared/antd-imports';
@@ -42,6 +43,7 @@ const DependenciesTable = ({
   const [hoverRow, setHoverRow] = useState<string | null>(null);
   const [isDependencyInputShow, setIsDependencyInputShow] = useState(false);
   const { projectId } = useAppSelector(state => state.projectReducer);
+  const themeMode = useAppSelector(state => state.themeReducer.mode);
   const dispatch = useAppDispatch();
   const [taskList, setTaskList] = useState<{ label: string; value: string }[]>([]);
   const [loadingTaskList, setLoadingTaskList] = useState(false);
@@ -189,11 +191,6 @@ const DependenciesTable = ({
                   options={taskList}
                   loading={loadingTaskList}
                   onSelect={handleAddDependency}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') {
-                      handleAddDependency;
-                    }
-                  }}
                   filterOption={false}
                   notFoundContent={t('taskInfoTab.dependencies.noTasksFound')}
                 />
@@ -230,17 +227,20 @@ const DependenciesTable = ({
           </Row>
         </Form>
       ) : (
-        <Button
-          type="text"
-          style={{
-            width: 'fit-content',
-            color: colors.skyBlue,
-            padding: 0,
-          }}
-          onClick={() => setIsDependencyInputShow(true)}
-        >
-          {t('taskInfoTab.dependencies.addDependency')}
-        </Button>
+        <div>
+          <Input
+            onFocus={() => setIsDependencyInputShow(true)}
+            value={t('taskInfoTab.dependencies.addDependency')}
+            className={`border-none ${themeMode === 'dark' ? 'hover:bg-[#343a40]' : 'hover:bg-[#edebf0]'} hover:text-[#1890ff]`}
+            style={{ 
+              cursor: 'pointer', 
+              color: colors.skyBlue,
+              width: '100%',
+              backgroundColor: 'transparent'
+            }}
+            readOnly
+          />
+        </div>
       )}
     </Flex>
   );

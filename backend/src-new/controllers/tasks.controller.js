@@ -1,5 +1,6 @@
 const { Task, TaskStatus, TaskComment, TaskAttachment, Project, ProjectMember, TeamMember, TaskPhase, TaskLabel, ActivityLog, TimeLog, RunningTimer } = require('../models');
-const { generateTaskKeyForProject } = require('../utils/task-key');
+const taskService = require('../services/task.service');
+const logger = require('../utils/logger');
 
 /**
  * @desc    Create task
@@ -8,65 +9,7 @@ const { generateTaskKeyForProject } = require('../utils/task-key');
  */
 exports.create = async (req, res, next) => {
   try {
-    const { 
-      name, description, project_id, status_id, priority,
-      assignees, start_date, end_date, due_date, estimated_hours,
-      parent_task_id, labels, phase_id
-    } = req.body;
-    
-    // Get default status if not provided
-    let taskStatusId = status_id;
-    if (!taskStatusId) {
-      // 1. Try default
-      const defaultStatus = await TaskStatus.findOne({ 
-        project_id, 
-        is_default: true 
-      });
-      
-      if (defaultStatus) {
-         taskStatusId = defaultStatus._id;
-      } else {
-         // 2. Fallback to first available status
-         const firstStatus = await TaskStatus.findOne({ project_id }).sort({ sort_order: 1 });
-         if (firstStatus) {
-            taskStatusId = firstStatus._id;
-         } else {
-            // 3. Create a default "To Do" status if absolutely nothing exists
-            const newStatus = await TaskStatus.create({
-                project_id,
-                name: 'To Do',
-                category: 'todo',
-                color_code: '#87d068',
-                sort_order: 0,
-                is_default: true
-            });
-            taskStatusId = newStatus._id;
-         }
-      }
-    }
-    
-    const normalizedParentTaskId =
-      parent_task_id && parent_task_id !== 'null' && parent_task_id !== 'undefined'
-        ? parent_task_id
-        : null;
-
-    const task = await Task.create({
-      name,
-      description,
-      project_id,
-      task_key: await generateTaskKeyForProject(project_id),
-      status_id: taskStatusId,
-      priority: priority || 'medium',
-      assignees: assignees || [],
-      reporter_id: req.user._id,
-      start_date,
-      end_date,
-      due_date,
-      estimated_hours,
-      parent_task_id: normalizedParentTaskId,
-      labels,
-      phase_id
-    });
+    const task = await taskService.createTask(req.body, req.user._id);
     
     // Populate for response
     const populatedTask = await Task.findById(task._id)
@@ -254,13 +197,38 @@ exports.update = async (req, res, next) => {
     
     allowedFields.forEach(field => {
       if (updates[field] !== undefined) {
-        task[field] = updates[field];
+        if (field === 'name') {
+          task[field] = sanitizeText(updates[field]);
+        } else if (field === 'description') {
+          task[field] = sanitizeRich(updates[field]);
+        } else {
+          task[field] = updates[field];
+        }
       }
     });
     
     // Check if task is completed
     if (updates.status_id) {
       const status = await TaskStatus.findById(updates.status_id);
+      if (status && status.category === 'done') {
+        const TaskDependency = require('../models/TaskDependency');
+        const dependencies = await TaskDependency.find({ task_id: task._id }).populate({
+          path: 'related_task_id',
+          select: 'status_id',
+          populate: { path: 'status_id', select: 'category' }
+        });
+        const hasIncompleteDependency = dependencies.some(dep => {
+          const category = dep?.related_task_id?.status_id?.category;
+          return category !== 'done';
+        });
+        if (hasIncompleteDependency) {
+          return res.status(400).json({
+            done: false,
+            completed_deps: false,
+            message: 'Please complete the task dependencies before proceeding',
+          });
+        }
+      }
       if (status && status.category === 'done') {
         task.completed_at = new Date();
         task.progress = 100;
@@ -291,7 +259,7 @@ exports.update = async (req, res, next) => {
  */
 exports.delete = async (req, res, next) => {
   try {
-    const task = await Task.findById(req.params.id);
+    const task = await taskService.deleteTask(req.params.id);
     
     if (!task) {
       return res.status(404).json({
@@ -299,17 +267,6 @@ exports.delete = async (req, res, next) => {
         message: 'Task not found'
       });
     }
-    
-    // Move to trash (separate from archive)
-    task.is_trashed = true;
-    task.is_archived = false;
-    await task.save();
-    
-    // Also move subtasks to trash
-    await Task.updateMany(
-      { parent_task_id: task._id },
-      { is_trashed: true, is_archived: false }
-    );
     
     res.json({
       done: true,
@@ -332,7 +289,7 @@ exports.addComment = async (req, res, next) => {
     const comment = await TaskComment.create({
       task_id: req.params.id,
       user_id: req.user._id,
-      content,
+      content: sanitizeRich(content),
       mentions
     });
     
@@ -403,6 +360,44 @@ exports.bulkUpdate = async (req, res, next) => {
       }
 
       const status = await TaskStatus.findById(statusId).select('category');
+      if (status?.category === 'done') {
+        const TaskDependency = require('../models/TaskDependency');
+        const dependencies = await TaskDependency.find({ task_id: { $in: taskIds } }).populate({
+          path: 'related_task_id',
+          select: 'status_id',
+          populate: { path: 'status_id', select: 'category' }
+        });
+
+        const blockedTaskIds = new Set();
+        for (const dep of dependencies) {
+          const depCategory = dep?.related_task_id?.status_id?.category;
+          if (depCategory !== 'done') {
+            blockedTaskIds.add(String(dep.task_id));
+          }
+        }
+
+        const allowedTaskIds = taskIds.filter(id => !blockedTaskIds.has(String(id)));
+
+        let result = { matchedCount: 0, modifiedCount: 0 };
+        if (allowedTaskIds.length) {
+          const update = { status_id: statusId, progress: 100, completed_at: new Date() };
+          result = await Task.updateMany(
+            { _id: { $in: allowedTaskIds }, project_id: projectId },
+            { $set: update }
+          );
+        }
+
+        return res.json({
+          done: true,
+          body: {
+            matched: result.matchedCount || 0,
+            modified: result.modifiedCount || 0,
+            failed_tasks: Array.from(blockedTaskIds),
+            completed_deps: blockedTaskIds.size === 0,
+          }
+        });
+      }
+
       const update =
         status?.category === 'done'
           ? { status_id: statusId, progress: 100, completed_at: new Date() }
@@ -572,11 +567,30 @@ exports.updateTaskGroup = async (req, res, next) => {
 
     if (group_type === 'status') {
         previousValue = task.status_id;
-        task.status_id = group_value;
         attributeType = 'STATUS';
         
         const status = await TaskStatus.findById(group_value);
         if (status) {
+            if (status.category === 'done') {
+                const TaskDependency = require('../models/TaskDependency');
+                const dependencies = await TaskDependency.find({ task_id: taskId }).populate({
+                  path: 'related_task_id',
+                  select: 'status_id',
+                  populate: { path: 'status_id', select: 'category' }
+                });
+                const hasIncompleteDependency = dependencies.some(dep => {
+                  const category = dep?.related_task_id?.status_id?.category;
+                  return category !== 'done';
+                });
+                if (hasIncompleteDependency) {
+                  return res.status(400).json({
+                    done: false,
+                    completed_deps: false,
+                    message: 'Please complete the task dependencies before proceeding',
+                  });
+                }
+            }
+            task.status_id = group_value;
             logText = `changed status to ${status.name}`;
             if (status.category === 'done') {
                 task.completed_at = new Date();
@@ -703,6 +717,7 @@ exports.getTaskListV3 = async (req, res, next) => {
   try {
     const { projectId } = req.params;
     const { group, search, archived, parent_task, members, labels, priorities, statuses, field, order } = req.query;
+    const mongoose = require('mongoose');
     const projectMeta = await Project.findById(projectId).select('key').lean();
     const projectKeyPrefix =
       String(projectMeta?.key || 'TASK')
@@ -732,44 +747,50 @@ exports.getTaskListV3 = async (req, res, next) => {
         ];
     }
 
-    // Filtering
-    if (members && typeof members === 'string' && members.trim()) {
-        const memberIds = members.trim().split(/\s+/).filter(id => id.length > 0);
-        if (memberIds.length > 0) {
-            query.assignees = { $in: memberIds };
-        }
+    // Robust parameter normalization for filters
+    const parseFilter = (param) => {
+        if (!param) return [];
+        if (Array.isArray(param)) return param.flat().filter(p => !!p);
+        return String(param).trim().split(/\s+/).filter(p => p.length > 0);
+    };
+
+    const labelIds = parseFilter(labels);
+    const memberIds = parseFilter(members);
+    const priorityIds = parseFilter(priorities);
+    const statusIds = parseFilter(statuses);
+
+    if (labelIds.length > 0) {
+        const validObjectIds = labelIds.filter(id => mongoose.Types.ObjectId.isValid(id)).map(id => new mongoose.Types.ObjectId(id));
+        query.labels = { $in: [...validObjectIds, ...labelIds] };
     }
-    if (labels && typeof labels === 'string' && labels.trim()) {
-        const labelIds = labels.trim().split(/\s+/).filter(id => id.length > 0);
-        if (labelIds.length > 0) {
-            query.labels = { $in: labelIds };
-        }
+
+    if (memberIds.length > 0) {
+        const validObjectIds = memberIds.filter(id => mongoose.Types.ObjectId.isValid(id)).map(id => new mongoose.Types.ObjectId(id));
+        query.assignees = { $in: [...validObjectIds, ...memberIds] };
     }
-    if (priorities && typeof priorities === 'string' && priorities.trim()) {
-        const priorityList = priorities.trim().split(/\s+/).filter(p => p.length > 0);
-        if (priorityList.length > 0) {
-            query.priority = { $in: priorityList };
-        }
+
+    if (priorityIds.length > 0) {
+        query.priority = { $in: priorityIds };
     }
-    if (statuses && typeof statuses === 'string' && statuses.trim()) {
-        const statusIds = statuses.trim().split(/\s+/).filter(id => id.length > 0);
-        if (statusIds.length > 0) {
-            query.status_id = { $in: statusIds };
-        }
+
+    if (statusIds.length > 0) {
+        const validObjectIds = statusIds.filter(id => mongoose.Types.ObjectId.isValid(id)).map(id => new mongoose.Types.ObjectId(id));
+        query.status_id = { $in: [...validObjectIds, ...statusIds] };
     }
+
+    console.log('[getTaskListV3] Generated Query:', JSON.stringify(query, null, 2));
 
     // Sorting
     let sort = { sort_order: 1, created_at: -1 };
     if (field && order) {
-        // field might be KEY, NAME, etc.
         let sortField = field.toString().toLowerCase();
-        if (sortField === 'key') sortField = 'key'; 
-        if (sortField === 'name') sortField = 'name';
+        if (sortField === 'key' || sortField === 'task_key') sortField = 'task_key'; 
+        if (sortField === 'name' || sortField === 'title') sortField = 'name';
         if (sortField === 'status') sortField = 'status_id';
         if (sortField === 'priority') sortField = 'priority';
         
-        const sortOrder = order.toString().toLowerCase();
-        sort = { [sortField]: sortOrder === 'desc' ? -1 : 1 };
+        const sortOrderDirection = order.toString().toLowerCase() === 'desc' ? -1 : 1;
+        sort = { [sortField]: sortOrderDirection };
     }
 
     const tasks = await Task.find(query)
@@ -780,6 +801,11 @@ exports.getTaskListV3 = async (req, res, next) => {
       .populate('phase_id', 'name color_code')
       .sort(sort)
       .lean();
+
+    if (tasks.length > 0 && (labels || members)) {
+        console.log('[getTaskListV3] Debug: First task labels:', JSON.stringify(tasks[0].labels, null, 2));
+        console.log('[getTaskListV3] Debug: Filter Labels:', labels);
+    }
 
     // Backfill missing task keys and normalize old keys (EM1 -> EM-1).
     if (tasks.some(t => !t.task_key || (typeof t.task_key === 'string' && !t.task_key.includes('-')))) {
@@ -1328,13 +1354,50 @@ exports.getTaskInfo = async (req, res, next) => {
 exports.getTaskDependencyStatus = async (req, res, next) => {
   try {
     const { taskId, statusId } = req.query;
-    // Logic to check dependencies (return allowed for now)
+    const TaskDependency = require('../models/TaskDependency');
+    const Task = require('../models/Task');
+    const TaskStatus = require('../models/TaskStatus');
+
+    let targetCategory = null;
+    if (statusId) {
+      const ts = await TaskStatus.findById(statusId);
+      if (ts) targetCategory = ts.category;
+    }
+    
+    // Find all tasks that block this taskId
+    const dependencies = await TaskDependency.find({ task_id: taskId }).populate({
+      path: 'related_task_id',
+      select: 'name task_key status_id',
+      populate: { path: 'status_id', select: 'category' }
+    });
+
+    let canContinue = true;
+    const blockingTasks = [];
+
+    // Only block if we're trying to move to 'doing' or 'done'.
+    // If we're moving back to 'todo', it shouldn't be blocked.
+    if (!targetCategory || targetCategory === 'doing' || targetCategory === 'done') {
+      for (const dep of dependencies) {
+        if (dep.related_task_id) {
+          const statusStr = dep.related_task_id.status_id?.category;
+          if (statusStr !== 'done') {
+            canContinue = false;
+            blockingTasks.push({
+              id: dep.related_task_id._id,
+              name: dep.related_task_id.name,
+              task_key: dep.related_task_id.task_key
+            });
+          }
+        }
+      }
+    }
+
     res.json({
         done: true,
         body: {
-            can_continue: true,
-            status: 'allowed',
-            blockingTasks: []
+            can_continue: canContinue,
+            status: canContinue ? 'allowed' : 'blocked',
+            blockingTasks
         }
     });
   } catch (error) {

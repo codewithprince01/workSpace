@@ -46,8 +46,19 @@ const userSchema = new mongoose.Schema({
   },
   socket_id: String,
   last_login: Date,
+  last_active_at: Date,
+  login_count: {
+    type: Number,
+    default: 0
+  },
+  failed_login_attempts: {
+    type: Number,
+    default: 0
+  },
+  locked_until: Date,
   password_reset_token: String,
   password_reset_expires: Date,
+  password_changed_at: Date,
   setup_completed: {
     type: Boolean,
     default: false
@@ -62,10 +73,9 @@ const userSchema = new mongoose.Schema({
 });
 
 // Index for faster queries
-userSchema.index({ email: 1 });
+// NOTE: `email` already has `unique: true` in field definition, so no extra index needed.
 userSchema.index({ google_id: 1 });
 
-// Hash password before saving
 // Hash password before saving
 userSchema.pre('save', async function() {
   if (!this.isModified('password')) return;

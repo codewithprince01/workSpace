@@ -50,5 +50,7 @@ const activityLogSchema = new Schema({
 });
 
 activityLogSchema.index({ task_id: 1, created_at: -1 });
+activityLogSchema.index({ project_id: 1, created_at: -1 }); // for reporting queries
+activityLogSchema.index({ done_by: 1, created_at: -1 });   // for user activity feeds
 
 module.exports = mongoose.model('ActivityLog', activityLogSchema);

@@ -179,8 +179,7 @@ const SubTaskTable = ({ subTasks, loadingSubTasks, refreshSubTasks, t }: SubTask
     const ratio = taskFormViewModel?.task?.complete_ratio || 0;
     return ratio == Infinity ? 0 : ratio;
   };
-
-  const columns = useMemo(
+  const columns = useMemo(
     () => [
       {
         key: 'name',
@@ -188,25 +187,37 @@ const SubTaskTable = ({ subTasks, loadingSubTasks, refreshSubTasks, t }: SubTask
       },
       {
         key: 'priority',
-        render: (record: IProjectTask) => (
-          <Tag
-            color={themeMode === 'dark' ? record.priority_color_dark : record.priority_color}
-            style={{ textTransform: 'capitalize' }}
-          >
-            {record.priority_name}
-          </Tag>
-        ),
+        render: (record: IProjectTask) => {
+          const priorityName = record.priority_name || 'Medium';
+          const priorityColor = themeMode === 'dark' 
+            ? (record.priority_color_dark || '#faad14') 
+            : (record.priority_color || '#faad14');
+          return (
+            <Tag
+              color={priorityColor}
+              style={{ textTransform: 'capitalize' }}
+            >
+              {priorityName}
+            </Tag>
+          );
+        },
       },
       {
         key: 'status',
-        render: (record: IProjectTask) => (
-          <Tag
-            color={themeMode === 'dark' ? record.status_color_dark : record.status_color}
-            style={{ textTransform: 'capitalize' }}
-          >
-            {record.status_name}
-          </Tag>
-        ),
+        render: (record: IProjectTask) => {
+          const statusName = record.status_name || 'To Do';
+          const statusColor = themeMode === 'dark' 
+            ? (record.status_color_dark || '#8c8c8c') 
+            : (record.status_color || '#8c8c8c');
+          return (
+            <Tag
+              color={statusColor}
+              style={{ textTransform: 'capitalize' }}
+            >
+              {statusName}
+            </Tag>
+          );
+        },
       },
       {
         key: 'assignee',

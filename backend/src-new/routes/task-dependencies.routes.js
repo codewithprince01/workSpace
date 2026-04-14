@@ -1,22 +1,16 @@
 const express = require('express');
 const router = express.Router();
-const { tasks } = require('../controllers');
+const { taskDependencies } = require('../controllers');
 const { protect } = require('../middlewares/auth.middleware');
 const { commonValidators } = require('../middlewares/validation.middleware');
 
 router.use(protect);
 
-// Stub for task dependencies
-router.get('/:taskId', commonValidators.mongoIdParam('taskId'), async (req, res, next) => {
-    res.json({ done: true, body: [] });
-});
+// Task dependencies routes
+router.get('/:taskId', commonValidators.mongoIdParam('taskId'), taskDependencies.getTaskDependencies);
 
-router.post('/', async (req, res, next) => {
-    res.json({ done: true, body: req.body });
-});
+router.post('/', taskDependencies.createTaskDependency);
 
-router.delete('/:id', commonValidators.mongoId, async (req, res, next) => {
-    res.json({ done: true });
-});
+router.delete('/:id', commonValidators.mongoIdParam('id'), taskDependencies.deleteTaskDependency);
 
 module.exports = router;

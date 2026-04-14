@@ -1,69 +1,8 @@
 const { Project, ProjectMember, TaskStatus, Task, ProjectInvitation, Notification, User, TeamMember } = require('../models');
 const constants = require('../config/constants');
-const emailService = require('../services/email.service');
-const crypto = require('crypto');
+const projectService = require('../services/project.service');
 const mongoose = require('mongoose');
-
-const normalizeKey = (value = '') => String(value).trim().toLowerCase().replace(/\s+/g, '_');
-
-const pickFirstAllowed = (allowed, preferred = []) => {
-  for (const item of preferred) {
-    if (allowed.includes(item)) return item;
-  }
-  return allowed[0];
-};
-
-const normalizeProjectStatusValue = (input) => {
-  const allowed = Project?.schema?.path('status')?.enumValues || [];
-  if (!allowed.length) return undefined;
-
-  const normalized = normalizeKey(input);
-  const aliases = {
-    cancelled: 'cancelled',
-    blocked: 'blocked',
-    on_hold: 'on_hold',
-    proposed: 'proposed',
-    in_planning: 'in_planning',
-    in_progress: 'in_progress',
-    completed: 'completed',
-    active: 'active',
-  };
-
-  const mapped = aliases[normalized] || normalized;
-  if (allowed.includes(mapped)) return mapped;
-
-  if (mapped === 'proposed') return pickFirstAllowed(allowed, ['proposed', 'active', 'in_progress', 'on_hold']);
-  if (mapped === 'in_planning') return pickFirstAllowed(allowed, ['in_planning', 'on_hold', 'active']);
-  if (mapped === 'in_progress') return pickFirstAllowed(allowed, ['in_progress', 'active']);
-  if (mapped === 'blocked') return pickFirstAllowed(allowed, ['blocked', 'on_hold', 'at_risk', 'active']);
-  return pickFirstAllowed(allowed, ['active', 'in_progress', 'on_hold', 'proposed']);
-};
-
-const normalizeProjectHealthValue = (input) => {
-  const allowed = Project?.schema?.path('health')?.enumValues || [];
-  if (!allowed.length) return undefined;
-
-  const normalized = normalizeKey(input);
-  const aliases = {
-    not_set: 'not_set',
-    needs_attention: 'needs_attention',
-    at_risk: 'at_risk',
-    good: 'good',
-    critical: 'critical',
-    on_track: 'good',
-    off_track: 'at_risk',
-    '1': 'good',
-    '2': 'at_risk',
-    '3': 'critical',
-  };
-
-  const mapped = aliases[normalized] || normalized;
-  if (allowed.includes(mapped)) return mapped;
-
-  if (mapped === 'not_set') return pickFirstAllowed(allowed, ['not_set', 'good', 'at_risk']);
-  if (mapped === 'needs_attention') return pickFirstAllowed(allowed, ['needs_attention', 'at_risk', 'critical']);
-  return pickFirstAllowed(allowed, ['good', 'at_risk', 'critical', 'not_set']);
-};
+const logger = require('../utils/logger');
 
 const extractObjectId = (value) => {
   if (!value) return null;
@@ -73,88 +12,69 @@ const extractObjectId = (value) => {
 };
 
 /**
- * @desc    Invite member to project
- * @route   POST /api/projects/:id/invite
- * @access  Private (Admin/Owner)
+ * @swagger
+ * components:
+ *   schemas:
+ *     Project:
+ *       type: object
+ *       required:
+ *         - name
+ *       properties:
+ *         id:
+ *           type: string
+ *           description: Auto-generated ID
+ *         name:
+ *           type: string
+ *           description: Project name
+ *         description:
+ *           type: string
+ *         color_code:
+ *           type: string
+ *         status:
+ *           type: string
+ *           enum: [active, completed, on_hold, proposed]
+ *         health:
+ *           type: string
+ *           enum: [good, at_risk, critical, not_set]
+ */
+
+/**
+ * @swagger
+ * /api/projects/:id/invite:
+ *   post:
+ *     summary: Invite member to project
+ *     tags: [Projects]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email:
+ *                 type: string
+ *               role:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Invitation sent
  */
 exports.inviteMember = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { email, role } = req.body; // role: 'admin' or 'member'
+    const { email, role } = req.body;
 
-    // Validate inputs
     if (!email || !role) {
       return res.status(400).json({ success: false, message: 'Email and role are required' });
     }
 
-    // Check project exists
-    const project = await Project.findById(id);
-    if (!project) return res.status(404).json({ success: false, message: 'Project not found' });
-
-    // Check if user is already a member
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      const isMember = await ProjectMember.findOne({ project_id: id, user_id: existingUser._id });
-      if (isMember) {
-        return res.status(409).json({ success: false, message: 'Member is already in project' });
-      }
-    }
-
-    // Prevent duplicate pending invitations for same project + email
-    const pendingInvite = await ProjectInvitation.findOne({
-      project_id: id,
-      email: email.toLowerCase(),
-      status: 'pending',
-      expires_at: { $gt: new Date() },
-    });
-    if (pendingInvite) {
-      return res.status(409).json({
-        success: false,
-        message: 'Member is already invited to project',
-      });
-    }
-
-    // Create Invite Token
-    const token = crypto.randomBytes(32).toString('hex');
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
-
-    console.log('Creating Invitation...');
-    // Create Invitation Record
-    const invitation = await ProjectInvitation.create({
-      project_id: id,
-      inviter_id: req.user._id,
-      email,
-      role,
-      token,
-      expires_at: expiresAt
-    });
-    console.log('Invitation created:', invitation._id);
-
-    // Send Email
-    // const inviteLink = `${process.env.FRONTEND_URL}/worklenz/invite/accept?token=${token}`; 
-    // Assuming structure, constructing link manually for now or use env
-    const inviteLink = `http://localhost:5173/worklenz/invite/project/${token}`; // TODO: Use env variable
-
-    await emailService.sendProjectInviteEmail(email, req.user.name, project.name, inviteLink, role);
-
-    // Create Notification for Inviter
-    await Notification.create({
-      user_id: req.user._id,
-      project_id: id,
-      type: 'project_invite',
-      message: `Invitation sent successfully to ${email}`
-    });
-
-    // Create Notification for Invited User (if they exist)
-    if (existingUser) {
-      await Notification.create({
-        user_id: existingUser._id,
-        project_id: id,
-        type: 'project_invite',
-        message: `You have been invited to join ${project.name} as ${role}`
-      });
-    }
+    const invitation = await projectService.inviteMember(id, email, role, req.user._id, req.user.name);
 
     res.json({
       done: true,
@@ -163,14 +83,31 @@ exports.inviteMember = async (req, res, next) => {
     });
 
   } catch (error) {
+    if (error.message === 'Project not found') {
+        return res.status(404).json({ success: false, message: error.message });
+    }
     next(error);
   }
 };
 
 /**
- * @desc    Accept project invitation
- * @route   POST /api/projects/invite/accept
- * @access  Private (Authenticated User)
+ * @swagger
+ * /api/projects/invite/accept:
+ *   post:
+ *     summary: Accept project invitation
+ *     tags: [Projects]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               token:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Invitation accepted
  */
 exports.acceptInvite = async (req, res, next) => {
   try {
@@ -194,16 +131,11 @@ exports.acceptInvite = async (req, res, next) => {
       role: invitation.role
     });
 
-    // Update Invitation Status
+    // Mark as accepted
     invitation.status = 'accepted';
     await invitation.save();
 
-    res.json({
-      done: true,
-      message: 'Joined project successfully',
-      body: { projectId: invitation.project_id }
-    });
-
+    res.json({ done: true, message: 'Invitation accepted' });
   } catch (error) {
     next(error);
   }
@@ -216,103 +148,17 @@ exports.acceptInvite = async (req, res, next) => {
  */
 exports.create = async (req, res, next) => {
   try {
-    const {
-      name,
-      description,
-      notes,
-      key,
-      color_code,
-      start_date,
-      end_date,
-      status,
-      status_id,
-      health,
-      health_id,
-      category_id,
-      client_id,
-      client_name,
-      project_manager,
-      project_manager_id,
-      working_days,
-      man_days,
-      hours_per_day,
-      use_manual_progress,
-      use_weighted_progress,
-      use_time_progress,
-    } = req.body;
-    
     let team_id = req.body.team_id;
     if (!team_id) {
-        // Find user's team - team should already exist from signup
-        const membership = await TeamMember.findOne({ 
-          user_id: req.user._id, 
-          is_active: true 
-        }).sort({ role: 1 }); 
-        
-        if (!membership) {
-            return res.status(400).json({
-                success: false,
-                message: 'No team found. Please create or join a team first.'
-            });
-        }
-        
+        const membership = await TeamMember.findOne({ user_id: req.user._id, is_active: true });
+        if (!membership) return res.status(400).json({ success: false, message: 'No team found.' });
         team_id = membership.team_id;
     }
-    
-    // Generate project key if not provided
-    const projectKey = key || name.substring(0, 3).toUpperCase() + Math.floor(Math.random() * 100);
-    
-    const normalizedStatus = normalizeProjectStatusValue(status || status_id) || 'active';
-    const normalizedHealth = normalizeProjectHealthValue(health || health_id) || 'good';
-    const normalizedCategoryId = extractObjectId(category_id);
-    const normalizedClientId = extractObjectId(client_id);
-    const normalizedProjectManagerId = extractObjectId(project_manager_id || project_manager);
 
-    // Create project
-    const project = await Project.create({
-      name,
-      description: description ?? notes ?? null,
-      notes: notes ?? description ?? null,
-      key: projectKey,
-      team_id,
-      owner_id: req.user._id,
-      color_code: color_code || constants.TASK_STATUS_COLORS.TODO,
-      status: normalizedStatus,
-      health: normalizedHealth,
-      category_id: normalizedCategoryId,
-      client_id: normalizedClientId,
-      client_name: client_name || null,
-      project_manager_id: normalizedProjectManagerId,
-      start_date: start_date || null,
-      end_date: end_date || null,
-      working_days: Number.isFinite(+working_days) ? +working_days : 0,
-      man_days: Number.isFinite(+man_days) ? +man_days : 0,
-      hours_per_day: Number.isFinite(+hours_per_day) ? +hours_per_day : 8,
-      use_manual_progress: !!use_manual_progress,
-      use_weighted_progress: !!use_weighted_progress,
-      use_time_progress: !!use_time_progress,
-    });
-    
-    // Add creator as project member
-    await ProjectMember.create({
-      project_id: project._id,
-      user_id: req.user._id,
-      role: 'owner'
-    });
-    
-    // Create default task statuses
-    const defaultStatuses = [
-      { name: 'To Do', category: 'todo', color_code: '#75c9c0', sort_order: 0, is_default: true },
-      { name: 'In Progress', category: 'doing', color_code: '#3b7ad4', sort_order: 1 },
-      { name: 'Done', category: 'done', color_code: '#70a6f3', sort_order: 2 }
-    ];
-    
-    for (const status of defaultStatuses) {
-      await TaskStatus.create({
-        ...status,
-        project_id: project._id
-      });
-    }
+    const project = await projectService.createProject({
+        ...req.body,
+        team_id
+    }, req.user._id);
     
     res.status(201).json({
       done: true,
@@ -577,7 +423,60 @@ exports.getGrouped = async (req, res, next) => {
     const userMembershipMap = {}; 
     memberProjects.forEach(m => userMembershipMap[m.project_id.toString()] = m.is_favorite);
 
-    const enrichedProjects = await Promise.all(projects.map(async (p) => {
+    // ─── Batch-fetch task counts for ALL projects at once (fixes N+1 problem) ─────
+    const projectObjectIds = projects.map(p => p._id);
+
+    // Get all "done" status IDs for these projects in one query
+    const doneStatuses = await TaskStatus.find({
+      project_id: { $in: projectObjectIds },
+      category: 'done'
+    }).select('_id project_id').lean();
+
+    const doneStatusIdsByProject = {};
+    doneStatuses.forEach(s => {
+      const pid = s.project_id.toString();
+      if (!doneStatusIdsByProject[pid]) doneStatusIdsByProject[pid] = [];
+      doneStatusIdsByProject[pid].push(s._id);
+    });
+
+    // Single aggregation for total + completed task counts across all projects
+    const taskCountAgg = await Task.aggregate([
+      {
+        $match: {
+          project_id: { $in: projectObjectIds },
+          is_archived: false,
+          is_trashed: { $ne: true }
+        }
+      },
+      {
+        $group: {
+          _id: '$project_id',
+          total: { $sum: 1 },
+          // completed counted below via $cond using done status IDs per project
+        }
+      }
+    ]);
+
+    // Build a separate completed count using $facet is complex; use a simpler second agg
+    const completedCountAgg = await Task.aggregate([
+      {
+        $match: {
+          project_id: { $in: projectObjectIds },
+          status_id: { $in: doneStatuses.map(s => s._id) },
+          is_archived: false,
+          is_trashed: { $ne: true }
+        }
+      },
+      { $group: { _id: '$project_id', completed: { $sum: 1 } } }
+    ]);
+
+    const totalByProject = {};
+    taskCountAgg.forEach(r => { totalByProject[r._id.toString()] = r.total; });
+    const completedByProject = {};
+    completedCountAgg.forEach(r => { completedByProject[r._id.toString()] = r.completed; });
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    const enrichedProjects = projects.map((p) => {
         const pMembers = allMemberships.filter(m => m.project_id.toString() === p._id.toString());
         const names = pMembers.slice(0, 5).map(m => m.user_id ? ({
             id: m.user_id._id,
@@ -586,18 +485,15 @@ exports.getGrouped = async (req, res, next) => {
             color_code: m.user_id.color_code
         }) : null).filter(Boolean);
 
-        const totalTasks = await Task.countDocuments({ project_id: p._id, is_archived: false });
-        const completedTasks = await Task.countDocuments({ 
-            project_id: p._id, 
-            is_archived: false, 
-            status_id: { $in: await TaskStatus.find({ project_id: p._id, category: 'done' }).select('_id') } 
-        });
+        const pid = p._id.toString();
+        const totalTasks = totalByProject[pid] || 0;
+        const completedTasks = completedByProject[pid] || 0;
 
         return {
             ...p,
             id: p._id,
-            is_favorite: userMembershipMap[p._id.toString()] || false,
-            favorite: userMembershipMap[p._id.toString()] || false,
+            is_favorite: userMembershipMap[pid] || false,
+            favorite: userMembershipMap[pid] || false,
             category_name: p.category_id ? p.category_id.name : null,
             category_color: p.category_id ? p.category_id.color_code : null,
             client_name: p.client_name || null,
@@ -606,7 +502,7 @@ exports.getGrouped = async (req, res, next) => {
             completed_tasks: completedTasks,
             progress: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
         };
-    }));
+    });
 
     const groupsMap = new Map();
     const noGroupKey = 'uncategorized';

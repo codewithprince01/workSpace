@@ -26,12 +26,10 @@ import { TFunction } from 'i18next';
 import useTabSearchParam from '@/hooks/useTabSearchParam';
 import { useAppDispatch } from '@/hooks/useAppDispatch';
 import { setTaskLabels } from '@/features/task-drawer/task-drawer.slice';
-import { setLabels, updateTaskLabel } from '@/features/tasks/tasks.slice';
-import { setBoardLabels, updateBoardTaskLabel } from '@/features/board/board-slice';
+import { updateTaskLabel } from '@/features/tasks/tasks.slice';
 import { updateEnhancedKanbanTaskLabels } from '@/features/enhanced-kanban/enhanced-kanban.slice';
 import { ILabelsChangeResponse } from '@/types/tasks/taskList.types';
-import { ITaskLabelFilter } from '@/types/tasks/taskLabel.types';
-import { sortLabelsBySelection, isLabelSelected } from '@/utils/labelUtils';
+import { sortLabelsBySelection, isLabelSelected, getNormalizedLabelId } from '@/utils/labelUtils';
 import { message } from '@/shared/antd-imports';
 
 interface TaskDrawerLabelsProps {
@@ -51,12 +49,16 @@ const TaskDrawerLabels = ({ task, t }: TaskDrawerLabelsProps) => {
   const currentSession = useAuthService().getCurrentSession();
   const themeMode = useAppSelector(state => state.themeReducer.mode);
   const { tab } = useTabSearchParam();
+
   const handleLabelChange = (label: ITaskLabel) => {
     try {
-      const nextSelectedState = !isLabelSelected(label.id || '', task?.labels as any);
+      const labelId = getNormalizedLabelId(label);
+      if (!labelId) return;
+
+      const nextSelectedState = !isLabelSelected(labelId, task?.labels as any);
       const labelData = {
         task_id: task.id,
-        label_id: label.id,
+        label_id: labelId,
         is_selected: nextSelectedState,
         parent_task: task.parent_task_id,
         team_id: currentSession?.team_id,
@@ -115,13 +117,11 @@ const TaskDrawerLabels = ({ task, t }: TaskDrawerLabelsProps) => {
     setLabelList(labels as ITaskLabel[]);
   }, [labels, task?.labels]);
 
-  // used useMemo hook for re render the list when searching
   const filteredLabelData = useMemo(() => {
     const filtered = labelList.filter(label =>
       label.name?.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-    // Sort to show selected labels first using shared utility
     return sortLabelsBySelection(filtered, task?.labels || []);
   }, [labelList, searchQuery, task?.labels]);
 
@@ -137,11 +137,11 @@ const TaskDrawerLabels = ({ task, t }: TaskDrawerLabelsProps) => {
           onChange={e => setSearchQuery(e.currentTarget.value)}
           placeholder={t('taskInfoTab.labels.labelInputPlaceholder')}
           onKeyDown={e => {
-            const isLabel = filteredLabelData.findIndex(
-              label => label.name?.toLowerCase() === searchQuery.toLowerCase()
-            );
-            if (isLabel === -1) {
-              if (e.key === 'Enter') {
+            if (e.key === 'Enter' && searchQuery.trim()) {
+              const exactMatch = labelList.find(
+                label => label.name?.toLowerCase() === searchQuery.trim().toLowerCase()
+              );
+              if (!exactMatch) {
                 handleCreateLabel();
                 setSearchQuery('');
               }
@@ -149,48 +149,71 @@ const TaskDrawerLabels = ({ task, t }: TaskDrawerLabelsProps) => {
           }}
         />
 
-        <List style={{ padding: 0, maxHeight: 300, overflow: 'scroll' }}>
-          {filteredLabelData.length ? (
-            filteredLabelData.map(label => (
-              <List.Item
-                className={themeMode === 'dark' ? 'custom-list-item dark' : 'custom-list-item'}
-                key={label.id}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'flex-start',
-                  gap: 8,
-                  padding: '4px 8px',
-                  border: 'none',
-                  cursor: 'pointer',
-                }}
-                onClick={() => handleLabelChange(label)}
-              >
-                <Checkbox
-                  id={label.id}
-                  checked={isLabelSelected(label.id || '', task?.labels)}
-                  onChange={e => e.preventDefault()}
-                >
-                  <Flex gap={8}>
-                    <Badge color={label.color_code} />
-                    {label.name}
-                  </Flex>
-                </Checkbox>
-              </List.Item>
-            ))
-          ) : (
-            <Typography.Text
-              style={{ color: colors.lightGray }}
-              onClick={() => handleCreateLabel()}
+        <List 
+          style={{ padding: 0, maxHeight: 300, overflowY: 'auto' }}
+          className="custom-label-list"
+        >
+          {searchQuery.trim() && !labelList.some(l => l.name?.toLowerCase() === searchQuery.trim().toLowerCase()) && (
+            <List.Item
+              className={themeMode === 'dark' ? 'custom-list-item dark create-option' : 'custom-list-item create-option'}
+              style={{
+                padding: '8px 12px',
+                cursor: 'pointer',
+                borderBottom: '1px solid ' + (themeMode === 'dark' ? '#303030' : '#f0f0f0')
+              }}
+              onClick={() => {
+                handleCreateLabel();
+                setSearchQuery('');
+              }}
             >
-              {t('taskInfoTab.labels.labelsSelectorInputTip')}
-            </Typography.Text>
+              <Flex gap={8} align="center">
+                <PlusOutlined style={{ color: colors.primary }} />
+                <Typography.Text strong style={{ color: colors.primary }}>
+                  {t('taskInfoTab.labels.createLabelPrefix', { defaultValue: 'Create' })} "{searchQuery.trim()}"
+                </Typography.Text>
+              </Flex>
+            </List.Item>
           )}
+
+          {filteredLabelData.length > 0 ? (
+            filteredLabelData.map(label => {
+              const labelId = getNormalizedLabelId(label);
+              const selected = isLabelSelected(labelId, task?.labels);
+              return (
+                <List.Item
+                  className={`${themeMode === 'dark' ? 'custom-list-item dark' : 'custom-list-item'} ${selected ? 'selected' : ''}`}
+                  key={labelId}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'flex-start',
+                    gap: 8,
+                    padding: '8px 12px',
+                    border: 'none',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => handleLabelChange(label)}
+                >
+                  <Checkbox
+                    checked={selected}
+                    onChange={() => {}} // Controlled by Item onClick
+                  />
+                  <Flex gap={8} align="center" style={{ marginLeft: 8 }}>
+                    <Badge color={label.color_code} />
+                    <Typography.Text>{label.name}</Typography.Text>
+                  </Flex>
+                </List.Item>
+              );
+            })
+          ) : !searchQuery.trim() ? (
+            <div style={{ padding: '16px', textAlign: 'center', color: colors.lightGray }}>
+              {t('taskInfoTab.labels.noLabelsText', { defaultValue: 'No labels in this project' })}
+            </div>
+          ) : null}
         </List>
       </Flex>
     </Card>
   );
 
-  // function to focus label input
   const handleLabelDropdownOpen = (open: boolean) => {
     if (open) {
       setTimeout(() => {
@@ -202,7 +225,7 @@ const TaskDrawerLabels = ({ task, t }: TaskDrawerLabelsProps) => {
   return (
     <Form.Item name="labels" label={t('taskInfoTab.details.labels')}>
       <Flex gap={8} wrap="wrap" align="center">
-        {task?.labels?.map((label, index) => (
+        {task?.labels?.map((label) => (
           <Tag
             key={label.id}
             color={label.color_code + ALPHA_CHANNEL}

@@ -118,6 +118,7 @@ const taskSchema = new Schema({
 taskSchema.index({ project_id: 1, status_id: 1 });
 taskSchema.index({ project_id: 1, is_archived: 1 });
 taskSchema.index({ project_id: 1, is_trashed: 1 });
+taskSchema.index({ assignees: 1, is_archived: 1, is_trashed: 1 }); // Reporting optimization
 taskSchema.index({ assignees: 1 });
 taskSchema.index({ parent_task_id: 1 });
 taskSchema.index({ due_date: 1 });

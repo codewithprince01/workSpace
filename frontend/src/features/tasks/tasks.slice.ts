@@ -148,12 +148,20 @@ export const fetchTaskGroups = createAsyncThunk(
 
       const selectedMembers = taskReducer.taskAssignees
         .filter(member => member.selected)
-        .map(member => member.id)
+        .map(member => {
+           const id = member.id || member._id || (member as any).team_member_id;
+           return typeof id === 'object' ? String(id) : id;
+        })
+        .filter(id => !!id)
         .join(' ');
 
       const selectedLabels = taskReducer.labels
         .filter(label => label.selected)
-        .map(label => label.id)
+        .map(label => {
+           const id = label.id || label._id;
+           return typeof id === 'object' ? String(id) : id;
+        })
+        .filter(id => !!id)
         .join(' ');
 
       const config: ITaskListConfigV2 = {
@@ -216,12 +224,20 @@ export const fetchSubTasks = createAsyncThunk(
 
     const selectedMembers = taskReducer.taskAssignees
       .filter(member => member.selected)
-      .map(member => member.id)
+      .map(member => {
+        const id = member.id || member._id || (member as any).team_member_id;
+        return typeof id === 'object' ? String(id) : id;
+      })
+      .filter(id => !!id)
       .join(' ');
 
     const selectedLabels = taskReducer.labels
       .filter(label => label.selected)
-      .map(label => label.id)
+      .map(label => {
+        const id = label.id || label._id;
+        return typeof id === 'object' ? String(id) : id;
+      })
+      .filter(id => !!id)
       .join(' ');
 
     const config: ITaskListConfigV2 = {
@@ -326,7 +342,15 @@ export const updateColumnVisibility = createAsyncThunk(
     { rejectWithValue }
   ) => {
     try {
-      const response = await tasksApiService.toggleColumnVisibility(projectId, item);
+      let response;
+      if (item.custom_column) {
+        response = await tasksCustomColumnsService.updateCustomColumnVisibility(projectId, {
+          ...item,
+          id: item.id || item.key
+        });
+      } else {
+        response = await tasksApiService.toggleColumnVisibility(projectId, item);
+      }
       return response.body;
     } catch (error) {
       logger.error('Update Column Visibility', error);
@@ -682,9 +706,19 @@ const taskSlice = createSlice({
       // Update the task properties
       task.status_color = color_code;
       task.status_color_dark = color_code_dark;
-      task.complete_ratio = +complete_ratio;
+      const isDone = Boolean(statusCategory?.is_done);
+      const normalizedRatio = Number.isFinite(Number(complete_ratio)) ? Number(complete_ratio) : 0;
+      task.complete_ratio = isDone ? 100 : normalizedRatio === 100 ? 0 : normalizedRatio;
       task.status = status_id;
       task.status_category = statusCategory;
+      // Keep display label in sync with status category to avoid stale "done" labels after revert.
+      if (statusCategory?.is_done) {
+        task.status_name = 'Done';
+      } else if (statusCategory?.is_doing) {
+        task.status_name = 'In Progress';
+      } else if (statusCategory?.is_todo) {
+        task.status_name = 'To Do';
+      }
 
       // If grouped by status and not a subtask, move the task to the new status group
       if (state.groupBy === GROUP_BY_STATUS_VALUE && !task.is_sub_task && groupId !== status_id) {

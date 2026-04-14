@@ -1,5 +1,7 @@
 const { Project, Task, TaskStatus, TimeLog, ActivityLog, ProjectComment, ProjectCategory, ProjectMember, Team, TeamMember } = require('../models');
 const mongoose = require('mongoose');
+const logger = require('../utils/logger');
+const cacheService = require('../services/cache.service');
 
 /**
  * @desc    Get reporting overview statistics
@@ -7,7 +9,68 @@ const mongoose = require('mongoose');
  * @access  Private
  */
 exports.getOverviewStatistics = async (req, res, next) => {
-    res.json({ done: true, body: {} });
+  try {
+    const userId = req.user._id;
+    const now = new Date();
+
+    // 1. Teams Stats
+    const myTeams = await TeamMember.find({ user_id: userId, is_active: true }).select('team_id');
+    const teamIds = myTeams.map(t => t.team_id).filter(Boolean);
+    
+    const teamProjectsCount = await Project.countDocuments({ team_id: { $in: teamIds }, is_archived: false });
+    const teamMembersCount = await TeamMember.distinct('user_id', { team_id: { $in: teamIds }, is_active: true });
+
+    // 2. Projects Stats (where user is a member)
+    const myProjectMemberships = await ProjectMember.find({ user_id: userId, is_active: true }).select('project_id');
+    const projectIds = myProjectMemberships.map(m => m.project_id);
+
+    const totalProjects = projectIds.length;
+    const activeProjects = await Project.countDocuments({ _id: { $in: projectIds }, status: 'active', is_archived: false });
+    const overdueProjects = await Project.countDocuments({ 
+        _id: { $in: projectIds }, 
+        is_archived: false, 
+        end_date: { $lt: now },
+        status: { $ne: 'completed' }
+    });
+
+    // 3. Members/Task Stats (relevant to user's projects)
+    const overdueTasks = await Task.countDocuments({ 
+        project_id: { $in: projectIds }, 
+        is_archived: false, 
+        due_date: { $lt: now },
+        status_id: { $nin: await TaskStatus.find({ project_id: { $in: projectIds }, category: 'done' }).distinct('_id') }
+    });
+    
+    const unassignedTasks = await Task.countDocuments({
+        project_id: { $in: projectIds },
+        is_archived: false,
+        $or: [{ assignees: { $exists: false } }, { assignees: { $size: 0 } }]
+    });
+
+    res.json({
+        done: true,
+        body: {
+            teams: {
+                count: teamIds.length,
+                projects: teamProjectsCount,
+                members: teamMembersCount.length
+            },
+            projects: {
+                count: totalProjects,
+                active: activeProjects,
+                overdue: overdueProjects
+            },
+            members: {
+                count: teamMembersCount.length,
+                unassigned: unassignedTasks,
+                overdue: overdueTasks
+            }
+        }
+    });
+  } catch (error) {
+    logger.error('getOverviewStatistics Error: %s', error.message);
+    next(error);
+  }
 };
 
 /**
@@ -19,52 +82,66 @@ exports.getOverviewTeams = async (req, res, next) => {
   try {
     const userId = req.user._id;
 
-    // Find teams where user is a member
+    // 1. Find teams where user is a member
     const teamMemberships = await TeamMember.find({ user_id: userId, is_active: true })
         .populate('team_id', 'name color_code');
     
-    const teams = await Promise.all(teamMemberships.map(async (tm) => {
+    const teamIds = teamMemberships.map(tm => tm.team_id?._id).filter(Boolean);
+
+    // 2. Batch count projects across all teams
+    const projectCountAgg = await Project.aggregate([
+      { $match: { team_id: { $in: teamIds }, is_archived: false } },
+      { $group: { _id: '$team_id', count: { $sum: 1 } } }
+    ]);
+    const projectCountMap = {};
+    projectCountAgg.forEach(r => { projectCountMap[r._id.toString()] = r.count; });
+
+    // 3. Batch fetch team members (limit 5 per team in JS for simplicity)
+    const allMembers = await TeamMember.find({ team_id: { $in: teamIds }, is_active: true })
+        .populate('user_id', 'name avatar_url email')
+        .lean();
+
+    const membersByTeam = {};
+    allMembers.forEach(m => {
+      const tid = m.team_id.toString();
+      if (!membersByTeam[tid]) membersByTeam[tid] = [];
+      if (membersByTeam[tid].length < 5 && m.user_id) {
+        membersByTeam[tid].push({
+          id: m.user_id._id,
+          name: m.user_id.name,
+          avatar_url: m.user_id.avatar_url,
+          email: m.user_id.email
+        });
+      }
+    });
+
+    const teams = teamMemberships.map((tm) => {
         if (!tm.team_id) return null;
+        const teamId = tm.team_id._id.toString();
         
-        const teamId = tm.team_id._id;
-        
-        // Count projects in this team
-        const projectCount = await Project.countDocuments({ team_id: teamId, is_archived: false });
-        
-        // Fetch members for Avatars
-        const teamMembers = await TeamMember.find({ team_id: teamId, is_active: true })
-            .populate('user_id', 'name avatar_url email')
-            .limit(5); // Limit to 5 for previews
-
-        const members = teamMembers.map(m => ({
-            id: m.user_id._id,
-            name: m.user_id.name,
-            avatar_url: m.user_id.avatar_url,
-            email: m.user_id.email
-        }));
-
         return {
-            id: teamId,
+            id: tm.team_id._id,
             name: tm.team_id.name,
             color_code: tm.team_id.color_code,
-            projects_count: projectCount,
-            members: members
+            projects_count: projectCountMap[teamId] || 0,
+            members: membersByTeam[teamId] || []
         };
-    }));
+    }).filter(Boolean);
 
     res.json({
       done: true,
-      body: teams.filter(Boolean)
+      body: teams
     });
 
   } catch (error) {
+    logger.error('getOverviewTeams Error: %s', error.message);
     next(error);
   }
 };
 
 exports.getProjectsReports = async (req, res, next) => {
   try {
-    console.log('Reporting Projects Body:', req.body);
+    logger.debug('Reporting Projects Body: %j', req.body);
     const { index, size, field, order, search, archived, statuses, healths, categories, project_managers } = req.body;
     const userId = req.user._id;
 
@@ -106,7 +183,79 @@ exports.getProjectsReports = async (req, res, next) => {
         .limit(limit)
         .lean();
 
-    // Map status strings to display objects
+    const pIds = projects.map(p => p._id);
+
+    // --- 1. Batch Fetch Statuses ---
+    const allStatuses = await TaskStatus.find({ project_id: { $in: pIds } }).lean();
+    const statusMapByProject = {}; // projectId -> { todo: [], doing: [], done: [] }
+    allStatuses.forEach(s => {
+      const pid = s.project_id.toString();
+      if (!statusMapByProject[pid]) statusMapByProject[pid] = { todo: [], doing: [], done: [] };
+      if (statusMapByProject[pid][s.category]) statusMapByProject[pid][s.category].push(s._id);
+    });
+
+    // --- 2. Batch Aggregate Tasks ---
+    const taskStatsAgg = await Task.aggregate([
+      { $match: { project_id: { $in: pIds }, is_archived: false } },
+      { $group: {
+          _id: '$project_id',
+          total: { $sum: 1 },
+          estHours: { $sum: '$estimated_hours' },
+          actHours: { $sum: '$actual_hours' }
+      }}
+    ]);
+    
+    // For specific counts (todo/doing/done), we'll do a second agg or combined
+    // Combined is better:
+    const taskDetailsAgg = await Task.aggregate([
+      { $match: { project_id: { $in: pIds }, is_archived: false } },
+      { $group: {
+          _id: { pid: '$project_id', sid: '$status_id' },
+          count: { $sum: 1 }
+      }}
+    ]);
+
+    const statsMap = {};
+    taskStatsAgg.forEach(r => {
+      statsMap[r._id.toString()] = { 
+        total: r.total, 
+        estHours: r.estHours || 0, 
+        actHours: r.actHours || 0,
+        todo: 0, doing: 0, done: 0
+      };
+    });
+
+    taskDetailsAgg.forEach(r => {
+      const pid = r._id.pid.toString();
+      const sid = r._id.sid ? r._id.sid.toString() : null;
+      if (!statsMap[pid]) return;
+      
+      const pStatusMap = statusMapByProject[pid];
+      if (!pStatusMap) return;
+
+      if (pStatusMap.done.some(id => id.toString() === sid)) statsMap[pid].done += r.count;
+      else if (pStatusMap.doing.some(id => id.toString() === sid)) statsMap[pid].doing += r.count;
+      else statsMap[pid].todo += r.count;
+    });
+
+    // --- 3. Batch Latest Activity & Comment ---
+    const lastActivityAgg = await ActivityLog.aggregate([
+      { $match: { project_id: { $in: pIds } } },
+      { $sort: { created_at: -1 } },
+      { $group: { _id: '$project_id', lastLog: { $first: '$$ROOT' } } }
+    ]);
+    const activityMap = {};
+    lastActivityAgg.forEach(r => { activityMap[r._id.toString()] = r.lastLog; });
+
+    const lastCommentAgg = await ProjectComment.aggregate([
+      { $match: { project_id: { $in: pIds } } },
+      { $sort: { created_at: -1 } },
+      { $group: { _id: '$project_id', content: { $first: '$content' } } }
+    ]);
+    const commentMap = {};
+    lastCommentAgg.forEach(r => { commentMap[r._id.toString()] = r.content; });
+
+    // --- Helper formatting ---
     const getStatusInfo = (statusStr) => {
         switch(statusStr) {
             case 'active': return { name: 'Active', color_code: '#52c41a', icon: 'play-circle' };
@@ -117,7 +266,6 @@ exports.getProjectsReports = async (req, res, next) => {
         }
     };
 
-    // Helper for formatting time ago
     const timeAgo = (date) => {
         if (!date) return '';
         const seconds = Math.floor((new Date() - new Date(date)) / 1000);
@@ -134,63 +282,26 @@ exports.getProjectsReports = async (req, res, next) => {
         return Math.floor(seconds) + " seconds ago";
     };
 
-    // Enrich data
-    const enrichedProjects = await Promise.all(projects.map(async (p) => {
-        // 1. Task Stats & Hours (Aggregation)
-
-        // Fetch valid status IDs for this project mapped by category
-        const statusMap = { todo: [], doing: [], done: [] };
-        const statuses = await TaskStatus.find({ project_id: p._id });
-        statuses.forEach(s => {
-            if (statusMap[s.category]) statusMap[s.category].push(s._id);
-        });
-
-        // Aggregate Tasks
-        const taskAgg = await Task.aggregate([
-            { $match: { project_id: p._id, is_archived: false } },
-            { $group: {
-                _id: null,
-                total: { $sum: 1 },
-                estHours: { $sum: "$estimated_hours" },
-                actHours: { $sum: "$actual_hours" },
-                todoCount: { 
-                    $sum: { $cond: [{ $in: ["$status_id", statusMap.todo] }, 1, 0] } 
-                },
-                doingCount: { 
-                    $sum: { $cond: [{ $in: ["$status_id", statusMap.doing] }, 1, 0] } 
-                },
-                doneCount: { 
-                    $sum: { $cond: [{ $in: ["$status_id", statusMap.done] }, 1, 0] } 
-                }
-            }}
-        ]);
-
-        const stats = taskAgg[0] || { total: 0, estHours: 0, actHours: 0, todoCount: 0, doingCount: 0, doneCount: 0 };
+    // --- Final Enrichment ---
+    const enrichedProjects = projects.map((p) => {
+        const pid = p._id.toString();
+        const stats = statsMap[pid] || { total: 0, estHours: 0, actHours: 0, todo: 0, doing: 0, done: 0 };
         
         const estimatedHours = p.estimated_hours || stats.estHours || 0;
         const actualHours = p.actual_hours || stats.actHours || 0;
 
         const now = new Date();
         const end = p.end_date ? new Date(p.end_date) : null;
-        let daysLeft = null;
-        let isOverdue = false;
-        let isToday = false;
-
+        let daysLeft = null, isOverdue = false, isToday = false;
         if (end) {
-            const diffTime = end.getTime() - now.getTime();
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+            const diffDays = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)); 
             if (diffDays < 0) isOverdue = true;
             else if (diffDays === 0) isToday = true;
             else daysLeft = diffDays;
         }
         
         const statusInfo = getStatusInfo(p.status);
-
-        const lastLog = await ActivityLog.findOne({ project_id: p._id }).sort({ created_at: -1 });
-        const lastActivityString = lastLog ? timeAgo(lastLog.created_at) : 'No activity';
-
-        const lastComment = await ProjectComment.findOne({ project_id: p._id }).sort({ created_at: -1 });
-        const projectUpdate = lastComment ? lastComment.content : '';
+        const lastActivityString = activityMap[pid] ? timeAgo(activityMap[pid].created_at) : 'No activity';
 
         return {
             id: p._id,
@@ -215,9 +326,9 @@ exports.getProjectsReports = async (req, res, next) => {
             health_name: p.health,
             tasks_stat: {
                 total: stats.total,
-                todo: stats.todoCount,
-                doing: stats.doingCount,
-                done: stats.doneCount
+                todo: stats.todo,
+                doing: stats.doing,
+                done: stats.done
             },
             estimated_time: estimatedHours,
             actual_time: actualHours,
@@ -227,11 +338,11 @@ exports.getProjectsReports = async (req, res, next) => {
                 name: p.owner_id?.name,
                 avatar_url: p.owner_id?.avatar_url
             },
-            client: p.client_id ? 'Client Name' : '', 
+            client: p.client_name || '', 
             last_activity: { last_activity_string: lastActivityString },
-            comment: projectUpdate
+            comment: commentMap[pid] || ''
         };
-    }));
+    });
 
     res.json({
         done: true,
@@ -242,7 +353,7 @@ exports.getProjectsReports = async (req, res, next) => {
     });
 
   } catch (error) {
-    console.error('getProjectsReports Error:', error);
+    logger.error('getProjectsReports Error: %s', error.message);
     next(error);
   }
 };
@@ -257,8 +368,8 @@ exports.getAllocationData = async (req, res, next) => {
     const { teams, projects: projectIds, categories, duration, date_range, archived, billable } = req.body;
     const { archived: archivedQuery } = req.query; 
 
-    console.log('User:', req.user._id, req.user.name);
-    console.log('Body:', JSON.stringify(req.body));
+    logger.debug('getAllocationData called by user %s', req.user._id);
+    logger.debug('getAllocationData body: %j', req.body);
 
 
     // 1. Build Project Filter
@@ -281,12 +392,11 @@ exports.getAllocationData = async (req, res, next) => {
     const userId = req.user._id;
     const memberships = await ProjectMember.find({ user_id: userId, is_active: true });
     const allowedProjectIds = memberships.map(m => m.project_id);
-    console.log(`User ${userId} has ${memberships.length} project memberships`);
-    console.log('Allowed project IDs:', allowedProjectIds.map(id => id.toString()));
+    logger.debug(`User ${userId} has ${memberships.length} project memberships`);
     
     // Then apply team filter if needed (but stay within user's allowed projects)
     if (Array.isArray(teams) && teams.length > 0) {
-        console.log('Teams filter requested:', teams);
+      logger.debug('Teams filter requested: %j', teams);
         // Find projects that match BOTH user membership AND team filter
         const teamProjects = await Project.find({ 
             _id: { $in: allowedProjectIds },
@@ -316,10 +426,7 @@ exports.getAllocationData = async (req, res, next) => {
         .select('name color_code status team_id')
         .lean();
     
-    console.log(`Found ${projects.length} matching projects.`);
-    if (projects.length > 0) {
-        console.log('Sample project:', projects[0].name);
-    }
+    logger.debug(`Found ${projects.length} matching projects.`);
 
     const finalProjectIds = projects.map(p => p._id);
     
@@ -418,13 +525,7 @@ exports.getAllocationData = async (req, res, next) => {
         total_time: fmtTime(u.total_minutes)
     }));
 
-    console.log(`\n=== ALLOCATION RESPONSE ===`);
-    console.log(`Projects count: ${projectsResponse.length}`);
-    console.log(`Users count: ${finalUsers.length}`);
-    if (projectsResponse.length > 0) {
-        console.log(`Sample project: ${projectsResponse[0].name} with ${projectsResponse[0].time_logs.length} user logs`);
-    }
-    console.log(`===========================\n`);
+    logger.debug(`Allocation response — projects: ${projectsResponse.length}, users: ${finalUsers.length}`);
 
     res.json({
         done: true,
@@ -435,8 +536,8 @@ exports.getAllocationData = async (req, res, next) => {
     });
 
   } catch (error) {
-     console.error('getAllocationData Error:', error);
-     next(error);
+    logger.error('getAllocationData Error: %s', error.message);
+    next(error);
   }
 };
 
@@ -451,7 +552,7 @@ exports.getMembersReports = async (req, res, next) => {
     const { index, size, field, order, search, archived, duration, date_range } = req.body;
     const userId = req.user._id;
 
-    console.log('Reporting Users Body:', req.body);
+    logger.debug('getMembersReports called by user %s', userId);
 
     const page = parseInt(index) || 1;
     const limit = parseInt(size) || 10;
@@ -464,7 +565,7 @@ exports.getMembersReports = async (req, res, next) => {
         return res.json({ done: true, body: { total: 0, members: [] } });
     }
     const teamId = myMembership.team_id;
-    console.log('Member Team ID:', teamId);
+    logger.debug('getMembersReports teamId: %s', teamId);
 
     // Build query for members
     const memberQuery = { team_id: teamId, is_active: true };
@@ -485,88 +586,96 @@ exports.getMembersReports = async (req, res, next) => {
         .limit(limit)
         .lean();
     
-    console.log(`Found ${members.length} members.`);
+    logger.debug(`getMembersReports: found ${members.length} members`);
 
-    // Enrich Members with Task Stats
-    const enrichedMembers = await Promise.all(members.map(async (m) => {
-        if (!m.user_id) return null; // Should not happen
+    const memberUserIds = members.map(m => m.user_id?._id).filter(Boolean);
 
-        const mUserId = m.user_id._id;
-        
-        // Build Task Query
-        const taskQuery = { 
-            assignees: mUserId, 
-            is_archived: false 
-        };
-        
-        // Date Range Filter
-        if (date_range && Array.isArray(date_range) && date_range.length === 2) {
-             taskQuery.due_date = { 
-                 $gte: new Date(date_range[0]), 
-                 $lte: new Date(date_range[1]) 
-             };
-        } else if (duration) {
-            // Handle duration string (e.g. 'last-30-days') if needed, implies backend calculation
-            // For now assuming date_range is primary filter if provided.
+    // --- Batch Task Stats ---
+    const taskQuery = { assignees: { $in: memberUserIds }, is_archived: false };
+    if (date_range && Array.isArray(date_range) && date_range.length === 2) {
+      taskQuery.due_date = { $gte: new Date(date_range[0]), $lte: new Date(date_range[1]) };
+    }
+    const allTasks = await Task.find(taskQuery).select('assignees status_id due_date project_id').lean();
+    
+    // Batch fetch status categories for all found status IDs
+    const statusIds = allTasks.map(t => t.status_id).filter(Boolean);
+    const statuses = await TaskStatus.find({ _id: { $in: statusIds } }).select('category').lean();
+    const statusMap = {};
+    statuses.forEach(s => statusMap[s._id.toString()] = s.category);
+
+    // Fetch related projects in one go to calculate distinct project counts
+    const projectIdsInTasks = [...new Set(allTasks.map(t => t.project_id?.toString()).filter(Boolean))];
+
+    const memberStatsMap = {};
+    const now = new Date();
+
+    allTasks.forEach(task => {
+      task.assignees.forEach(uid => {
+        const userIdStr = uid.toString();
+        if (!memberStatsMap[userIdStr]) {
+          memberStatsMap[userIdStr] = { todo: 0, doing: 0, done: 0, overdue: 0, total: 0, projects: new Set() };
         }
 
-        const tasks = await Task.find(taskQuery).select('status_id due_date project_id');
-        console.log(`Member ${m.user_id.name} (${mUserId}): Found ${tasks.length} tasks.`);
-        
-        // Get status categories
-        // We need status category for each task.
-        // Optimization: Get all status IDs for these tasks and map them.
-        const statusIds = tasks.map(t => t.status_id).filter(Boolean);
-        const statuses = await TaskStatus.find({ _id: { $in: statusIds } });
-        const statusMap = {}; // ID -> category
-        statuses.forEach(s => statusMap[s._id.toString()] = s.category);
+        const stats = memberStatsMap[userIdStr];
+        stats.total++;
+        if (task.project_id) stats.projects.add(task.project_id.toString());
 
-        let todo = 0, doing = 0, done = 0, overdue = 0;
-        const now = new Date();
+        const cat = statusMap[task.status_id?.toString()] || 'todo';
+        if (cat === 'done') stats.done++;
+        else if (cat === 'doing') stats.doing++;
+        else stats.todo++;
 
-        tasks.forEach(task => {
-            const cat = statusMap[task.status_id?.toString()] || 'todo';
-            if (cat === 'done') done++;
-            else if (cat === 'doing') doing++;
-            else todo++;
+        if (task.due_date && new Date(task.due_date) < now && cat !== 'done') {
+          stats.overdue++;
+        }
+      });
+    });
 
-            // Overdue check
-            if (task.due_date && new Date(task.due_date) < now && cat !== 'done') {
-                overdue++;
-            }
-        });
-
-        const totalTasks = tasks.length;
-        const ongoing = todo + doing;
+    // --- Final Enrichment ---
+    const enrichedMembers = members.map((m) => {
+        if (!m.user_id) return null;
+        const uid = m.user_id._id.toString();
+        const stats = memberStatsMap[uid] || { todo: 0, doing: 0, done: 0, overdue: 0, total: 0, projects: new Set() };
 
         return {
-            id: mUserId, 
+            id: m.user_id._id,
             name: m.user_id.name,
             email: m.user_id.email,
             avatar_url: m.user_id.avatar_url,
-            // Stats
-            tasks: totalTasks, 
-            completed: done,
-            ongoing: ongoing,
-            overdue: overdue,
+            color_code: m.user_id.color_code || '#888',
+            teams: 'Team Name', 
+            projects: stats.projects.size,
+            tasks: stats.total,
+            completed: stats.done,
+            ongoing: stats.todo + stats.doing,
+            overdue: stats.overdue,
+            todo: stats.todo,
             tasks_stat: {
-                todo,
-                doing,
-                done
+                total: stats.total,
+                todo: stats.todo,
+                doing: stats.doing,
+                done: stats.done
             }
         };
-    }));
+    }).filter(Boolean);
+
+    const resultBody = {
+        total,
+        members: enrichedMembers
+    };
+
+    // --- Save to Cache ---
+    if (typeof cacheKey !== 'undefined') {
+        await cacheService.set(cacheKey, resultBody, constants.CACHE_TTL);
+    }
 
     res.json({
         done: true,
-        body: {
-            total,
-            members: enrichedMembers.filter(Boolean)
-        }
+        body: resultBody
     });
 
   } catch (error) {
-    console.error('getMembersReports Error:', error);
+    logger.error('getMembersReports Error: %s', error.message);
     next(error);
   }
 };
@@ -661,7 +770,7 @@ exports.getTimeReportsProjects = async (req, res, next) => {
     if (Array.isArray(teams) && teams.length > 0) projectQuery.team_id = { $in: teams };
     
     const projects = await Project.find(projectQuery).select('name color_code');
-    console.log(`Found ${projects.length} projects`);
+    logger.debug(`getTimeReportsProjects: found ${projects.length} projects`);
     const pIds = projects.map(p => p._id);
     
     // TimeLogs
@@ -708,9 +817,7 @@ exports.getTimeReportsProjects = async (req, res, next) => {
         }))
         .sort((a, b) => parseFloat(b.logged_time) - parseFloat(a.logged_time));
 
-    console.log(`\n=== PROJECTS TIME REPORT RESPONSE ===`);
-    console.log(`Projects with time logs: ${result.length}`);
-    console.log(`=====================================\n`);
+    logger.debug(`Time reports projects — ${result.length} with time logs`);
 
     res.json({ done: true, body: result });
 
@@ -796,7 +903,7 @@ exports.getEstimatedVsActual = async (req, res, next) => {
     if (Array.isArray(teams) && teams.length) projectQuery.team_id = { $in: teams };
 
     const projects = await Project.find(projectQuery).select('name estimated_hours actual_hours color_code');
-    console.log(`Found ${projects.length} projects`);
+    logger.debug(`getEstimatedVsActual: found ${projects.length} projects`);
     
     // We might need to recalculate actual_hours from TimeLogs if date_range is provided.
     // If date_range is NOT provided, project.actual_hours is usually all time.

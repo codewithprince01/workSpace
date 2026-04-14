@@ -6,6 +6,8 @@ const { authValidators } = require('../middlewares/validation.middleware');
 // Public routes
 router.post('/signup', authValidators.signup, auth.signup);
 router.post('/login', authValidators.login, auth.login);
+router.post('/forgot-password', auth.forgotPassword);
+router.post('/reset-password/:token', auth.resetPassword);
 router.get('/verify', auth.verify);
 
 // Legacy route support

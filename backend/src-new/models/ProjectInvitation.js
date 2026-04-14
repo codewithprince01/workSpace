@@ -42,8 +42,7 @@ const projectInvitationSchema = new Schema({
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }
 });
 
-// Index for verifying tokens quickly
-projectInvitationSchema.index({ token: 1 });
+// NOTE: `token` already has `unique: true` in field definition, so no extra index needed.
 // Index for finding pending invites for a project
 projectInvitationSchema.index({ project_id: 1, email: 1 });
 

@@ -1,8 +1,9 @@
 import { ITaskLabel } from '@/types/tasks/taskLabel.types';
 
-const getNormalizedLabelId = (label?: ITaskLabel | Record<string, any>): string => {
+export const getNormalizedLabelId = (label?: string | ITaskLabel | Record<string, any>): string => {
   if (!label) return '';
-  const rawId = (label as any).id || (label as any).label_id || (label as any)._id || '';
+  if (typeof label === 'string') return label;
+  const rawId = (label as any).id || (label as any).label_id || (label as any)._id || (label as any).value || '';
   return String(rawId);
 };
 

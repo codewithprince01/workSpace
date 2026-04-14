@@ -28,5 +28,6 @@ const timeLogSchema = new Schema({
 
 timeLogSchema.index({ task_id: 1 });
 timeLogSchema.index({ user_id: 1, logged_date: -1 });
+timeLogSchema.index({ task_id: 1, logged_date: -1 }); // for date-range reporting queries
 
 module.exports = mongoose.model('TimeLog', timeLogSchema);

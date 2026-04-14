@@ -4,9 +4,10 @@ import TaskListFilters from '@/pages/projects/project-view-1/taskList/taskListFi
 import { useAppSelector } from '@/hooks/useAppSelector';
 import { ITaskListConfigV2, ITaskListGroup } from '@/types/tasks/taskList.types';
 import { useAppDispatch } from '@/hooks/useAppDispatch';
-import { fetchTaskGroups } from '@/features/tasks/taskSlice';
+import { fetchTaskGroups, fetchTaskListColumns } from '@/features/tasks/tasks.slice';
 import { fetchStatusesCategories } from '@/features/taskAttributes/taskStatusSlice';
 import TaskListTableWrapper from './task-list-table-wrapper/task-list-table-wrapper';
+import { columnList } from './taskListTable/columns/columnList';
 
 const TaskList = () => {
   const dispatch = useAppDispatch();
@@ -43,11 +44,12 @@ const TaskList = () => {
         isSubtasksInclude: true,
       };
       dispatch(fetchTaskGroups(config));
+      dispatch(fetchTaskListColumns(projectId));
     }
     if (!statusCategories.length) {
       dispatch(fetchStatusesCategories());
     }
-  }, [dispatch, projectId]);
+  }, [dispatch, projectId, statusCategories.length]);
 
   return (
     <Flex vertical gap={16}>

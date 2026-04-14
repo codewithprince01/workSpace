@@ -4,23 +4,28 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
 const compression = require('compression');
-const rateLimit = require('express-rate-limit');
 const session = require('express-session');
 const MongoStore = require('connect-mongo');
 const passport = require('passport');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
+const logger = require('./utils/logger');
 
 const constants = require('./config/constants');
 const errorMiddleware = require('./middlewares/error.middleware');
 
 // Import routes
 const routes = require('./routes');
+const requestIdMiddleware = require('./middlewares/requestId.middleware');
 
 const app = express();
 
 // Trust proxy (for rate limiting behind reverse proxy)
 app.set('trust proxy', 1);
+
+// Request ID tracking
+app.use(requestIdMiddleware);
 
 // Security middleware
 app.use(helmet({
@@ -31,17 +36,15 @@ app.use(helmet({
 // Compression
 app.use(compression());
 
-// HTTP request logging (async write stream – does NOT block event loop)
+// HTTP request logging
 if (process.env.NODE_ENV !== 'test') {
   if (process.env.NODE_ENV === 'production') {
-    // Async combined log for production
     const accessLogStream = fs.createWriteStream(
       path.join(__dirname, '../../request.log'),
       { flags: 'a' }
     );
     app.use(morgan('combined', { stream: accessLogStream }));
   } else {
-    // Pretty console logging for development
     app.use(morgan('dev'));
   }
 }
@@ -91,18 +94,12 @@ app.use(cors({
   exposedHeaders: ['Set-Cookie']
 }));
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: constants.RATE_LIMIT_WINDOW,
-  max: constants.RATE_LIMIT_MAX,
-  message: { success: false, message: 'Too many requests, please try again later.' }
-});
-app.use('/api/', limiter);
+// Rate limiting disabled (user requested)
 
 // Session configuration
 app.use(session({
   name: constants.SESSION_NAME,
-  secret: process.env.SESSION_SECRET || 'dev-secret',
+  secret: constants.SESSION_SECRET, // validated at startup in constants.js — no fallback
   resave: false,
   saveUninitialized: false,
   rolling: true,
@@ -130,6 +127,13 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'pug');
 
+// Swagger Specification
+const swaggerSpec = require('./config/swagger');
+app.get('/api-spec.json', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpec);
+});
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ 
@@ -141,13 +145,37 @@ app.get('/health', (req, res) => {
 });
 
 // CSRF Token endpoint
+// Generates (or reuses) a per-session crypto token. The frontend stores it in memory
+// and sends it back in X-CSRF-Token header. We validate it on state-changing routes.
 app.get('/csrf-token', (req, res) => {
-  res.json({ token: req.session?.csrfToken || 'mock-csrf-token' });
+  // If session doesn't have a CSRF token yet, generate one
+  if (!req.session.csrfToken) {
+    req.session.csrfToken = crypto.randomBytes(32).toString('hex');
+  }
+  res.json({ token: req.session.csrfToken });
 });
 
+// CSRF validation middleware — applied to all state-changing API routes.
+// Skipped for requests using Bearer token auth (JWT in Authorization header)
+// because those are not vulnerable to CSRF (browser never auto-sends that header).
+const csrfProtection = (req, res, next) => {
+  // Skip if request uses Bearer JWT auth (SPA with localStorage token)
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+    return next();
+  }
+  // For cookie-based sessions, validate the CSRF token
+  const incoming = req.headers['x-csrf-token'] || req.headers['x-csrf-Token'];
+  const expected = req.session?.csrfToken;
+  if (!expected || !incoming || incoming !== expected) {
+    logger.warn('CSRF validation failed for %s %s', req.method, req.originalUrl);
+    return res.status(403).json({ success: false, message: 'Invalid CSRF token' });
+  }
+  next();
+};
+
 // API Routes
-app.use('/api', routes);
-app.use('/secure', routes); // Legacy route support
+app.use('/api', csrfProtection, routes);
+app.use('/secure', csrfProtection, routes); // Legacy route support
 
 // 404 handler
 app.use((req, res, next) => {

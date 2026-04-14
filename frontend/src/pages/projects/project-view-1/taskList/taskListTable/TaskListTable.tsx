@@ -50,12 +50,20 @@ const TaskListTable = ({
   const selectedProject = useSelectedProject();
 
   // get columns list details
-  const columnsVisibility = useAppSelector(
-    state => state.projectViewTaskListColumnsReducer.columnList
-  );
-  const visibleColumns = columnList.filter(
-    column => columnsVisibility[column.key as keyof typeof columnsVisibility]
-  );
+  // get columns list details from unified taskReducer
+  const columns = useAppSelector(state => state.taskReducer.columns);
+  
+  // Filter columns that are visible (pinned)
+  const visibleColumns = columnList.filter(col => {
+    const columnInState = columns.find(c => c.key === col.key);
+    return columnInState ? !!columnInState.pinned : false;
+  }).concat((columns || []).filter(c => c.custom_column && c.pinned).map(c => ({
+    key: c.key || '',
+    name: c.name || '',
+    columnHeader: c.custom_column_obj?.fieldTitle || c.name || '',
+    width: c.width || 150,
+    isVisible: true // it's already filtered by pinned
+  })));
 
   // toggle subtasks visibility
   const toggleTaskExpansion = (taskId: string) => {

@@ -31,7 +31,9 @@ const authValidators = {
       .normalizeEmail(),
     body('password')
       .notEmpty().withMessage('Password is required')
-      .isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
+      .isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
+      .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/)
+      .withMessage('Password must contain at least one uppercase letter, one lowercase letter, and one number'),
     validate
   ],
   

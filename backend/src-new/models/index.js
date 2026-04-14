@@ -20,5 +20,6 @@ module.exports = {
   ProjectComment: require('./ProjectComment'),
   TaskPhase: require('./TaskPhase'),
   CustomColumn: require('./CustomColumn'),
-  ProjectInvitation: require('./ProjectInvitation')
+  ProjectInvitation: require('./ProjectInvitation'),
+  TaskDependency: require('./TaskDependency')
 };

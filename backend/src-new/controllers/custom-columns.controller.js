@@ -37,29 +37,49 @@ exports.create = async (req, res) => {
 // PUT /api/v1/custom-columns/:id
 exports.update = async (req, res) => {
     try {
+        const { id } = req.params;
         const { name, field_type, width, is_visible, configuration } = req.body;
         
-        const column = await CustomColumn.findByIdAndUpdate(
-            req.params.id,
+        console.log('>>> UPDATING COLUMN:', id, 'WITH DATA:', req.body);
+
+        const mongoose = require('mongoose');
+        const query = mongoose.Types.ObjectId.isValid(id) 
+            ? { _id: id } 
+            : { key: id };
+
+        const column = await CustomColumn.findOneAndUpdate(
+            query,
             { name, field_type, width, is_visible, configuration },
             { new: true }
         );
 
         if (!column) {
+            console.log('>>> COLUMN NOT FOUND FOR QUERY:', query);
             return res.status(404).json({ done: false, message: 'Custom column not found' });
         }
 
         res.json({ done: true, body: column });
     } catch (error) {
         console.error('Update custom column error:', error);
-        res.status(500).json({ done: false, message: 'Failed to update custom column' });
+        res.status(500).json({ 
+            done: false, 
+            message: 'Failed to update custom column',
+            error: error.message,
+            stack: error.stack
+        });
     }
 };
 
 // DELETE /api/v1/custom-columns/:id
 exports.delete = async (req, res) => {
     try {
-        const column = await CustomColumn.findByIdAndDelete(req.params.id);
+        const { id } = req.params;
+        const mongoose = require('mongoose');
+        const query = mongoose.Types.ObjectId.isValid(id) 
+            ? { _id: id } 
+            : { key: id };
+
+        const column = await CustomColumn.findOneAndDelete(query);
         if (!column) {
             return res.status(404).json({ done: false, message: 'Custom column not found' });
         }
@@ -73,28 +93,36 @@ exports.delete = async (req, res) => {
 // PUT /api/v1/custom-columns/project/:projectId/columns (Update visibility/batch update)
 exports.updateVisibility = async (req, res) => {
     try {
-        // This endpoint seems to update a single column's visibility based on the service signature
-        // The service sends "item" as body which is ITaskListColumn
-        const { id, pinned, width, custom_column_obj } = req.body;
+        const { projectId } = req.params;
+        const { pinned, width, id: bodyId } = req.body;
+        const id = req.params.id || bodyId;
         
-        // "pinned" in frontend often maps to "is_visible" or "pinned" in backend
-        // The CustomColumn model has "is_visible" and "pinned"
+        if (!id) {
+            return res.status(400).json({ done: false, message: 'Column ID is required' });
+        }
         
-        // Find by key or id. Frontend sends UUID as id for custom columns.
-        let query = {};
-        if (id) query._id = id;
+        const mongoose = require('mongoose');
+        const query = mongoose.Types.ObjectId.isValid(id) 
+            ? { _id: id } 
+            : { key: id };
         
         const update = {};
-        if (typeof pinned !== 'undefined') update.pinned = pinned; // Map pinned to pinned
-        if (typeof pinned !== 'undefined') update.is_visible = pinned; // Also map to is_visible for compatibility
+        if (typeof pinned !== 'undefined') {
+            update.pinned = pinned;
+            update.is_visible = pinned;
+        }
         if (width) update.width = parseFloat(width);
         
         const column = await CustomColumn.findOneAndUpdate(query, update, { new: true });
-        
+
         res.json({ done: true, body: column });
     } catch (error) {
          console.error('Update visibility error:', error);
-         res.status(500).json({ done: false, message: 'Failed to update column' });
+         res.status(500).json({ 
+             done: false, 
+             message: 'Failed to update column',
+             error: error.message 
+         });
     }
 };
 

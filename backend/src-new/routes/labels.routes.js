@@ -43,13 +43,57 @@ router.post('/', async (req, res) => {
 });
 
 // GET /api/labels/project/:projectId
+// Returns all labels for the team that owns this project,
+// since labels in this system are team-scoped (TaskLabel has team_id, not project_id).
 router.get('/project/:projectId', async (req, res) => {
   try {
-    const { TaskLabel } = require('../models');
+    const { TaskLabel, Task } = require('../models');
+    const { Project } = require('../models');
+    const mongoose = require('mongoose');
     const { projectId } = req.params;
-    const labels = await TaskLabel.find({ project_id: projectId });
-    res.json({ done: true, body: labels });
+
+    // Validate projectId
+    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+      return res.json({ done: true, body: [] });
+    }
+
+    // 1. Find the project to get its team_id
+    const project = await Project.findById(projectId).select('team_id').lean();
+    
+    let labels = [];
+    
+    if (project && project.team_id) {
+      // 2. Return all labels belonging to this team
+      labels = await TaskLabel.find({ team_id: project.team_id }).lean();
+    } else {
+      // 3. Fallback: find labels used in tasks of this project
+      const tasks = await Task.find({ project_id: projectId, is_trashed: false })
+        .select('labels')
+        .populate('labels', 'name color_code team_id')
+        .lean();
+      
+      const labelMap = new Map();
+      tasks.forEach(task => {
+        (task.labels || []).forEach(label => {
+          if (label && label._id) {
+            labelMap.set(String(label._id), label);
+          }
+        });
+      });
+      labels = Array.from(labelMap.values());
+    }
+
+    // Normalize output to match frontend expectations
+    const normalizedLabels = labels.map(label => ({
+      id: String(label._id || label.id),
+      name: label.name || '',
+      color_code: label.color_code || '#1890ff',
+      team_id: label.team_id ? String(label.team_id) : null,
+    }));
+
+    res.json({ done: true, body: normalizedLabels });
   } catch (error) {
+    console.error('Failed to fetch project labels:', error);
     res.status(500).json({ done: false, message: 'Failed to fetch project labels' });
   }
 });

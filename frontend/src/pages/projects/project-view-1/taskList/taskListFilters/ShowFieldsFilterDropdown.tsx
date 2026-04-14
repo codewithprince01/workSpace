@@ -9,6 +9,8 @@ import {
 import { columnList } from '../taskListTable/columns/columnList';
 import { useTranslation } from 'react-i18next';
 import { useMixpanelTracking } from '@/hooks/useMixpanelTracking';
+import { useSelectedProject } from '@/hooks/useSelectedProject';
+import { updateColumnVisibility } from '@features/tasks/tasks.slice';
 
 const ShowFieldsFilterDropdown = () => {
   const { t } = useTranslation('task-list-filters');
@@ -28,19 +30,31 @@ const ShowFieldsFilterDropdown = () => {
   ];
 
   const columnsVisibility = useAppSelector(
-    state => state.projectViewTaskListColumnsReducer.columnsVisibility
+    state => state.taskReducer.columns.reduce((acc, col) => {
+      if (col.key) acc[col.key] = !!col.pinned;
+      return acc;
+    }, {} as Record<string, boolean>)
   );
 
+  const { projectId } = useSelectedProject();
+
   const handleColumnToggle = (columnKey: string, isCustomColumn: boolean = false) => {
-    if (isCustomColumn) {
-      // dispatch(toggleCustomColumnVisibility(columnKey));
-    } else {
-      dispatch(toggleColumnVisibility(columnKey));
-    }
+    const isCurrentlyVisible = !!columnsVisibility[columnKey as keyof typeof columnsVisibility];
+    
+    // Create the updated item based on ITaskListColumn type
+    const item = {
+      key: columnKey,
+      pinned: !isCurrentlyVisible, // Use 'pinned' for the API consistency
+      custom_column: isCustomColumn
+    };
+
+    // Use the async thunk to persist to backend
+    dispatch(updateColumnVisibility({ projectId, item }));
+    
     trackMixpanelEvent('task_list_column_visibility_changed', {
       column: columnKey,
       isCustomColumn,
-      visible: !columnsVisibility[columnKey as keyof typeof columnsVisibility],
+      visible: !isCurrentlyVisible,
     });
   };
 

@@ -10,7 +10,7 @@ import { useSocket } from '@/socket/socketContext';
 import { SocketEvents } from '@/shared/socket-events';
 import { useAuthService } from '@/hooks/useAuth';
 import { Button, Checkbox, Tag } from '@/components';
-import { sortLabelsBySelection, isLabelSelected } from '@/utils/labelUtils';
+import { sortLabelsBySelection, isLabelSelected, getNormalizedLabelId } from '@/utils/labelUtils';
 
 interface LabelsSelectorProps {
   task: IProjectTask;
@@ -19,7 +19,7 @@ interface LabelsSelectorProps {
 
 const LabelsSelector: React.FC<LabelsSelectorProps> = ({ task, isDarkMode = false }) => {
   const getLabelId = (label?: ITaskLabel | Record<string, any>): string =>
-    String((label as any)?.id || (label as any)?.label_id || (label as any)?._id || '');
+    getNormalizedLabelId(label);
 
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');

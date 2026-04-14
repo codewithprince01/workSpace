@@ -62,6 +62,7 @@ import { ITaskPriority } from '@/types/tasks/taskPriority.types';
 import { ITaskListColumn } from '@/types/tasks/taskList.types';
 import { IGroupBy } from '@/features/tasks/tasks.slice';
 import { ITaskListSortableColumn } from '@/types/tasks/taskListFilters.types';
+import { AvatarNamesMap } from '@/shared/constants';
 // --- Enhanced Kanban imports ---
 import {
   setGroupBy as setKanbanGroupBy,
@@ -76,6 +77,9 @@ import {
   setBoardSearch as setKanbanBoardSearch,
   setTaskAssigneeSelection,
   setLabelSelection,
+  fetchEnhancedKanbanLabels,
+  fetchEnhancedKanbanTaskAssignees,
+  resetState as resetKanbanState,
 } from '@/features/enhanced-kanban/enhanced-kanban.slice';
 
 // Board slice imports for compatibility
@@ -221,6 +225,9 @@ const useFilterData = (position: 'board' | 'list'): FilterSection[] => {
   const currentProjectView = tab === 'tasks-list' ? 'list' : 'kanban';
 
   return useMemo(() => {
+    const getSafeId = (obj: any) =>
+      String(obj?.id || obj?._id || obj?.team_member_id || obj?.name || '');
+
     if (isBoard) {
       // Use enhanced kanban state
       const currentPriorities = kanbanState.priorities || [];
@@ -252,12 +259,12 @@ const useFilterData = (position: 'board' | 'list'): FilterSection[] => {
           multiSelect: true,
           searchable: true,
           selectedValues: currentAssignees
-            .filter((m: any) => m.selected && m.id)
-            .map((m: any) => m.id || ''),
-          options: filterData.kanbanTaskAssignees.map((assignee: any) => ({
-            id: assignee.id || '',
+            .filter((m: any) => m.selected && getSafeId(m))
+            .map((m: any) => getSafeId(m)),
+          options: filterData.taskAssignees.map((assignee: any) => ({
+            id: getSafeId(assignee),
             label: assignee.name || '',
-            value: assignee.id || '',
+            value: getSafeId(assignee),
             avatar: assignee.avatar_url,
             selected: assignee.selected,
           })),
@@ -269,12 +276,12 @@ const useFilterData = (position: 'board' | 'list'): FilterSection[] => {
           multiSelect: true,
           searchable: true,
           selectedValues: currentLabels
-            .filter((l: any) => l.selected && l.id)
-            .map((l: any) => l.id || ''),
-          options: filterData.kanbanLabels.map((label: any) => ({
-            id: label.id || '',
+            .filter((l: any) => l.selected && getSafeId(l))
+            .map((l: any) => getSafeId(l)),
+          options: filterData.taskLabels.map((label: any) => ({
+            id: getSafeId(label),
             label: label.name || '',
-            value: label.id || '',
+            value: getSafeId(label),
             color: label.color_code,
             selected: label.selected,
           })),
@@ -327,12 +334,12 @@ const useFilterData = (position: 'board' | 'list'): FilterSection[] => {
           multiSelect: true,
           searchable: true,
           selectedValues: currentAssignees
-            .filter((m: any) => m.selected && m.id)
-            .map((m: any) => m.id || ''),
+            .filter((m: any) => m.selected && getSafeId(m))
+            .map((m: any) => getSafeId(m)),
           options: currentAssignees.map((assignee: any) => ({
-            id: assignee.id || '',
+            id: getSafeId(assignee),
             label: assignee.name || '',
-            value: assignee.id || '',
+            value: getSafeId(assignee),
             avatar: assignee.avatar_url,
             selected: assignee.selected,
           })),
@@ -344,12 +351,12 @@ const useFilterData = (position: 'board' | 'list'): FilterSection[] => {
           multiSelect: true,
           searchable: true,
           selectedValues: currentLabels
-            .filter((l: any) => l.selected && l.id)
-            .map((l: any) => l.id || ''),
+            .filter((l: any) => l.selected && getSafeId(l))
+            .map((l: any) => getSafeId(l)),
           options: currentLabels.map((label: any) => ({
-            id: label.id || '',
+            id: getSafeId(label),
             label: label.name || '',
-            value: label.id || '',
+            value: getSafeId(label),
             color: label.color_code,
             selected: label.selected,
           })),
@@ -413,13 +420,24 @@ const FilterDropdown: React.FC<{
 
   // Memoized filter function to prevent unnecessary recalculations
   const filteredOptionsMemo = useMemo(() => {
-    if (!section.searchable || !searchTerm.trim()) {
-      return section.options;
+    const baseOptions = !section.searchable || !searchTerm.trim()
+      ? section.options
+      : section.options.filter(option =>
+          option.label.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+
+    // For Labels filter: show selected first, then alphabetically.
+    if (section.id === 'labels') {
+      return [...baseOptions].sort((a, b) => {
+        const aSelected = section.selectedValues.includes(a.value) ? 1 : 0;
+        const bSelected = section.selectedValues.includes(b.value) ? 1 : 0;
+        if (aSelected !== bSelected) return bSelected - aSelected;
+        return a.label.localeCompare(b.label, undefined, { sensitivity: 'base' });
+      });
     }
 
-    const searchLower = searchTerm.toLowerCase();
-    return section.options.filter(option => option.label.toLowerCase().includes(searchLower));
-  }, [searchTerm, section.options, section.searchable]);
+    return baseOptions;
+  }, [searchTerm, section.options, section.searchable, section.id, section.selectedValues]);
 
   // Update filtered options when memo changes
   useEffect(() => {
@@ -617,7 +635,27 @@ const FilterDropdown: React.FC<{
                       )}
 
                       {/* Avatar */}
-                      {option.avatar && (
+                      {(option.avatar || section.id === 'assignees') ? (
+                        <div
+                          className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-sm"
+                          style={{
+                            backgroundColor: option.avatar
+                              ? 'transparent'
+                              : AvatarNamesMap[(option.label?.[0] || 'U').toUpperCase()] || '#1890ff',
+                          }}
+                        >
+                          {option.avatar ? (
+                            <img
+                              src={option.avatar}
+                              alt={option.label}
+                              className="w-5 h-5 rounded-full object-cover"
+                            />
+                          ) : (
+                            <span>{(option.label?.[0] || 'U').toUpperCase()}</span>
+                          )}
+                        </div>
+                      ) : null}
+                      {false && (
                         <div className="w-5 h-5 bg-gray-300 rounded-full flex items-center justify-center text-xs font-medium text-gray-700 dark:bg-gray-600 dark:text-gray-300">
                           <img
                             src={option.avatar}
@@ -1293,6 +1331,18 @@ const ImprovedTaskFilters: React.FC<ImprovedTaskFiltersProps> = ({ position, cla
     };
   }, [dispatch, projectView]);
 
+  // Fetch Board-specific data (labels, members) when project changes
+  useEffect(() => {
+    if (projectId && position === 'board') {
+      // Populate kanban-specific state
+      dispatch(fetchEnhancedKanbanLabels(projectId));
+      dispatch(fetchEnhancedKanbanTaskAssignees(projectId));
+      // Also populate taskReducer state — this is what the filter dropdown reads from (filterData.taskLabels / filterData.taskAssignees)
+      dispatch(fetchLabelsByProject(projectId));
+      dispatch(fetchTaskAssignees(projectId));
+    }
+  }, [projectId, position, dispatch]);
+
   // Get sort fields for active count calculation
   const sortFields = useAppSelector(state => state.taskReducer.fields);
   const taskManagementSortField = useAppSelector(selectSortField);
@@ -1322,6 +1372,7 @@ const ImprovedTaskFilters: React.FC<ImprovedTaskFiltersProps> = ({ position, cla
   const handleSelectionChange = useCallback(
     (sectionId: string, values: string[]) => {
       if (!projectId) return;
+
       if (position === 'board') {
         // Enhanced Kanban logic
         if (sectionId === 'groupBy' && values.length > 0) {
@@ -1331,55 +1382,62 @@ const ImprovedTaskFilters: React.FC<ImprovedTaskFiltersProps> = ({ position, cla
         }
         if (sectionId === 'priority') {
           dispatch(setKanbanPriorities(values));
+          dispatch(setPriorities(values));
           dispatch(fetchEnhancedKanbanGroups(projectId));
           return;
         }
         if (sectionId === 'assignees') {
-          // Update individual assignee selections using the new action
+          // Update individual assignee selections
           const currentAssignees = kanbanState.taskAssignees || [];
-          const currentSelectedIds = currentAssignees
-            .filter((m: any) => m.selected)
-            .map((m: any) => m.id);
-
-          // First, clear all selections
+          
           currentAssignees.forEach((assignee: any) => {
             if (assignee.selected) {
               dispatch(setTaskAssigneeSelection({ id: assignee.id, selected: false }));
             }
           });
 
-          // Then set the new selections
           values.forEach(id => {
             dispatch(setTaskAssigneeSelection({ id, selected: true }));
           });
 
           dispatch(fetchEnhancedKanbanGroups(projectId));
+
+          // Also update taskReducer state
+          const updatedAssignees = currentTaskAssignees.map(member => ({
+            ...member,
+            selected: values.includes(String(member.id || member._id || '')),
+          }));
+          dispatch(setMembers(updatedAssignees));
+
           return;
         }
         if (sectionId === 'labels') {
-          // Update individual label selections using the new action
+          // Update individual label selections
           const currentLabels = kanbanState.labels || [];
-          const currentSelectedIds = currentLabels
-            .filter((l: any) => l.selected)
-            .map((l: any) => l.id);
 
-          // First, clear all selections
           currentLabels.forEach((label: any) => {
             if (label.selected) {
               dispatch(setLabelSelection({ id: label.id, selected: false }));
             }
           });
 
-          // Then set the new selections
           values.forEach(id => {
             dispatch(setLabelSelection({ id, selected: true }));
           });
 
           dispatch(fetchEnhancedKanbanGroups(projectId));
+
+          // Also update taskReducer state
+          const updatedLabels = currentTaskLabels.map(label => ({
+            ...label,
+            selected: values.includes(String(label.id || label._id || '')),
+          }));
+          dispatch(setLabels(updatedLabels));
+
           return;
         }
       } else {
-        // ... existing list logic ...
+        // List view logic
         if (sectionId === 'groupBy' && values.length > 0) {
           dispatch(setCurrentGrouping(values[0] as 'status' | 'priority' | 'phase'));
           dispatch(fetchTasksV3(projectId));
@@ -1497,12 +1555,29 @@ const ImprovedTaskFilters: React.FC<ImprovedTaskFiltersProps> = ({ position, cla
       // Execute Redux updates
       reduxUpdates();
 
+      // Board view specific clearing
+      if (position === 'board') {
+        dispatch(setKanbanSearch(''));
+        dispatch(resetKanbanState());
+      }
+
       // Use a short timeout to batch Redux state updates before API call
       // This ensures all filter state is updated before the API call
       setTimeout(() => {
         if (projectId) {
-          dispatch(fetchTasksV3(projectId));
+          if (position === 'board') {
+            dispatch(fetchEnhancedKanbanGroups(projectId));
+            // Re-fetch labels and assignees to ensure clean state (kanban-specific state)
+            dispatch(fetchEnhancedKanbanLabels(projectId));
+            dispatch(fetchEnhancedKanbanTaskAssignees(projectId));
+            // Also re-fetch for taskReducer (what filter dropdowns read from)
+            dispatch(fetchLabelsByProject(projectId));
+            dispatch(fetchTaskAssignees(projectId));
+          } else {
+            dispatch(fetchTasksV3(projectId));
+          }
         }
+        // Reset loading state after API call is initiated
         // Reset loading state after API call is initiated
         setTimeout(() => setClearingFilters(false), 100);
       }, 0);

@@ -309,6 +309,106 @@ exports.verify = async (req, res, next) => {
 };
 
 /**
+ * @desc    Forgot password
+ * @route   POST /api/auth/forgot-password
+ * @access  Public
+ */
+exports.forgotPassword = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      // For security, don't reveal if user exists. Just return "If exists..."
+      return res.json({
+        success: true,
+        message: 'If an account exists with that email, a reset link has been sent.'
+      });
+    }
+
+    // Generate reset token
+    const crypto = require('crypto');
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    
+    // Hash and store
+    user.password_reset_token = crypto.createHash('sha256').update(resetToken).digest('hex');
+    user.password_reset_expires = Date.now() + 60 * 60 * 1000; // 1 hour
+
+    await user.save({ validateBeforeSave: false });
+
+    // Send email
+    const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
+    const emailService = require('../services/email.service');
+    
+    const message = `
+      <div style="font-family: sans-serif; padding: 20px; color: #333; max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 8px;">
+        <h2 style="color: #1890ff;">Password Reset Request</h2>
+        <p>You are receiving this because you (or someone else) have requested the reset of the password for your account.</p>
+        <p>Please click on the button below to complete the process within the next hour:</p>
+        
+        <div style="margin: 40px 0; text-align: center;">
+          <a href="${resetUrl}" style="background-color: #1890ff; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Reset Password</a>
+        </div>
+        
+        <p>If you did not request this, please ignore this email and your password will remain unchanged.</p>
+        
+        <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;" />
+        <p style="color: #9eadb6; font-size: 12px;">Worklenz Security Team</p>
+      </div>
+    `;
+
+    const emailResult = await emailService.sendEmail({
+      to: user.email,
+      subject: 'Password Reset Request',
+      html: message
+    });
+
+    res.json({
+      success: true,
+      message: 'If an account exists with that email, a reset link has been sent.'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Reset password
+ * @route   POST /api/auth/reset-password/:token
+ * @access  Public
+ */
+exports.resetPassword = async (req, res, next) => {
+  try {
+    const crypto = require('crypto');
+    const resetToken = crypto.createHash('sha256').update(req.params.token).digest('hex');
+
+    const user = await User.findOne({
+      password_reset_token: resetToken,
+      password_reset_expires: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or expired password reset token'
+      });
+    }
+
+    // Set new password
+    user.password = req.body.password;
+    user.password_reset_token = undefined;
+    user.password_reset_expires = undefined;
+    user.password_changed_at = Date.now();
+    
+    await user.save();
+
+    sendTokenResponse(user, 200, res, 'Password updated successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * @desc    Update password
  * @route   PUT /api/auth/password
  * @access  Private

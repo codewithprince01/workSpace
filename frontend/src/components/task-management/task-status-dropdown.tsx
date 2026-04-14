@@ -1,16 +1,11 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useAppSelector } from '@/hooks/useAppSelector';
-import { useAppDispatch } from '@/hooks/useAppDispatch';
 import { useSocket } from '@/socket/socketContext';
 import { SocketEvents } from '@/shared/socket-events';
 import { Task } from '@/types/task-management.types';
-import {
-  updateTask,
-  selectCurrentGroupingV3,
-  selectGroups,
-  moveTaskBetweenGroups,
-} from '@/features/task-management/task-management.slice';
+import { checkTaskDependencyStatus } from '@/utils/check-task-dependency-status';
+import alertService from '@/services/alerts/alertService';
 
 interface TaskStatusDropdownProps {
   task: Task;
@@ -23,7 +18,6 @@ const TaskStatusDropdown: React.FC<TaskStatusDropdownProps> = ({
   projectId,
   isDarkMode = false,
 }) => {
-  const dispatch = useAppDispatch();
   const { socket, connected } = useSocket();
   const [isOpen, setIsOpen] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
@@ -31,8 +25,6 @@ const TaskStatusDropdown: React.FC<TaskStatusDropdownProps> = ({
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const statusList = useAppSelector(state => state.taskStatusReducer.status);
-  const currentGroupingV3 = useAppSelector(selectCurrentGroupingV3);
-  const groups = useAppSelector(selectGroups);
 
   // Find current status details
   const currentStatus = useMemo(() => {
@@ -44,40 +36,18 @@ const TaskStatusDropdown: React.FC<TaskStatusDropdownProps> = ({
 
   // Handle status change
   const handleStatusChange = useCallback(
-    (statusId: string, statusName: string) => {
+    async (statusId: string, statusName: string) => {
       if (!task.id || !statusId || !connected) return;
 
-      // Optimistic update: immediately update the task status in Redux for instant feedback
-      const updatedTask = {
-        ...task,
-        status: statusId,
-        updatedAt: new Date().toISOString(),
-      };
-      dispatch(updateTask(updatedTask));
-
-      // Handle group movement if grouping by status
-      if (currentGroupingV3 === 'status' && groups && groups.length > 0) {
-        // Find current group containing the task
-        const currentGroup = groups.find(group => group.taskIds.includes(task.id));
-        
-        // Find target group based on the new status ID
-        let targetGroup = groups.find(group => group.id === statusId);
-        
-        // If not found by status ID, try matching with group value
-        if (!targetGroup) {
-          targetGroup = groups.find(group => group.groupValue === statusId);
-        }
-
-        if (currentGroup && targetGroup && currentGroup.id !== targetGroup.id) {
-          // Move task between groups immediately for instant feedback
-          dispatch(
-            moveTaskBetweenGroups({
-              taskId: task.id,
-              sourceGroupId: currentGroup.id,
-              targetGroupId: targetGroup.id,
-            })
-          );
-        }
+      // Guard before sending status change: block moving to done if dependencies are incomplete.
+      const canContinue = await checkTaskDependencyStatus(task.id, statusId);
+      if (!canContinue) {
+        alertService.error(
+          'Task is not completed',
+          'Please complete the task dependencies before proceeding'
+        );
+        setIsOpen(false);
+        return;
       }
 
       // Emit socket event for server-side update and real-time sync
@@ -93,7 +63,7 @@ const TaskStatusDropdown: React.FC<TaskStatusDropdownProps> = ({
       socket?.emit(SocketEvents.GET_TASK_PROGRESS.toString(), task.id);
       setIsOpen(false);
     },
-    [task, connected, socket, projectId, dispatch, currentGroupingV3, groups]
+    [task, connected, socket, projectId]
   );
 
   // Calculate dropdown position and handle outside clicks

@@ -42,8 +42,12 @@ const projectMemberSchema = new Schema({
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }
 });
 
-// Compound index for unique project membership
+// Unique membership constraint
 projectMemberSchema.index({ project_id: 1, user_id: 1 }, { unique: true });
+// Common query patterns
 projectMemberSchema.index({ user_id: 1 });
+projectMemberSchema.index({ user_id: 1, is_active: 1 });           // auth filter
+projectMemberSchema.index({ project_id: 1, is_active: 1 });        // member list
+projectMemberSchema.index({ user_id: 1, is_favorite: 1 });         // starred projects
 
 module.exports = mongoose.model('ProjectMember', projectMemberSchema);

@@ -38,19 +38,15 @@ const TaskListTableWrapper = ({
   const { t } = useTranslation('task-list-table');
 
   // Get column visibility from Redux
-  const columnVisibilityList = useAppSelector(
-    state => state.projectViewTaskListColumnsReducer.columnList
-  );
-
+  // Get columns list details from unified taskReducer
+  const columns = useAppSelector(state => state.taskReducer.columns);
+  
   // Filter visible columns and format them for table-v2
-  const visibleColumns = defaultColumnList
-    .filter(column => {
-      const visibilityConfig = columnVisibilityList.find(col => col.key === column.key);
-      return visibilityConfig?.isVisible ?? false;
-    })
-    .map(column => ({
-      key: column.key,
-      width: column.width,
+  const visibleColumns = (columns || [])
+    .filter(c => !!c.pinned) // Filter only visible (pinned) columns
+    .map(c => ({
+      key: c.key || '',
+      width: c.width || 150,
     }));
 
   // function to handle toggle expand
