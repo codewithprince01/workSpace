@@ -69,6 +69,84 @@ const initializeSocket = (server) => {
     socket.on('leave:project', (projectId) => {
       socket.leave(`project:${projectId}`);
     });
+
+    const recalculateParentFromSubtasks = async (parentTaskId) => {
+      if (!parentTaskId) return null;
+
+      const parentTask = await Task.findById(parentTaskId).select('project_id status_id');
+      if (!parentTask) return null;
+
+      const subtasks = await Task.find({
+        parent_task_id: parentTaskId,
+        is_archived: false,
+        is_trashed: { $ne: true },
+      }).select('status_id');
+
+      const totalTasksCount = subtasks.length;
+      if (totalTasksCount === 0) {
+        // No subtasks: keep parent status manual as-is, only expose current progress value.
+        return {
+          parentTask: await Task.findById(parentTaskId).populate('status_id'),
+          totalTasksCount: 0,
+          completedCount: 0,
+          progress: 0,
+          statusCategory: null,
+        };
+      }
+
+      const statusIds = subtasks.map(s => s.status_id).filter(Boolean);
+      const statuses = await TaskStatus.find({ _id: { $in: statusIds } }).select('_id category');
+      const statusCategoryMap = new Map(statuses.map(s => [String(s._id), s.category]));
+
+      let completedCount = 0;
+      let inProgressCount = 0;
+
+      for (const subtask of subtasks) {
+        const category = statusCategoryMap.get(String(subtask.status_id)) || 'todo';
+        if (category === 'done') completedCount += 1;
+        else if (category === 'doing') inProgressCount += 1;
+      }
+
+      let targetCategory = 'todo';
+      let nextProgress = 0;
+      if (completedCount === totalTasksCount) {
+        targetCategory = 'done';
+        nextProgress = 100;
+      } else if (inProgressCount > 0 || completedCount > 0) {
+        targetCategory = 'doing';
+        nextProgress = Math.round((completedCount / totalTasksCount) * 100);
+      }
+
+      const targetStatus = await TaskStatus.findOne({
+        project_id: parentTask.project_id,
+        category: targetCategory,
+      })
+        .sort({ is_default: -1, sort_order: 1, created_at: 1 })
+        .select('_id category color_code');
+
+      const update = {
+        progress: nextProgress,
+        completed_at: targetCategory === 'done' ? new Date() : null,
+      };
+      if (targetStatus?._id) {
+        update.status_id = targetStatus._id;
+      }
+
+      const updatedParent = await Task.findByIdAndUpdate(parentTaskId, update, { new: true }).populate('status_id');
+      if (!updatedParent) return null;
+
+      return {
+        parentTask: updatedParent,
+        totalTasksCount,
+        completedCount,
+        progress: nextProgress,
+        statusCategory: {
+          is_todo: targetCategory === 'todo',
+          is_doing: targetCategory === 'doing',
+          is_done: targetCategory === 'done',
+        },
+      };
+    };
     
     // --- LEGACY EVENT HANDLERS (Keep for backward compatibility) ---
     socket.on('task:create', (data) => {
@@ -181,6 +259,37 @@ const initializeSocket = (server) => {
         // which causes duplicate task rows in UI.
         socket.emit(SocketEvents.QUICK_TASK.toString(), taskObj);
         socket.to(`project:${project_id}`).emit(SocketEvents.QUICK_TASK.toString(), taskObj);
+
+        // If this is a subtask, recalculate parent task progress/status immediately.
+        if (parent_task_id) {
+          const parentRecalc = await recalculateParentFromSubtasks(parent_task_id);
+          if (parentRecalc?.parentTask) {
+            const parentResponse = {
+              id: parentRecalc.parentTask._id.toString(),
+              task_id: parentRecalc.parentTask._id.toString(),
+              parent_task: null,
+              complete_ratio: parentRecalc.progress,
+              progress_value: parentRecalc.progress,
+              total_tasks_count: parentRecalc.totalTasksCount,
+              completed_count: parentRecalc.completedCount,
+            };
+            socket.emit(SocketEvents.GET_TASK_PROGRESS.toString(), parentResponse);
+            io.to(`project:${project_id}`).emit(SocketEvents.GET_TASK_PROGRESS.toString(), parentResponse);
+
+            if (parentRecalc.statusCategory) {
+              const parentStatusResponse = {
+                id: parentRecalc.parentTask._id.toString(),
+                status_id: parentRecalc.parentTask.status_id?._id?.toString?.() || parentRecalc.parentTask.status_id?.toString?.() || '',
+                color_code: parentRecalc.parentTask.status_id?.color_code,
+                complete_ratio: parentRecalc.progress,
+                completed_at: parentRecalc.parentTask.completed_at || null,
+                statusCategory: parentRecalc.statusCategory,
+              };
+              socket.emit(SocketEvents.TASK_STATUS_CHANGE.toString(), parentStatusResponse);
+              io.to(`project:${project_id}`).emit(SocketEvents.TASK_STATUS_CHANGE.toString(), parentStatusResponse);
+            }
+          }
+        }
         
         await ActivityLog.create({
             task_id: task._id,
@@ -283,10 +392,9 @@ const initializeSocket = (server) => {
             }
             const update = {
               status_id,
-              progress: isDone ? 100 : undefined,
+              progress: isDone ? 100 : 0,
               completed_at: isDone ? new Date() : null
             };
-            if (!isDone) delete update.progress;
 
             const task = await Task.findByIdAndUpdate(task_id, update, { new: true }).populate('status_id');
             if (task) {
@@ -305,6 +413,37 @@ const initializeSocket = (server) => {
                 };
                 socket.emit(SocketEvents.TASK_STATUS_CHANGE.toString(), response);
                 io.to(`project:${task.project_id}`).emit(SocketEvents.TASK_STATUS_CHANGE.toString(), response);
+
+                // If this was a subtask, recalculate parent progress/status.
+                if (task.parent_task_id) {
+                  const parentRecalc = await recalculateParentFromSubtasks(task.parent_task_id);
+                  if (parentRecalc?.parentTask) {
+                    const parentProgressResponse = {
+                      id: parentRecalc.parentTask._id.toString(),
+                      task_id: parentRecalc.parentTask._id.toString(),
+                      parent_task: null,
+                      complete_ratio: parentRecalc.progress,
+                      progress_value: parentRecalc.progress,
+                      total_tasks_count: parentRecalc.totalTasksCount,
+                      completed_count: parentRecalc.completedCount,
+                    };
+                    socket.emit(SocketEvents.GET_TASK_PROGRESS.toString(), parentProgressResponse);
+                    io.to(`project:${task.project_id}`).emit(SocketEvents.GET_TASK_PROGRESS.toString(), parentProgressResponse);
+
+                    if (parentRecalc.statusCategory) {
+                      const parentStatusResponse = {
+                        id: parentRecalc.parentTask._id.toString(),
+                        status_id: parentRecalc.parentTask.status_id?._id?.toString?.() || parentRecalc.parentTask.status_id?.toString?.() || '',
+                        color_code: parentRecalc.parentTask.status_id?.color_code,
+                        complete_ratio: parentRecalc.progress,
+                        completed_at: parentRecalc.parentTask.completed_at || null,
+                        statusCategory: parentRecalc.statusCategory,
+                      };
+                      socket.emit(SocketEvents.TASK_STATUS_CHANGE.toString(), parentStatusResponse);
+                      io.to(`project:${task.project_id}`).emit(SocketEvents.TASK_STATUS_CHANGE.toString(), parentStatusResponse);
+                    }
+                  }
+                }
             }
         } catch(e) { console.error(e); }
     });
@@ -622,15 +761,36 @@ const initializeSocket = (server) => {
 
             const task = await Task.findById(task_id).select('progress parent_task_id project_id');
             if (!task) return;
+            const subtasks = await Task.find({
+              parent_task_id: task._id,
+              is_archived: false,
+              is_trashed: { $ne: true },
+            }).select('status_id');
+
+            let totalTasksCount = subtasks.length;
+            let completedCount = 0;
+            let progress = typeof task.progress === 'number' ? task.progress : 0;
+
+            if (totalTasksCount > 0) {
+              const statusIds = subtasks.map(s => s.status_id).filter(Boolean);
+              const statuses = await TaskStatus.find({ _id: { $in: statusIds } }).select('_id category');
+              const statusCategoryMap = new Map(statuses.map(s => [String(s._id), s.category]));
+
+              for (const subtask of subtasks) {
+                const category = statusCategoryMap.get(String(subtask.status_id)) || 'todo';
+                if (category === 'done') completedCount += 1;
+              }
+              progress = Math.round((completedCount / totalTasksCount) * 100);
+            }
 
             const response = {
               id: task._id.toString(),
               task_id: task._id.toString(),
               parent_task: task.parent_task_id ? task.parent_task_id.toString() : null,
-              complete_ratio: typeof task.progress === 'number' ? task.progress : 0,
-              progress_value: typeof task.progress === 'number' ? task.progress : 0,
-              total_tasks_count: 0,
-              completed_count: 0
+              complete_ratio: progress,
+              progress_value: progress,
+              total_tasks_count: totalTasksCount,
+              completed_count: completedCount
             };
 
             if (typeof callback === 'function') {

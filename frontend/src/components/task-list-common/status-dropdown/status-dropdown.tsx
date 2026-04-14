@@ -6,6 +6,8 @@ import { useSocket } from '@/socket/socketContext';
 import { SocketEvents } from '@/shared/socket-events';
 import { IProjectTask } from '@/types/project/projectTasksViewModel.types';
 import { getCurrentGroup, GROUP_BY_STATUS_VALUE } from '@/features/tasks/tasks.slice';
+import { checkTaskDependencyStatus } from '@/utils/check-task-dependency-status';
+import alertService from '@/services/alerts/alertService';
 
 type StatusDropdownProps = {
   task: IProjectTask;
@@ -17,8 +19,16 @@ const StatusDropdown = ({ task, teamId }: StatusDropdownProps) => {
   const statusList = useAppSelector(state => state.taskStatusReducer.status);
   const themeMode = useAppSelector(state => state.themeReducer.mode);
 
-  const handleStatusChange = (statusId: string) => {
+  const handleStatusChange = async (statusId: string) => {
     if (!task.id || !statusId) return;
+    const canContinue = await checkTaskDependencyStatus(task.id, statusId);
+    if (!canContinue) {
+      alertService.error(
+        'Task is not completed',
+        'Please complete the task dependencies before proceeding'
+      );
+      return;
+    }
 
     socket?.emit(
       SocketEvents.TASK_STATUS_CHANGE.toString(),

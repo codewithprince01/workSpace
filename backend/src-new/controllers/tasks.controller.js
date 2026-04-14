@@ -234,6 +234,7 @@ exports.update = async (req, res, next) => {
         task.progress = 100;
       } else if (status && status.category !== 'done') {
         task.completed_at = null;
+        task.progress = 0;
       }
     }
     
@@ -401,7 +402,7 @@ exports.bulkUpdate = async (req, res, next) => {
       const update =
         status?.category === 'done'
           ? { status_id: statusId, progress: 100, completed_at: new Date() }
-          : { status_id: statusId, completed_at: null };
+          : { status_id: statusId, progress: 0, completed_at: null };
 
       const result = await Task.updateMany(taskFilter, { $set: update });
       return res.json({
@@ -597,6 +598,7 @@ exports.updateTaskGroup = async (req, res, next) => {
                 task.progress = 100;
             } else {
                 task.completed_at = null;
+                task.progress = 0;
             }
         }
     } else if (group_type === 'priority') {
