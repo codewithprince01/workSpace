@@ -10,26 +10,33 @@ const ReportingSider = () => {
   const { t } = useTranslation('reporting-sidebar');
 
   // Memoize the menu items since they only depend on translations
-  const menuItems = useMemo(
-    () =>
-      reportingsItems.map(item => {
-        if (item.children) {
-          return {
-            key: item.key,
-            label: t(`${item.name}`),
-            children: item.children.map(child => ({
-              key: child.key,
-              label: <Link to={`/worklenz/reporting/${child.endpoint}`}>{t(`${child.name}`)}</Link>,
-            })),
-          };
-        }
-        return {
+  const menuItems = useMemo(() => {
+    const items: any[] = [];
+
+    reportingsItems.forEach(item => {
+      if (item.children) {
+        items.push({ type: 'divider' });
+        items.push({
+          key: item.key,
+          label: t(`${item.name}`),
+          type: 'group',
+          children: item.children.map(child => ({
+            key: child.key,
+            label: <Link to={`/worklenz/reporting/${child.endpoint}`}>{t(`${child.name}`)}</Link>,
+            icon: child.icon,
+          })),
+        });
+      } else {
+        items.push({
           key: item.key,
           label: <Link to={`/worklenz/reporting/${item.endpoint}`}>{t(`${item.name}`)}</Link>,
-        };
-      }),
-    [t]
-  ); // Only recompute when translations change
+          icon: item.icon,
+        });
+      }
+    });
+
+    return items;
+  }, [t]);
 
   // Memoize the active key calculation
   const activeKey = useMemo(() => {

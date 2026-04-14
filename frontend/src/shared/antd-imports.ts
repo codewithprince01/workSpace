@@ -189,7 +189,8 @@ export {
   ShareAltOutlined,
   CloudDownloadOutlined,
   CopyOutlined,
-  RollbackOutlined
+  RollbackOutlined,
+  DashboardOutlined
 } from '@ant-design/icons';
 
 // Re-export all components with React

@@ -2,7 +2,10 @@
   "overview": "Overview",
   "projects": "Projects",
   "members": "Members",
+  "tasks": "Tasks",
   "timeReports": "Time Reports",
+  "timesheet": "Timesheet",
+  "timeLogs": "Time Logs",
   "estimateVsActual": "Estimate Vs Actual",
   "currentOrganizationTooltip": "Current organization"
 }
