@@ -73,54 +73,45 @@ const TaskDrawerInfoTab = ({ t }: TaskDrawerInfoTabProps) => {
         const filesToUpload = [...files];
         selectedFilesRef.current = filesToUpload;
 
-        // Process each file with optimistic UI
+        // Upload all files and wait for all promises to complete
         await Promise.all(
           filesToUpload.map(async file => {
-            const tempId = `temp-${Date.now()}-${file.name}`;
-            
-            // Add a temporary loading item
-            const tempAttachment: ITaskAttachmentViewModel = {
-              id: tempId,
-              name: file.name,
-              type: (file.name.split('.').pop() || '').toLowerCase(),
-              size: (file.size / 1024).toFixed(2) + ' KB',
-              // Use local URL for instant image preview if it's an image
-              url: file.type.startsWith('image/') ? await getBase64(file) as string : undefined,
+            const base64 = await getBase64(file);
+            const body: ITaskAttachment = {
+              file: base64 as string,
+              file_name: file.name,
+              task_id: taskFormViewModel?.task?.id || '',
+              project_id: projectId,
+              size: file.size,
             };
-
-            setTaskAttachments(prev => [...prev, tempAttachment]);
-
-            try {
-              const base64 = await getBase64(file);
-              const body: ITaskAttachment = {
-                file: base64 as string,
-                file_name: file.name,
-                task_id: taskFormViewModel?.task?.id || '',
-                project_id: projectId,
-                size: file.size,
-              };
-              const res = await taskAttachmentsApiService.createTaskAttachment(body);
-              if (res.done && res.body) {
-                // Replace temp item with real one
-                setTaskAttachments(prev => 
-                  prev.map(a => a.id === tempId ? (res.body as ITaskAttachmentViewModel) : a)
-                );
-              } else {
-                // Remove temp item if failed
-                setTaskAttachments(prev => prev.filter(a => a.id !== tempId));
-              }
-            } catch (err) {
-              logger.error('Error uploading file:', err);
-              setTaskAttachments(prev => prev.filter(a => a.id !== tempId));
-            }
+            await taskAttachmentsApiService.createTaskAttachment(body);
           })
         );
 
-        // Update counts once at the end based on actual success
-        fetchTaskAttachments(); 
+        const currentAttachmentCount = Number(
+          listTask?.attachments_count ?? listTaskFromGroups?.attachments_count ?? 0
+        );
+        dispatch(
+          updateTaskCounts({
+            taskId: taskFormViewModel.task.id,
+            counts: {
+              attachments_count: currentAttachmentCount + filesToUpload.length,
+            },
+          })
+        );
+        dispatch(
+          updateTaskIndicators({
+            taskId: taskFormViewModel.task.id,
+            indicators: {
+              attachments_count: currentAttachmentCount + filesToUpload.length,
+            },
+          })
+        );
       } finally {
         setProcessingUpload(false);
         selectedFilesRef.current = [];
+        // Refetch attachments after all uploads are complete
+        fetchTaskAttachments();
       }
     }
   };
@@ -211,7 +202,7 @@ const TaskDrawerInfoTab = ({ t }: TaskDrawerInfoTabProps) => {
             shape="circle"
             icon={<ReloadOutlined spin={loadingSubTasks} />}
             onClick={e => {
-              e.stopPropagation();
+              e.stopPropagation(); // Prevent click from bubbling up
               fetchSubTasks();
             }}
           />
@@ -250,17 +241,7 @@ const TaskDrawerInfoTab = ({ t }: TaskDrawerInfoTabProps) => {
         <Flex vertical gap={16}>
           <AttachmentsGrid
             attachments={taskAttachments}
-            onDelete={(id: string) => {
-              // Instantly remove from local state for snappy UX; server already updated
-              setTaskAttachments(prev => prev.filter(a => a.id !== id));
-              const currentCount = Number(
-                listTask?.attachments_count ?? listTaskFromGroups?.attachments_count ?? 0
-              );
-              if (selectedTaskId) {
-                dispatch(updateTaskCounts({ taskId: selectedTaskId, counts: { attachments_count: Math.max(0, currentCount - 1) } }));
-                dispatch(updateTaskIndicators({ taskId: selectedTaskId, indicators: { attachments_count: Math.max(0, currentCount - 1) } }));
-              }
-            }}
+            onDelete={() => fetchTaskAttachments()}
             onUpload={() => fetchTaskAttachments()}
             t={t}
             loadingTask={loadingTask}
