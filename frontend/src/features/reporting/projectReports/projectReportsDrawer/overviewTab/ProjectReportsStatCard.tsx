@@ -20,14 +20,8 @@ const ProjectReportsStatCard = ({
   // localization
   const { t } = useTranslation('reporting-projects-drawer');
 
-  type StatItemsType = {
-    name: string;
-    icon: ReactNode;
-    value: number;
-  };
-
   // stat items array
-  const statItems: StatItemsType[] = [
+  const statItems = [
     {
       name: 'completedTasks',
       icon: <CheckCircleOutlined style={{ fontSize: 24, color: '#75c997' }} />,
@@ -59,9 +53,9 @@ const ProjectReportsStatCard = ({
     <Card style={{ width: '100%' }} loading={loading}>
       <Flex vertical gap={16} style={{ padding: '12px 24px' }}>
         {statItems.map(item => (
-          <Flex gap={12} align="center">
+          <Flex gap={12} align="center" key={item.name}>
             {item.icon}
-            <Typography.Text>
+            <Typography.Text style={{ fontSize: '16px', color: '#fff' }}>
               {item.value} {t(`${item.name}Text`)}
             </Typography.Text>
           </Flex>

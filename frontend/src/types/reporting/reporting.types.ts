@@ -192,8 +192,8 @@ export interface IRPTOverviewProjectTasksStats {
   completed: number;
   incompleted: number;
   overdue: number;
-  total_allocated: number;
-  total_logged: number;
+  total_allocated: string | number;
+  total_logged: string | number;
 }
 
 export interface IRPTOverviewProjectTasksByStatus {

@@ -164,6 +164,138 @@ router.get('/members/export', protect, async (req, res) => {
   }
 });
 
-module.exports = router;
+/**
+ * @desc    Export projects reporting data to Excel
+ * @route   GET /api/reporting-export/projects/export
+ * @access  Private
+ */
+router.get('/projects/export', protect, async (req, res) => {
+  try {
+    const { team_name } = req.query;
+    const userId = req.user._id;
+
+    const myMemberships = await TeamMember.find({ user_id: userId, is_active: true }).select('team_id');
+    const teamIds = myMemberships.map(m => m.team_id).filter(Boolean);
+
+    const projects = await Project.find({ team_id: { $in: teamIds } })
+        .populate('team_id', 'name')
+        .lean();
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Projects Report');
+
+    worksheet.columns = [
+      { header: 'Project', key: 'name', width: 30 },
+      { header: 'Team', key: 'team', width: 25 },
+      { header: 'Status', key: 'status', width: 15 },
+      { header: 'Health', key: 'health', width: 15 },
+      { header: 'Start Date', key: 'start', width: 15 },
+      { header: 'End Date', key: 'end', width: 15 },
+    ];
+
+    projects.forEach(p => {
+      worksheet.addRow({
+        name: p.name,
+        team: p.team_id?.name || team_name || '-',
+        status: p.status_id || '-',
+        health: p.project_health || '-',
+        start: p.start_date ? moment(p.start_date).format('YYYY-MM-DD') : '-',
+        end: p.end_date ? moment(p.end_date).format('YYYY-MM-DD') : '-',
+      });
+    });
+
+    worksheet.getRow(1).font = { bold: true };
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename=Projects_Report.xlsx');
+
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+/**
+ * @desc    Export project members to Excel
+ * @route   GET /api/reporting-export/project-members/export
+ * @access  Private
+ */
+router.get('/project-members/export', protect, async (req, res) => {
+    try {
+        const { project_id, project_name } = req.query;
+        
+        const members = await ProjectMember.find({ project_id })
+            .populate('user_id', 'name email')
+            .lean();
+
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Project Members');
+
+        worksheet.columns = [
+            { header: 'Name', key: 'name', width: 30 },
+            { header: 'Email', key: 'email', width: 35 },
+            { header: 'Role', key: 'role', width: 20 },
+        ];
+
+        members.forEach(m => {
+            worksheet.addRow({
+                name: m.user_id?.name || '-',
+                email: m.user_id?.email || '-',
+                role: m.role || '-',
+            });
+        });
+
+        worksheet.getRow(1).font = { bold: true };
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename=Project_Members_${project_name}.xlsx`);
+        await workbook.xlsx.write(res);
+        res.end();
+    } catch (error) {
+        res.status(500).send('Internal Server Error');
+    }
+});
+
+/**
+ * @desc    Export project tasks to Excel
+ * @route   GET /api/reporting-export/project-tasks/export
+ * @access  Private
+ */
+router.get('/project-tasks/export', protect, async (req, res) => {
+    try {
+        const { project_id, project_name } = req.query;
+        
+        const tasks = await Task.find({ project_id, is_archived: false })
+            .populate('status_id', 'name')
+            .lean();
+
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Project Tasks');
+
+        worksheet.columns = [
+            { header: 'Task', key: 'name', width: 40 },
+            { header: 'Status', key: 'status', width: 20 },
+            { header: 'Priority', key: 'priority', width: 15 },
+            { header: 'Due Date', key: 'due', width: 15 },
+        ];
+
+        tasks.forEach(t => {
+            worksheet.addRow({
+                name: t.name,
+                status: t.status_id?.name || '-',
+                priority: t.priority || '-',
+                due: t.due_date ? moment(t.due_date).format('YYYY-MM-DD') : '-',
+            });
+        });
+
+        worksheet.getRow(1).font = { bold: true };
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename=Project_Tasks_${project_name}.xlsx`);
+        await workbook.xlsx.write(res);
+        res.end();
+    } catch (error) {
+        res.status(500).send('Internal Server Error');
+    }
+});
 
 module.exports = router;

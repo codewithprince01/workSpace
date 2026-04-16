@@ -38,7 +38,7 @@ export const reportingExportApiService = {
       team_id: teamId,
       team_name: teamName,
     });
-    void downloadReport(`/reporting-export/overview/projects${params}`, `Projects_Report_${teamName}.xlsx`);
+    void downloadReport(`/overview/projects${params}`, `Projects_Report_${teamName}.xlsx`);
   },
 
   exportOverviewMembersByTeam(teamId: string, teamName: string) {
@@ -46,7 +46,7 @@ export const reportingExportApiService = {
       team_id: teamId,
       team_name: teamName,
     });
-    void downloadReport(`/reporting-export/overview/members${params}`, `Members_Summary_${teamName}.xlsx`);
+    void downloadReport(`/overview/members${params}`, `Members_Summary_${teamName}.xlsx`);
   },
 
   exportAllocation(
@@ -69,14 +69,14 @@ export const reportingExportApiService = {
       billable,
       nonBillable,
     });
-    void downloadReport(`/reporting-export/allocation/export${params}`, `Allocation_Report.xlsx`);
+    void downloadReport(`/allocation/export${params}`, `Allocation_Report.xlsx`);
   },
 
   exportProjects(teamName: string | undefined) {
     const params = toQueryString({
       team_name: teamName,
     });
-    void downloadReport(`/reporting-export/projects/export${params}`, `Projects_Detailed_${teamName}.xlsx`);
+    void downloadReport(`/projects/export${params}`, `Projects_Detailed_${teamName}.xlsx`);
   },
 
   async exportMembers(
@@ -104,7 +104,7 @@ export const reportingExportApiService = {
       project_name: projectName,
       team_name: teamName ? teamName : null,
     });
-    void downloadReport(`/reporting-export/project-members/export${params}`, `Project_Members_${projectName}.xlsx`);
+    void downloadReport(`/project-members/export${params}`, `Project_Members_${projectName}.xlsx`);
   },
 
   exportProjectTasks(projectId: string, projectName: string, teamName: string | null | undefined) {
@@ -113,7 +113,7 @@ export const reportingExportApiService = {
       project_name: projectName,
       team_name: teamName ? teamName : null,
     });
-    void downloadReport(`/reporting-export/project-tasks/export${params}`, `Project_Tasks_${projectName}.xlsx`);
+    void downloadReport(`/project-tasks/export${params}`, `Project_Tasks_${projectName}.xlsx`);
   },
 
   exportMemberProjects(
@@ -130,7 +130,7 @@ export const reportingExportApiService = {
       team_name: teamName ? teamName : null,
       archived: archived,
     });
-    void downloadReport(`/reporting-export/member-projects/export${params}`, `Member_Projects_${memberName}.xlsx`);
+    void downloadReport(`/member-projects/export${params}`, `Member_Projects_${memberName}.xlsx`);
   },
 
   exportMemberTasks(
@@ -148,7 +148,7 @@ export const reportingExportApiService = {
       only_single_member: body.only_single_member ? body.only_single_member : false,
       archived: body.archived ? body.archived : false,
     });
-    void downloadReport(`/reporting-export/member-tasks/export${params}`, `Member_Tasks_${memberName}.xlsx`);
+    void downloadReport(`/member-tasks/export${params}`, `Member_Tasks_${memberName}.xlsx`);
   },
 
   exportFlatTasks(
@@ -163,7 +163,7 @@ export const reportingExportApiService = {
       project_id: projectId,
       project_name: projectName,
     });
-    void downloadReport(`/reporting-export/flat-tasks/export${params}`, `Flat_Tasks_${memberName}.xlsx`);
+    void downloadReport(`/flat-tasks/export${params}`, `Flat_Tasks_${memberName}.xlsx`);
   },
 
   exportProjectTimeLogs(body: ITimeLogBreakdownReq, projectName: string) {
@@ -173,7 +173,7 @@ export const reportingExportApiService = {
       date_range: body.date_range,
       project_name: projectName,
     });
-    void downloadReport(`/reporting-export/projects-time-log-breakdown/export${params}`, `TimeLogs_${projectName}.xlsx`);
+    void downloadReport(`/projects-time-log-breakdown/export${params}`, `TimeLogs_${projectName}.xlsx`);
   },
 
   exportMemberTimeLogs(body: any | null) {
@@ -186,7 +186,7 @@ export const reportingExportApiService = {
       team_name: body.team_name,
       archived: body.archived ? body.archived : false,
     });
-    void downloadReport(`/reporting-export/member-time-log-breakdown/export${params}`, `TimeLogs_${body.member_name}.xlsx`);
+    void downloadReport(`/member-time-log-breakdown/export${params}`, `TimeLogs_${body.member_name}.xlsx`);
   },
 
   exportMemberActivityLogs(body: any | null) {
@@ -199,6 +199,6 @@ export const reportingExportApiService = {
       team_name: body.team_name,
       archived: body.archived ? body.archived : false,
     });
-    void downloadReport(`/reporting-export/member-activity-log-breakdown/export${params}`, `ActivityLogs_${body.member_name}.xlsx`);
+    void downloadReport(`/member-activity-log-breakdown/export${params}`, `ActivityLogs_${body.member_name}.xlsx`);
   },
 };

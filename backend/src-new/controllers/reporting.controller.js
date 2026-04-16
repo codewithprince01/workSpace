@@ -1,4 +1,4 @@
-const { Project, Task, TaskStatus, TimeLog, ActivityLog, ProjectComment, ProjectCategory, ProjectMember, Team, TeamMember } = require('../models');
+const { Project, Task, TaskStatus, TimeLog, ActivityLog, ProjectComment, ProjectCategory, ProjectMember, Team, TeamMember, TaskPhase } = require('../models');
 const mongoose = require('mongoose');
 const logger = require('../utils/logger');
 const cacheService = require('../services/cache.service');
@@ -1001,6 +1001,252 @@ exports.getEstimatedVsActual = async (req, res, next) => {
      next(error);
  }
 };
+
+/**
+ * @desc    Get project overview info
+ * @route   GET /api/reporting/overview/project/info/:id
+ * @access  Private
+ */
+exports.getProjectOverviewInfo = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const project = await Project.findById(id).lean();
+    if (!project) return res.status(404).json({ done: false, message: 'Project not found' });
+
+    const tasks = await Task.find({ project_id: id, is_archived: false }).lean();
+    const statuses = await TaskStatus.find({ project_id: id }).lean();
+    
+    // Stats
+    const totalCount = tasks.length;
+    const findStatusIds = (cat) => statuses.filter(s => s.category === cat).map(s => s._id.toString());
+    const doneIds = findStatusIds('done');
+    const doingIds = findStatusIds('doing');
+    
+    const completed = tasks.filter(t => doneIds.includes(t.status_id?.toString())).length;
+    const incompleted = totalCount - completed;
+    const now = new Date();
+    const overdue = tasks.filter(t => !doneIds.includes(t.status_id?.toString()) && t.due_date && new Date(t.due_date) < now).length;
+
+    // Time
+    const totalAllocated = project.estimated_hours || tasks.reduce((acc, t) => acc + (t.estimated_hours || 0), 0);
+    const totalLogged = project.actual_hours || tasks.reduce((acc, t) => acc + (t.actual_hours || 0), 0);
+
+    // By Status
+    const todo = tasks.filter(t => !doneIds.includes(t.status_id?.toString()) && !doingIds.includes(t.status_id?.toString())).length;
+    const doing = tasks.filter(t => doingIds.includes(t.status_id?.toString())).length;
+    
+    // By Priority
+    const pLow = tasks.filter(t => t.priority === 'low' || t.priority === 0).length;
+    const pMed = tasks.filter(t => t.priority === 'medium' || t.priority === 1).length;
+    const pHigh = tasks.filter(t => t.priority === 'high' || t.priority === 2 || t.priority === 'urgent' || t.priority === 3).length;
+
+    // By Due
+    const upcoming = tasks.filter(t => !doneIds.includes(t.status_id?.toString()) && t.due_date && new Date(t.due_date) >= now).length;
+    const noDue = tasks.filter(t => !t.due_date).length;
+
+    const response = {
+        stats: { 
+            completed, 
+            incompleted, 
+            overdue, 
+            total_allocated: formatHours(totalAllocated), 
+            total_logged: formatHours(totalLogged) 
+        },
+        by_status: {
+            all: totalCount, todo, doing, done: completed,
+            chart: [
+                { name: 'Todo', color: '#8c8c8c', y: todo },
+                { name: 'Doing', color: '#1890ff', y: doing },
+                { name: 'Done', color: '#52c41a', y: completed }
+            ]
+        },
+        by_priority: {
+            all: totalCount, low: pLow, medium: pMed, high: pHigh,
+            chart: [
+                { name: 'Low', color: '#52c41a', y: pLow },
+                { name: 'Medium', color: '#faad14', y: pMed },
+                { name: 'High', color: '#ff4d4f', y: pHigh }
+            ]
+        },
+        by_due: {
+            all: totalCount, completed, upcoming, overdue, no_due: noDue,
+            chart: [
+                { name: 'Completed', color: '#52c41a', y: completed },
+                { name: 'Upcoming', color: '#1890ff', y: upcoming },
+                { name: 'Overdue', color: '#ff4d4f', y: overdue },
+                { name: 'No Due Date', color: '#8c8c8c', y: noDue }
+            ]
+        }
+    };
+
+    res.json({ done: true, body: response });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Get project overview members
+ * @route   GET /api/reporting/overview/project/members/:id
+ * @access  Private
+ */
+exports.getProjectOverviewMembers = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const projectMembers = await ProjectMember.find({ project_id: id, is_active: true })
+        .populate('user_id', 'name avatar_url color_code')
+        .lean();
+    
+    const tasks = await Task.find({ project_id: id, is_archived: false }).lean();
+    const statuses = await TaskStatus.find({ project_id: id }).lean();
+    const doneIds = statuses.filter(s => s.category === 'done').map(s => s._id.toString());
+    const now = new Date();
+
+    const membersRes = projectMembers.map(pm => {
+        if (!pm.user_id) return null;
+        const uid = pm.user_id._id.toString();
+        const userTasks = tasks.filter(t => t.assignees?.some(a => a.toString() === uid));
+        
+        const tasksCount = userTasks.length;
+        const comp = userTasks.filter(t => doneIds.includes(t.status_id?.toString())).length;
+        const incomp = tasksCount - comp;
+        const ovrd = userTasks.filter(t => !doneIds.includes(t.status_id?.toString()) && t.due_date && new Date(t.due_date) < now).length;
+        
+        return {
+            id: pm._id,
+            name: pm.user_id.name,
+            tasks_count: tasksCount,
+            completed: comp,
+            incompleted: incomp,
+            overdue: ovrd,
+            contribution: tasksCount > 0 ? Math.round((comp / tasksCount) * 100) : 0,
+            progress: tasksCount > 0 ? Math.round((comp / tasksCount) * 100) : 0,
+            time_logged: formatHours(userTasks.reduce((acc, t) => acc + (t.actual_hours || 0), 0))
+        };
+    }).filter(Boolean);
+
+    res.json({ done: true, body: membersRes });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Get project overview tasks
+ * @route   GET /api/reporting/overview/project/tasks/:id
+ * @access  Private
+ */
+exports.getProjectOverviewTasks = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { group } = req.query;
+
+    const tasks = await Task.find({ project_id: id, is_archived: false })
+        .populate('status_id', 'name color_code category')
+        .populate('phase_id', 'name color_code')
+        .populate('assignees', 'name avatar_url')
+        .populate('labels', 'name color_code')
+        .sort({ created_at: -1 })
+        .lean();
+
+    const statuses = await TaskStatus.find({ project_id: id }).sort({ sort_order: 1 }).lean();
+    const phases = await TaskPhase.find({ project_id: id }).lean();
+    
+    const now = dayjs();
+
+    const formatTask = (t) => {
+        const est = t.estimated_hours || 0;
+        const act = t.actual_hours || 0;
+        const over = act > est ? act - est : 0;
+        
+        let overdue_days = 0;
+        if (t.due_date && !t.completed_at) {
+            const due = dayjs(t.due_date);
+            if (due.isBefore(now)) {
+                overdue_days = now.diff(due, 'day');
+            }
+        }
+
+        return {
+            id: t._id,
+            name: t.name,
+            key: t.task_key,
+            sub_tasks_count: t.sub_tasks_count || 0,
+            
+            priority_name: getPriorityName(t.priority),
+            priority_color: getPriorityColor(t.priority),
+            
+            status_name: t.status_id?.name || 'Unknown',
+            status_color: t.status_id?.color_code || '#d9d9d9',
+            
+            phase_name: t.phase_id?.name || '-',
+            phase_color: t.phase_id?.color_code || 'transparent',
+            
+            end_date: t.due_date,
+            completed_at: t.completed_at,
+            overdue_days: overdue_days > 0 ? overdue_days : '-',
+            
+            total_time_string: formatHours(est),
+            time_spent_string: formatHours(act),
+            overlogged_time_string: over > 0 ? formatHours(over) : '-'
+        };
+    };
+
+    let resultGroups = [];
+
+    if (group === 'priority') {
+        const pOptions = [
+            { id: 'high', name: 'High', color: '#f37070', val: 2 },
+            { id: 'medium', name: 'Medium', color: '#faad14', val: 1 },
+            { id: 'low', name: 'Low', color: '#52c41a', val: 0 },
+            { id: 'none', name: 'None', color: '#d9d9d9', val: null }
+        ];
+        resultGroups = pOptions.map(p => ({
+            id: p.id,
+            name: p.name,
+            color_code: p.color,
+            tasks: tasks.filter(t => (p.val === null ? !t.priority : t.priority === p.val)).map(formatTask)
+        }));
+    } else if (group === 'phase') {
+        resultGroups = phases.map(p => ({
+            id: p._id,
+            name: p.name,
+            color_code: p.color_code,
+            tasks: tasks.filter(t => t.phase_id?.toString() === p._id.toString()).map(formatTask)
+        }));
+        const unmapped = tasks.filter(t => !t.phase_id).map(formatTask);
+        if (unmapped.length) resultGroups.push({ id: 'unmapped', name: 'Unmapped', color_code: '#d9d9d9', tasks: unmapped });
+    } else {
+        resultGroups = statuses.map(s => ({
+          id: s._id,
+          name: s.name,
+          color_code: s.color_code,
+          tasks: tasks.filter(t => t.status_id?._id?.toString() === s._id.toString()).map(formatTask)
+        }));
+    }
+
+    res.json({ done: true, body: resultGroups.filter(g => g.tasks.length > 0) });
+  } catch (error) {
+    next(error);
+  }
+};
+
+function getPriorityName(p) {
+    if (p === 0 || p === 'low') return 'Low';
+    if (p === 1 || p === 'medium') return 'Medium';
+    if (p === 2 || p === 'high') return 'High';
+    if (p === 3 || p === 'urgent') return 'Urgent';
+    return '-';
+}
+
+function getPriorityColor(p) {
+    if (p === 0 || p === 'low') return '#52c41a';
+    if (p === 1 || p === 'medium') return '#faad14';
+    if (p === 2 || p === 'high') return '#f37070';
+    if (p === 3 || p === 'urgent') return '#f5222d';
+    return 'transparent';
+}
+
 // Helper functions (existing)
 async function getStatusIdsByCategory(projectId, category) {
    // This would be expensive in loop. Better to fetch all statuses once or use aggregation.
