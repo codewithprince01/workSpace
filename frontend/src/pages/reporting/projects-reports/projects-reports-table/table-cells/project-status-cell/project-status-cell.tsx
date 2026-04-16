@@ -19,21 +19,19 @@ const ProjectStatusCell = ({ currentStatus, projectId }: ProjectStatusCellProps)
   const { t } = useTranslation('reporting-projects');
   const dispatch = useAppDispatch();
   const { socket } = useSocket();
-  const { projectStatuses } = useAppSelector(state => state.projectStatusesReducer);
+  
+  // Use centralized project reporting statuses
+  const { allStatuses } = useAppSelector(state => state.projectReportsReducer);
   const [selectedStatus, setSelectedStatus] = useState(currentStatus);
 
-  // Find current status object
-  const currentStatusObject = projectStatuses.find(status => status.id === selectedStatus);
-
-  const statusOptions = projectStatuses.map(status => ({
+  const statusOptions = allStatuses.map(status => ({
     value: status.id,
     label: (
       <Typography.Text
-        style={{ display: 'flex', alignItems: 'center', gap: 4 }}
-        className="group-hover:text-[#1890ff]"
+        style={{ display: 'flex', alignItems: 'center', gap: 6 }}
       >
-        {getStatusIcon(status.icon || '', status.color_code || '')}
-        {t(`${status.name}`)}
+        {getStatusIcon(status.id || '', status.color_code || '')}
+        {status.name}
       </Typography.Text>
     ),
   }));
@@ -44,7 +42,7 @@ const ProjectStatusCell = ({ currentStatus, projectId }: ProjectStatusCellProps)
         throw new Error('Invalid status value or project ID');
       }
 
-      const newStatus = projectStatuses.find(status => status.id === value);
+      const newStatus = allStatuses.find(status => status.id === value);
       if (!newStatus) {
         throw new Error('Status not found');
       }
@@ -53,7 +51,7 @@ const ProjectStatusCell = ({ currentStatus, projectId }: ProjectStatusCellProps)
       setSelectedStatus(value);
 
       // Update Redux store
-      dispatch(setProjectStatus({ projectId, status: newStatus }));
+      dispatch(setProjectStatus({ id: projectId, ...newStatus }));
 
       // Emit socket event
       socket?.emit(
@@ -79,6 +77,8 @@ const ProjectStatusCell = ({ currentStatus, projectId }: ProjectStatusCellProps)
         components: {
           Select: {
             selectorBg: colors.transparent,
+            colorText: '#fff',
+            colorIcon: 'rgba(255, 255, 255, 0.45)',
           },
         },
       }}
@@ -88,6 +88,8 @@ const ProjectStatusCell = ({ currentStatus, projectId }: ProjectStatusCellProps)
         options={statusOptions}
         value={selectedStatus}
         onChange={handleStatusChange}
+        style={{ width: '100%', color: '#fff' }}
+        dropdownStyle={{ backgroundColor: '#262626' }}
       />
     </ConfigProvider>
   );

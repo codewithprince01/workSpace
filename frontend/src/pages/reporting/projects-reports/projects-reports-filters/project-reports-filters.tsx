@@ -10,13 +10,18 @@ import ProjectTableShowFieldsDropdown from './project-table-show-fields-dropdown
 import CustomSearchbar from '@/components/CustomSearchbar';
 import { useAppSelector } from '@/hooks/useAppSelector';
 import { useAppDispatch } from '@/hooks/useAppDispatch';
-import { setSearchQuery, setViewMode } from '@/features/reporting/projectReports/project-reports-slice';
-import { AppstoreOutlined, UnorderedListOutlined } from '@/shared/antd-imports';
+import { setSearchQuery, setViewMode, fetchProjectReportingFilters, fetchProjectData, resetProjectReports } from '@/features/reporting/projectReports/project-reports-slice';
+import { AppstoreOutlined, UnorderedListOutlined, ReloadOutlined } from '@/shared/antd-imports';
+import { useEffect } from 'react';
 
 const ProjectsReportsFilters = () => {
   const dispatch = useAppDispatch();
   const { t } = useTranslation('reporting-projects-filters');
   const { searchQuery, viewMode } = useAppSelector(state => state.projectReportsReducer);
+
+  useEffect(() => {
+    dispatch(fetchProjectReportingFilters());
+  }, [dispatch]);
 
   const handleSearchQueryChange = useCallback(
     (text: string) => {
@@ -38,7 +43,7 @@ const ProjectsReportsFilters = () => {
         <ProjectManagersFilterDropdown />
       </Flex>
     ),
-    []
+    [dispatch]
   );
 
   const rightControls = useMemo(

@@ -21,6 +21,11 @@ export const reportingProjectsApiService = {
     const response = await apiClient.post<IServerResponse<IRPTProjectsViewModel>>(url, body);
     return response.data;
   },
+  getFilters: async (): Promise<IServerResponse<any>> => {
+    const url = `${API_BASE_URL}/reporting/projects/filters`;
+    const response = await apiClient.get<IServerResponse<any>>(url);
+    return response.data;
+  },
 
   getProjectOverview: async (
     projectId: string

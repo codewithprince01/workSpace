@@ -9,33 +9,27 @@ import {
   Input,
   InputRef,
   List,
-  Typography,
+  Badge,
 } from '@/shared/antd-imports';
-import { CaretDownFilled } from '@/shared/antd-imports';
+import { CaretDownFilled, SearchOutlined } from '@/shared/antd-imports';
 import { useAppDispatch } from '@/hooks/useAppDispatch';
 import { useAppSelector } from '@/hooks/useAppSelector';
-import { fetchTeams } from '@/features/teams/teamSlice';
 import {
   fetchProjectData,
-  setAllProjectTeams,
+  setSelectedProjectTeams,
 } from '@/features/reporting/projectReports/project-reports-slice';
-import { ITeamGetResponse } from '@/types/teams/team.type';
 
 const ProjectTeamsFilterDropdown = () => {
   const dispatch = useAppDispatch();
   const inputRef = useRef<InputRef>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [localSelected, setLocalSelected] = useState<{ id: string; name: string }[]>([]);
 
-  const { teamsList, loading: teamsLoading } = useAppSelector(state => state.teamReducer);
-  const { mode: themeMode } = useAppSelector(state => state.themeReducer);
-
-  useEffect(() => {
-    if (teamsList.length === 0 && !teamsLoading) {
-      dispatch(fetchTeams());
-    }
-  }, [dispatch]);
+  const {
+    allTeams: teamsList,
+    isFilterLoading: teamsLoading,
+    selectedProjectTeams: localSelected,
+  } = useAppSelector(state => state.projectReportsReducer);
 
   const handleOpenChange = (open: boolean) => {
     setIsDropdownOpen(open);
@@ -51,134 +45,107 @@ const ProjectTeamsFilterDropdown = () => {
   );
 
   const isChecked = useCallback(
-    (team: ITeamGetResponse) => localSelected.some(t => t.id === team.id),
+    (team: any) => localSelected.some(t => String(t.id) === String(team.id)),
     [localSelected]
   );
 
   const handleToggle = useCallback(
-    (team: ITeamGetResponse) => {
-      if (!team.id) return;
-      setLocalSelected(prev => {
-        const exists = prev.some(t => t.id === team.id);
-        const updated = exists
-          ? prev.filter(t => t.id !== team.id)
-          : [...prev, { id: team.id!, name: team.name || '' }];
-        dispatch(setAllProjectTeams(updated));
-        dispatch(fetchProjectData());
-        return updated;
-      });
+    (team: any) => {
+      const exists = localSelected.some(t => String(t.id) === String(team.id));
+      const updated = exists
+        ? localSelected.filter(t => String(t.id) !== String(team.id))
+        : [...localSelected, team];
+      
+      dispatch(setSelectedProjectTeams(updated));
+      dispatch(fetchProjectData());
     },
-    [dispatch]
+    [dispatch, localSelected]
   );
-
-  const handleSelectAll = useCallback(() => {
-    const all = filteredTeams.filter(t => t.id).map(t => ({ id: t.id!, name: t.name || '' }));
-    setLocalSelected(all);
-    dispatch(setAllProjectTeams(all));
-    dispatch(fetchProjectData());
-  }, [dispatch, filteredTeams]);
-
-  const handleClearAll = useCallback(() => {
-    setLocalSelected([]);
-    dispatch(setAllProjectTeams([]));
-    dispatch(fetchProjectData());
-  }, [dispatch]);
 
   const selectedCount = localSelected.length;
   const label =
     selectedCount === 0
-      ? 'All Teams'
+      ? 'Team'
       : selectedCount === 1
-        ? localSelected[0].name || 'Team'
-        : `${selectedCount} Teams`;
+        ? localSelected[0].name
+        : `${localSelected[0].name} (+${selectedCount - 1})`;
 
   const dropdownContent = (
-    <Card className="custom-card" styles={{ body: { padding: 8, width: 260 } }}>
-      <Flex vertical gap={8}>
-        {/* Label + Input */}
-        <Typography.Text style={{ fontSize: 12, fontWeight: 500 }}>
-          Search by name
-        </Typography.Text>
+    <Card 
+        style={{ 
+            backgroundColor: '#1d1d1d', 
+            border: '1px solid #333', 
+            borderRadius: '8px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+            minWidth: '220px'
+        }} 
+        styles={{ body: { padding: '4px 0' } }}
+    >
+      <div style={{ padding: '8px 12px' }}>
         <Input
           ref={inputRef}
           value={searchQuery}
           onChange={e => setSearchQuery(e.currentTarget.value)}
           placeholder="Search by name"
-          size="small"
+          prefix={<SearchOutlined style={{ color: '#888' }} />}
+          style={{ backgroundColor: '#262626', border: '1px solid #333', color: '#fff' }}
         />
+      </div>
 
-        {/* Select All | Clear All */}
-        <Flex align="center">
-          <Typography.Link style={{ fontSize: 12 }} onClick={handleSelectAll}>
-            Select All
-          </Typography.Link>
-          <Typography.Text style={{ margin: '0 6px', color: '#999' }}>|</Typography.Text>
-          <Typography.Link
-            style={{ fontSize: 12, color: '#ff4d4f' }}
-            onClick={handleClearAll}
+      <List style={{ padding: 0, maxHeight: '300px', overflowY: 'auto' }} loading={teamsLoading}>
+        {filteredTeams.length ? (
+          filteredTeams.map(team => (
+            <div 
+                key={String(team.id)}
+                onClick={() => handleToggle(team)}
+                style={{ 
+                    padding: '8px 16px', 
+                    cursor: 'pointer', 
+                    display: 'flex', 
+                    alignItems: 'center',
+                    background: isChecked(team) ? 'rgba(24, 144, 255, 0.1)' : 'transparent',
+                    transition: 'background 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#262626'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = isChecked(team) ? 'rgba(24, 144, 255, 0.1)' : 'transparent'}
+            >
+                <Checkbox
+                    checked={isChecked(team)}
+                    className="premium-checkbox"
+                />
+                <Flex align="center" gap={10} style={{ marginLeft: 12, flex: 1 }}>
+                    {team.color && (
+                        <div
+                            style={{
+                                width: 8,
+                                height: 8,
+                                borderRadius: '50%',
+                                backgroundColor: team.color,
+                                flexShrink: 0,
+                            }}
+                        />
+                    )}
+                    <span style={{ color: '#fff', fontSize: '13px', fontWeight: isChecked(team) ? 600 : 400 }}>{team.name}</span>
+                </Flex>
+            </div>
+          ))
+        ) : (
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={<span style={{ color: '#888' }}>No teams found</span>} />
+        )}
+      </List>
+      
+      {selectedCount > 0 && (
+          <div 
+            style={{ padding: '8px 16px', borderTop: '1px solid #333', textAlign: 'center' }}
+            onClick={(e) => {
+                e.stopPropagation();
+                dispatch(setSelectedProjectTeams([]));
+                dispatch(fetchProjectData());
+            }}
           >
-            Clear All
-          </Typography.Link>
-        </Flex>
-
-        {/* Team list */}
-        <List style={{ padding: 0 }} loading={teamsLoading}>
-          {filteredTeams.length ? (
-            filteredTeams.map(team => {
-              const checked = isChecked(team);
-              return (
-                <List.Item
-                  className={`custom-list-item ${themeMode === 'dark' ? 'dark' : ''}`}
-                  key={team.id}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'flex-start',
-                    gap: 8,
-                    padding: '4px 8px',
-                    border: 'none',
-                    cursor: 'pointer',
-                  }}
-                  onClick={() => handleToggle(team)}
-                >
-                  <Flex align="center" gap={8} style={{ width: '100%' }}>
-                    {/* Checkbox only visible when checked */}
-                    <Checkbox
-                      checked={checked}
-                      onChange={e => {
-                        e.stopPropagation();
-                        handleToggle(team);
-                      }}
-                      style={{
-                        visibility: checked ? 'visible' : 'hidden',
-                        width: checked ? 'auto' : 0,
-                        minWidth: checked ? 16 : 0,
-                        overflow: 'hidden',
-                        transition: 'all 0.15s ease',
-                        flexShrink: 0,
-                      }}
-                    />
-                    {/* Team name */}
-                    <Typography.Text style={{ flex: 1 }}>{team.name}</Typography.Text>
-                    {/* Green active dot */}
-                    <span
-                      style={{
-                        display: 'inline-block',
-                        width: 8,
-                        height: 8,
-                        borderRadius: '50%',
-                        backgroundColor: '#52c41a',
-                        flexShrink: 0,
-                      }}
-                    />
-                  </Flex>
-                </List.Item>
-              );
-            })
-          ) : (
-            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
-          )}
-        </List>
-      </Flex>
+            <Button type="text" size="small" style={{ color: '#888', fontSize: '12px' }}>Clear All</Button>
+          </div>
+      )}
     </Card>
   );
 
@@ -190,16 +157,36 @@ const ProjectTeamsFilterDropdown = () => {
       onOpenChange={handleOpenChange}
     >
       <Button
-        icon={<CaretDownFilled />}
+        icon={<CaretDownFilled style={{ fontSize: '10px' }} />}
         iconPosition="end"
         loading={teamsLoading}
-        style={
-          selectedCount > 0 || isDropdownOpen
-            ? { borderColor: '#1890ff', color: '#1890ff' }
-            : {}
-        }
+        style={{
+            backgroundColor: isDropdownOpen ? '#262626' : '#1d1d1d',
+            borderColor: selectedCount > 0 || isDropdownOpen ? '#1890ff' : '#333',
+            color: selectedCount > 0 || isDropdownOpen ? '#1890ff' : '#bfbfbf',
+            borderRadius: '6px',
+            height: '32px',
+            fontSize: '13px',
+            transition: 'all 0.3s',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+        }}
       >
-        {label}
+        <span>{label}</span>
+        {selectedCount > 1 && (
+            <Badge 
+                count={selectedCount} 
+                style={{ 
+                    backgroundColor: '#1890ff', 
+                    color: '#fff', 
+                    minWidth: '18px', 
+                    height: '18px', 
+                    lineHeight: '18px', 
+                    fontSize: '10px' 
+                }} 
+            />
+        )}
       </Button>
     </Dropdown>
   );

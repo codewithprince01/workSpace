@@ -1,11 +1,5 @@
-import React from 'react';
-import { Bar } from 'react-chartjs-2';
-import { Chart, BarElement, CategoryScale, LinearScale } from 'chart.js';
-import { ChartOptions } from 'chart.js';
-import { Typography } from '@/shared/antd-imports';
+import { Typography, Flex } from '@/shared/antd-imports';
 import { useTranslation } from 'react-i18next';
-
-Chart.register(BarElement, CategoryScale, LinearScale);
 
 type EstimatedVsActualCellProps = {
   actualTime: number | null;
@@ -22,71 +16,42 @@ const EstimatedVsActualCell = ({
 }: EstimatedVsActualCellProps) => {
   const { t } = useTranslation('reporting-projects');
 
-  const options: ChartOptions<'bar'> = {
-    indexAxis: 'y',
-    scales: {
-      x: {
-        display: false,
-      },
-      y: {
-        display: false,
-      },
-    },
-    plugins: {
-      legend: {
-        display: false,
-        position: 'top' as const,
-      },
-      datalabels: {
-        display: false,
-      },
-      tooltip: {
-        enabled: false,
-      },
-    },
-  };
+  if (!actualTime && !estimatedTime) {
+      return <Typography.Text style={{ color: '#555' }}>-</Typography.Text>;
+  }
 
-  // data for the chart
-  const graphData = {
-    labels: [t('estimatedText'), t('actualText')],
-    datasets: [
-      {
-        data: [estimatedTime, actualTime],
-        backgroundColor: ['#7a84df', '#c191cc'],
-        barThickness: 15,
-        height: 29,
-      },
-    ],
-  };
-
+  // Calculate percentage for a progress bar if needed, 
+  // but the user wants "Estimated: 12h 12m Actual: 0h 2m" design.
+  
   return (
-    <div>
-      {actualTime || estimatedTime ? (
-        <div style={{ position: 'relative', width: '100%', maxWidth: '200px' }}>
-          <Bar options={options} data={graphData} style={{ maxHeight: 39 }} />
-          <Typography.Text
-            style={{
-              position: 'absolute',
-              fontSize: 12,
-              fontWeight: 500,
-              left: 8,
-              top: 1,
-            }}
-          >{`${t('estimatedText')}: ${estimatedTimeString}`}</Typography.Text>
-          <Typography.Text
-            style={{
-              position: 'absolute',
-              fontSize: 12,
-              fontWeight: 500,
-              left: 8,
-              top: 20,
-            }}
-          >{`${t('actualText')}: ${actualTimeString}`}</Typography.Text>
-        </div>
-      ) : (
-        <Typography.Text>-</Typography.Text>
-      )}
-    </div>
+    <Flex vertical gap={2} style={{ width: '100%' }}>
+      <div 
+        style={{ 
+            backgroundColor: '#7c83da', 
+            padding: '2px 10px', 
+            borderRadius: '4px', 
+            width: 'fit-content',
+            marginBottom: '2px'
+        }}
+      >
+        <Typography.Text style={{ fontSize: '12px', color: '#fff', fontWeight: 600 }}>
+          {t('estimatedText')}: {estimatedTimeString || '0h'}
+        </Typography.Text>
+      </div>
+      <div 
+        style={{ 
+            paddingLeft: '10px', 
+            borderLeft: '2px solid rgba(193, 145, 204, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            height: '20px'
+        }}
+      >
+        <Typography.Text style={{ fontSize: '12px', color: '#fff', fontWeight: 500 }}>
+          {t('actualText')}: {actualTimeString || '0h'}
+        </Typography.Text>
+      </div>
+    </Flex>
   );
 };
 

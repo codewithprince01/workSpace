@@ -43,6 +43,14 @@ type ProjectReportsState = {
   selectedProjectManagers: IProjectManager[];
   selectedProjectTeams: any[];
   viewMode: 'table' | 'grouped';
+
+  // lookup data
+  allTeams: any[];
+  allManagers: IProjectManager[];
+  allStatuses: IProjectStatus[];
+  allHealths: IProjectHealth[];
+  allCategories: IProjectCategory[];
+  isFilterLoading: boolean;
 };
 
 export const fetchProjectData = createAsyncThunk(
@@ -64,6 +72,14 @@ export const fetchProjectData = createAsyncThunk(
       archived: state.archived,
     };
     const response = await reportingProjectsApiService.getProjects(body);
+    return response.body;
+  }
+);
+
+export const fetchProjectReportingFilters = createAsyncThunk(
+  'projectReports/fetchProjectReportingFilters',
+  async () => {
+    const response = await reportingProjectsApiService.getFilters();
     return response.body;
   }
 );
@@ -104,6 +120,13 @@ const initialState: ProjectReportsState = {
   selectedProjectManagers: [],
   selectedProjectTeams: [],
   viewMode: 'table',
+
+  allTeams: [],
+  allManagers: [],
+  allStatuses: [],
+  allHealths: [],
+  allCategories: [],
+  isFilterLoading: false,
 };
 
 const projectReportsSlice = createSlice({
@@ -275,6 +298,20 @@ const projectReportsSlice = createSlice({
           state.projectList[projectIndex].status_name = status.name ?? '';
           state.projectList[projectIndex].status_color = status.color_code ?? '';
         }
+      })
+      .addCase(fetchProjectReportingFilters.pending, state => {
+        state.isFilterLoading = true;
+      })
+      .addCase(fetchProjectReportingFilters.fulfilled, (state, action) => {
+        state.isFilterLoading = false;
+        state.allTeams = action.payload.teams || [];
+        state.allManagers = action.payload.managers || [];
+        state.allStatuses = action.payload.statuses || [];
+        state.allHealths = action.payload.healths || [];
+        state.allCategories = action.payload.categories || [];
+      })
+      .addCase(fetchProjectReportingFilters.rejected, state => {
+        state.isFilterLoading = false;
       });
   },
 });

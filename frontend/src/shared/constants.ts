@@ -4,6 +4,12 @@ import {
   ClockCircleOutlined,
   CloseCircleOutlined,
   StopOutlined,
+  PlayCircleOutlined,
+  PauseCircleOutlined,
+  QuestionCircleOutlined,
+  ExclamationCircleOutlined,
+  SyncOutlined,
+  ReloadOutlined,
 } from '@/shared/antd-imports';
 import dayjs from 'dayjs';
 
@@ -191,7 +197,23 @@ export const PROJECT_STATUS_ICON_MAP = {
   'clock-circle': ClockCircleOutlined,
   'clock-circle-two-tone': ClockCircleOutlined,
   'close-circle': CloseCircleOutlined,
+  'play-circle': PlayCircleOutlined,
+  'pause-circle': PauseCircleOutlined,
+  'question-circle': QuestionCircleOutlined,
+  'exclamation-circle': ExclamationCircleOutlined,
+  sync: SyncOutlined,
   stop: StopOutlined,
+  
+  // Mapping direct status IDs
+  active: PlayCircleOutlined,
+  completed: CheckCircleOutlined,
+  on_hold: PauseCircleOutlined,
+  cancelled: StopOutlined,
+  proposed: ClockCircleOutlined,
+  in_planning: SyncOutlined,
+  in_progress: PlayCircleOutlined,
+  blocked: ExclamationCircleOutlined,
+  continuous: ReloadOutlined,
 };
 export const DRAWER_ANIMATION_INTERVAL = 200;
 

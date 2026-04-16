@@ -171,6 +171,7 @@ exports.getProjectsReports = async (req, res, next) => {
 
     // Get user's projects
     const memberships = await ProjectMember.find({ user_id: userId, is_active: true });
+    logger.debug(`Found ${memberships.length} memberships for user ${userId}`);
     const projectIds = memberships.map(m => m.project_id);
 
     const query = { _id: { $in: projectIds } };
@@ -201,7 +202,10 @@ exports.getProjectsReports = async (req, res, next) => {
       if (validManagerIds.length > 0) query.owner_id = { $in: validManagerIds };
     }
 
+    logger.debug('Project Reports Filter Query: %j', query);
+
     const total = await Project.countDocuments(query);
+    logger.debug(`Found ${total} total projects matching query`);
 
     const sort = {};
     if (field && order) {
@@ -1225,11 +1229,11 @@ exports.getTasksReports = async (req, res, next) => {
             updated_at: task.updated_at || null,
             days_overdue: daysOverdue,
             estimated_time: task.estimated_hours || 0,
-            estimated_time_string: task.estimated_hours ? `${task.estimated_hours}h 0m` : '-',
+            estimated_time_string: formatHours(task.estimated_hours),
             logged_time: task.actual_hours || 0,
-            logged_time_string: task.actual_hours ? `${task.actual_hours}h 0m` : '-',
+            logged_time_string: formatHours(task.actual_hours),
             overlogged_time: overloggedTime,
-            overlogged_time_string: overloggedTime > 0 ? `${overloggedTime}h 0m` : '-',
+            overlogged_time_string: formatHours(overloggedTime),
             phase_id: task.phase_id?._id || null,
             phase_name: task.phase_id?.name || '-',
             labels: (task.labels || []).map(l => ({ 
@@ -1286,7 +1290,12 @@ function getHealthColor(health) {
 
 function formatHours(hours) {
     if (!hours) return '0h';
-    return `${hours}h`;
+    const totalMinutes = Math.round(hours * 60);
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
+    if (h > 0 && m > 0) return `${h}h ${m}m`;
+    if (h > 0) return `${h}h`;
+    return `${m}m`;
 }
 
 /**
@@ -1360,6 +1369,76 @@ exports.getTasksReportingFilters = async (req, res, next) => {
 
   } catch (error) {
     logger.error('getTasksReportingFilters Error: %s', error.message);
+    next(error);
+  }
+};
+
+/**
+ * @desc    Get filters for projects reporting
+ * @route   GET /api/reporting/projects/filters
+ * @access  Private
+ */
+exports.getProjectsReportingFilters = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+
+    // 1. Teams
+    const teamMemberships = await TeamMember.find({ user_id: userId, is_active: true }).populate('team_id', 'name color_code');
+    const teams = teamMemberships.map(tm => tm.team_id).filter(Boolean);
+
+    // 2. Project Managers
+    const projectMemberships = await ProjectMember.find({ user_id: userId, is_active: true }).select('project_id');
+    const allowedProjectIds = projectMemberships.map(m => m.project_id);
+    const projects = await Project.find({ _id: { $in: allowedProjectIds }, is_archived: false }).select('owner_id').populate('owner_id', 'name avatar_url');
+    
+    const managersMap = new Map();
+    projects.forEach(p => {
+        if (p.owner_id && !managersMap.has(p.owner_id._id.toString())) {
+            managersMap.set(p.owner_id._id.toString(), {
+                id: p.owner_id._id,
+                name: p.owner_id.name,
+                avatar_url: p.owner_id.avatar_url
+            });
+        }
+    });
+
+    // 3. Categories
+    const categories = await ProjectCategory.find({ team_id: { $in: teams.map(t => t._id) } }).select('name color_code').lean();
+
+    // 4. Project Statuses (Hardcoded based on model enum)
+    const statuses = [
+        { id: 'proposed', name: 'Proposed', color_code: '#d9d9d9' },
+        { id: 'in_planning', name: 'In Planning', color_code: '#faad14' },
+        { id: 'in_progress', name: 'In Progress', color_code: '#1890ff' },
+        { id: 'on_hold', name: 'On Hold', color_code: '#faad14' },
+        { id: 'blocked', name: 'Blocked', color_code: '#ff4d4f' },
+        { id: 'active', name: 'Active', color_code: '#52c41a' },
+        { id: 'completed', name: 'Completed', color_code: '#1890ff' },
+        { id: 'cancelled', name: 'Cancelled', color_code: '#ff4d4f' },
+        { id: 'continuous', name: 'Continuous', color_code: '#52c41a' }
+    ];
+
+    // 5. Healths
+    const healths = [
+      { id: 'not_set', name: 'Not Set', color_code: '#d9d9d9' },
+      { id: 'good', name: 'Good', color_code: '#52c41a' },
+      { id: 'needs_attention', name: 'Needs Attention', color_code: '#faad14' },
+      { id: 'at_risk', name: 'At Risk', color_code: '#faad14' },
+      { id: 'critical', name: 'Critical', color_code: '#ff4d4f' }
+    ];
+
+    res.json({
+        done: true,
+        body: {
+            teams: teams.map(t => ({ id: t._id, name: t.name, color: t.color_code })),
+            managers: Array.from(managersMap.values()),
+            categories: categories.map(c => ({ id: c._id, name: c.name, color: c.color_code })),
+            statuses,
+            healths
+        }
+    });
+
+  } catch (error) {
     next(error);
   }
 };

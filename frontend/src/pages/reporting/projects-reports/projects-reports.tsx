@@ -3,7 +3,7 @@ import { useMemo, useCallback, memo, useEffect } from 'react';
 import { useMixpanelTracking } from '@/hooks/useMixpanelTracking';
 import { evt_reporting_projects_overview } from '@/shared/worklenz-analytics-events';
 import CustomPageHeader from '@/pages/reporting/page-header/custom-page-header';
-import { DownOutlined } from '@/shared/antd-imports';
+import { DownOutlined, ReloadOutlined } from '@/shared/antd-imports';
 import ProjectReportsTable from './projects-reports-table/projects-reports-table';
 import ProjectsReportsFilters from './projects-reports-filters/project-reports-filters';
 import { useAppSelector } from '@/hooks/useAppSelector';
@@ -13,6 +13,7 @@ import { setArchived } from '@/features/reporting/projectReports/project-reports
 import { useAppDispatch } from '@/hooks/useAppDispatch';
 import { useAuthService } from '@/hooks/useAuth';
 import { reportingExportApiService } from '@/api/reporting/reporting-export.api.service';
+import { fetchProjectData, resetProjectReports } from '@/features/reporting/projectReports/project-reports-slice';
 
 const ProjectsReports = () => {
   const { t } = useTranslation('reporting-projects');
@@ -53,11 +54,45 @@ const ProjectsReports = () => {
   // Memoize the header children to prevent recreation on every render
   const headerChildren = useMemo(
     () => (
-      <Space>
-        <Button>
-          <Checkbox checked={archived} onChange={handleArchivedChange}>
-            <Typography.Text>{t('includeArchivedButton')}</Typography.Text>
-          </Checkbox>
+      <Space size={12}>
+        <Checkbox 
+          style={{ color: '#8c8c8c', fontSize: '13px' }}
+          checked={archived} 
+          onChange={handleArchivedChange}
+        >
+          {t('includeArchivedButton')}
+        </Checkbox>
+        
+        <Button 
+          ghost 
+          icon={<ReloadOutlined style={{ fontSize: '13px' }} />} 
+          onClick={() => dispatch(fetchProjectData())}
+          style={{ 
+            borderRadius: '6px', 
+            backgroundColor: '#262626', 
+            border: 'none', 
+            color: '#bfbfbf', 
+            fontSize: '13px'
+          }}
+        >
+          Refresh
+        </Button>
+
+        <Button 
+          ghost 
+          onClick={() => {
+            dispatch(resetProjectReports());
+            dispatch(fetchProjectData());
+          }} 
+          style={{ 
+            borderRadius: '6px', 
+            backgroundColor: '#262626', 
+            border: 'none', 
+            color: '#bfbfbf', 
+            fontSize: '13px'
+          }}
+        >
+          Clear Filters
         </Button>
 
         <Dropdown menu={{ items: dropdownMenuItems }}>

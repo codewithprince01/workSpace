@@ -329,11 +329,12 @@ const ProjectsReportsTable = () => {
     return Object.entries(groupedByTeam).map(([teamName, projects]) => ({
       key: teamName,
       label: (
-        <Flex align="center" gap={8}>
-          <Typography.Text strong>{teamName}</Typography.Text>
-          <Tag color="blue" style={{ borderRadius: 12 }}>
+        <Flex align="center" gap={12}>
+          <Typography.Text style={{ color: '#fff', fontSize: '14px', fontWeight: 600 }}>{teamName}</Typography.Text>
+          <span style={{ color: 'rgba(255, 255, 255, 0.45)', fontSize: '12px' }}>•</span>
+          <Typography.Text style={{ color: 'rgba(255, 255, 255, 0.45)', fontSize: '12px' }}>
             {projects.length} {projects.length === 1 ? 'project' : 'projects'}
-          </Tag>
+          </Typography.Text>
         </Flex>
       ),
       children: (
@@ -363,14 +364,33 @@ const ProjectsReportsTable = () => {
               <Table columns={visibleColumns} dataSource={[]} loading pagination={false} />
             </ConfigProvider>
           ) : (
-            <Collapse
-              defaultActiveKey={Object.keys(groupedByTeam)}
-              expandIcon={({ isActive }) => (
-                <RightOutlined rotate={isActive ? 90 : 0} style={{ fontSize: 12 }} />
-              )}
-              style={{ background: 'transparent', border: 'none' }}
-              items={collapseItems}
-            />
+            <ConfigProvider
+                theme={{
+                    components: {
+                        Collapse: {
+                            headerBg: 'rgba(255, 255, 255, 0.05)',
+                            contentBg: 'transparent',
+                            headerPadding: '12px 16px',
+                            colorBorder: '#333',
+                            colorTextHeading: '#fff'
+                        }
+                    }
+                }}
+            >
+                <Collapse
+                defaultActiveKey={Object.keys(groupedByTeam)}
+                expandIcon={({ isActive }) => (
+                    <RightOutlined rotate={isActive ? 90 : 0} style={{ fontSize: 10, color: '#1890ff' }} />
+                )}
+                style={{ 
+                    background: 'transparent', 
+                    border: '1px solid #333', 
+                    borderRadius: '8px',
+                    overflow: 'hidden'
+                }}
+                items={collapseItems}
+                />
+            </ConfigProvider>
           )}
           {/* Pagination still shown below grouped view for all records */}
           <Flex justify="flex-end" style={{ marginTop: 16 }}>

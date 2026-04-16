@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { fetchProjectStatuses } from '@/features/projects/lookups/projectStatuses/projectStatusesSlice';
 import {
   fetchProjectData,
   setSelectedProjectStatuses,
@@ -8,7 +7,7 @@ import { useAppDispatch } from '@/hooks/useAppDispatch';
 import { useAppSelector } from '@/hooks/useAppSelector';
 import { IProjectStatus } from '@/types/project/projectStatus.types';
 import { CaretDownFilled } from '@/shared/antd-imports';
-import { Button, Card, Checkbox, Dropdown, Flex, List } from '@/shared/antd-imports';
+import { Button, Card, Checkbox, Dropdown, Flex, List, Badge } from '@/shared/antd-imports';
 import { useTranslation } from 'react-i18next';
 
 const ProjectStatusFilterDropdown = () => {
@@ -18,85 +17,103 @@ const ProjectStatusFilterDropdown = () => {
   const [localSelected, setLocalSelected] = useState<IProjectStatus[]>([]);
 
   const {
-    projectStatuses,
-    loading: projectStatusesLoading,
-    initialized,
-  } = useAppSelector(state => state.projectStatusesReducer);
+    allStatuses: projectStatuses,
+    isFilterLoading: projectStatusesLoading,
+    selectedProjectStatuses,
+  } = useAppSelector(state => state.projectReportsReducer);
   const { mode: themeMode } = useAppSelector(state => state.themeReducer);
 
-  // Fetch only once — guard with `initialized`
+  // Sync internal state with Redux
   useEffect(() => {
-    if (!initialized && !projectStatusesLoading) {
-      dispatch(fetchProjectStatuses());
-    }
-  }, [dispatch, initialized, projectStatusesLoading]);
+    setLocalSelected(selectedProjectStatuses);
+  }, [selectedProjectStatuses]);
 
   const handleToggle = useCallback(
     (status: IProjectStatus) => {
-      setLocalSelected(prev => {
-        const exists = prev.some(s => s.id === status.id);
-        const updated = exists
-          ? prev.filter(s => s.id !== status.id)
-          : [...prev, status];
-        dispatch(setSelectedProjectStatuses(updated));
-        dispatch(fetchProjectData());
-        return updated;
-      });
+      const exists = localSelected.some(s => String(s.id) === String(status.id));
+      const updated = exists
+        ? localSelected.filter(s => String(s.id) !== String(status.id))
+        : [...localSelected, status];
+      
+      setLocalSelected(updated);
+      dispatch(setSelectedProjectStatuses(updated));
+      dispatch(fetchProjectData());
     },
-    [dispatch]
+    [dispatch, localSelected]
   );
 
   const isChecked = (status: IProjectStatus) =>
-    localSelected.some(s => s.id === status.id);
+    localSelected.some(s => String(s.id) === String(status.id));
 
   const selectedCount = localSelected.length;
   const label =
     selectedCount === 0
       ? t('statusText')
       : selectedCount === 1
-        ? localSelected[0].name || t('statusText')
-        : `${selectedCount} Statuses`;
+        ? localSelected[0].name
+        : `${localSelected[0].name} (+${selectedCount - 1})`;
 
   const dropdownContent = (
-    <Card className="custom-card" styles={{ body: { padding: 0 } }}>
+    <Card 
+        style={{ 
+            backgroundColor: '#1d1d1d', 
+            border: '1px solid #333', 
+            borderRadius: '8px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+            minWidth: '200px'
+        }} 
+        styles={{ body: { padding: '4px 0' } }}
+    >
       <List style={{ padding: 0 }} loading={projectStatusesLoading}>
         {projectStatuses.map(status => (
-          <List.Item
-            className={`custom-list-item ${themeMode === 'dark' ? 'dark' : ''}`}
-            key={status.id}
-            style={{
-              display: 'flex',
-              gap: 8,
-              padding: '4px 8px',
-              border: 'none',
-              cursor: 'pointer',
-            }}
-          >
-            <Checkbox
-              checked={isChecked(status)}
-              onChange={() => handleToggle(status)}
-              style={{ width: '100%' }}
+            <div 
+                key={String(status.id)}
+                onClick={() => handleToggle(status)}
+                style={{ 
+                    padding: '8px 16px', 
+                    cursor: 'pointer', 
+                    display: 'flex', 
+                    alignItems: 'center',
+                    background: isChecked(status) ? 'rgba(24, 144, 255, 0.1)' : 'transparent',
+                    transition: 'background 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#262626'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = isChecked(status) ? 'rgba(24, 144, 255, 0.1)' : 'transparent'}
             >
-              <Flex align="center" gap={8}>
-                {/* Color dot from status.color_code */}
-                {status.color_code && (
-                  <span
-                    style={{
-                      display: 'inline-block',
-                      width: 10,
-                      height: 10,
-                      borderRadius: '50%',
-                      backgroundColor: status.color_code,
-                      flexShrink: 0,
-                    }}
-                  />
-                )}
-                {status.name}
-              </Flex>
-            </Checkbox>
-          </List.Item>
+                <Checkbox
+                    checked={isChecked(status)}
+                    className="premium-checkbox"
+                />
+                <Flex align="center" gap={10} style={{ marginLeft: 12, flex: 1 }}>
+                    {status.color_code && (
+                        <div
+                            style={{
+                                width: 8,
+                                height: 8,
+                                borderRadius: '50%',
+                                backgroundColor: status.color_code,
+                                flexShrink: 0,
+                            }}
+                        />
+                    )}
+                    <span style={{ color: '#fff', fontSize: '13px', fontWeight: isChecked(status) ? 600 : 400 }}>{status.name}</span>
+                </Flex>
+            </div>
         ))}
       </List>
+      {selectedCount > 0 && (
+          <div 
+            style={{ padding: '8px 16px', borderTop: '1px solid #333', textAlign: 'center' }}
+            onClick={(e) => {
+                e.stopPropagation();
+                setLocalSelected([]);
+                dispatch(setSelectedProjectStatuses([]));
+                dispatch(fetchProjectData());
+            }}
+          >
+            <Button type="text" size="small" style={{ color: '#888', fontSize: '12px' }}>Clear All</Button>
+          </div>
+      )}
     </Card>
   );
 
@@ -108,16 +125,36 @@ const ProjectStatusFilterDropdown = () => {
       onOpenChange={open => setIsDropdownOpen(open)}
     >
       <Button
-        icon={<CaretDownFilled />}
+        icon={<CaretDownFilled style={{ fontSize: '10px' }} />}
         iconPosition="end"
         loading={projectStatusesLoading}
-        style={
-          selectedCount > 0 || isDropdownOpen
-            ? { borderColor: '#1890ff', color: '#1890ff' }
-            : {}
-        }
+        style={{
+            backgroundColor: isDropdownOpen ? '#262626' : '#1d1d1d',
+            borderColor: selectedCount > 0 || isDropdownOpen ? '#1890ff' : '#333',
+            color: selectedCount > 0 || isDropdownOpen ? '#1890ff' : '#bfbfbf',
+            borderRadius: '6px',
+            height: '32px',
+            fontSize: '13px',
+            transition: 'all 0.3s',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+        }}
       >
-        {label}
+        <span>{label}</span>
+        {selectedCount > 1 && (
+            <Badge 
+                count={selectedCount} 
+                style={{ 
+                    backgroundColor: '#1890ff', 
+                    color: '#fff', 
+                    minWidth: '18px', 
+                    height: '18px', 
+                    lineHeight: '18px', 
+                    fontSize: '10px' 
+                }} 
+            />
+        )}
       </Button>
     </Dropdown>
   );

@@ -709,7 +709,7 @@ const TasksReports = () => {
   return (
     <div className="reporting-tasks-page" style={{ padding: '24px', backgroundColor: '#141414', minHeight: '100vh', color: '#fff' }}>
       {/* Header Row */}
-      <Flex justify="space-between" align="center" style={{ marginBottom: '24px', flexWrap: 'nowrap', gap: '16px' }}>
+      <Flex justify="space-between" align="center" style={{ marginBottom: '24px' }}>
         <Title level={4} style={{ color: '#fff', margin: 0, fontWeight: 500, fontSize: '18px' }}>All Tasks ({total})</Title>
         <Space size={12}>
           <Checkbox 
@@ -752,7 +752,7 @@ const TasksReports = () => {
       {/* Main Container */}
       <div style={{ backgroundColor: '#1d1d1d', borderRadius: '8px', padding: '24px' }}>
         {/* Filter Bar */}
-        <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'nowrap', gap: '16px' }}>
+        <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Space size={10}>
             <FilterSelect 
                 placeholder="Teams" 

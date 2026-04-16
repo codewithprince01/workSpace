@@ -22,20 +22,22 @@ const ProjectHealthCell = ({ value, label, color, projectId }: HealthStatusDataT
   const { t } = useTranslation('reporting-projects');
   const dispatch = useAppDispatch();
   const { socket, connected } = useSocket();
-  const { projectHealths } = useAppSelector(state => state.projectHealthReducer);
+  
+  // Use centralized project reporting healths
+  const { allHealths } = useAppSelector(state => state.projectReportsReducer);
 
-  const projectHealth = projectHealths.find(status => status.id === value) || {
+  const projectHealth = allHealths.find(status => status.id === value) || {
     color_code: color,
     id: value,
     name: label,
   };
 
-  const healthOptions = projectHealths.map(status => ({
+  const healthOptions = allHealths.map(status => ({
     key: status.id,
     value: status.id,
     label: (
-      <Typography.Text style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-        <Badge color={status.color_code} /> {t(`${status.name}`)}
+      <Typography.Text style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <Badge color={status.color_code} /> {status.name}
       </Typography.Text>
     ),
   }));
@@ -61,8 +63,14 @@ const ProjectHealthCell = ({ value, label, color, projectId }: HealthStatusDataT
     {
       key: '1',
       label: (
-        <Card className="project-health-dropdown-card" bordered={false}>
-          <Menu className="project-health-menu" items={healthOptions} onClick={onClick} />
+        <Card className="project-health-dropdown-card" bordered={false} style={{ backgroundColor: '#262626', border: 'none' }}>
+          <Menu 
+            theme="dark"
+            className="project-health-menu" 
+            items={healthOptions} 
+            onClick={onClick} 
+            style={{ backgroundColor: 'transparent', border: 'none' }}
+          />
         </Card>
       ),
     },
@@ -81,6 +89,8 @@ const ProjectHealthCell = ({ value, label, color, projectId }: HealthStatusDataT
     }
   }, [socket, connected]);
 
+  const textColor = colors.darkGray; // Keeping original for health badges as they are usually colored backgrounds
+
   return (
     <Dropdown
       overlayClassName="project-health-dropdown"
@@ -94,24 +104,26 @@ const ProjectHealthCell = ({ value, label, color, projectId }: HealthStatusDataT
         style={{
           width: 'fit-content',
           borderRadius: 24,
-          paddingInline: 8,
-          height: 30,
-          backgroundColor: projectHealth?.color_code || colors.transparent,
-          color: colors.darkGray,
+          paddingInline: 12,
+          height: 28,
+          backgroundColor: projectHealth?.color_code || 'transparent',
+          color: textColor,
           cursor: 'pointer',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
         }}
       >
         <Typography.Text
           style={{
             textTransform: 'capitalize',
-            color: colors.darkGray,
-            fontSize: 13,
+            color: textColor,
+            fontSize: 12,
+            fontWeight: 600
           }}
         >
           {projectHealth?.name}
         </Typography.Text>
 
-        <DownOutlined />
+        <DownOutlined style={{ fontSize: 10 }} />
       </Flex>
     </Dropdown>
   );

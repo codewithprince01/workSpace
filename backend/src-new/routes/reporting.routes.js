@@ -11,6 +11,7 @@ router.get('/info', reporting.getInfo);
 router.get('/overview/statistics', reporting.getOverviewStatistics);
 router.get('/overview/teams', reporting.getOverviewTeams);
 router.post('/projects', reporting.getProjectsReports);
+router.get('/projects/filters', reporting.getProjectsReportingFilters);
 router.get('/tasks/filters', reporting.getTasksReportingFilters);
 router.post('/tasks', reporting.getTasksReports);
 router.post('/members', reporting.getMembersReports);
