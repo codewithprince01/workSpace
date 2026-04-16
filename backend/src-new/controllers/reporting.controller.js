@@ -1231,6 +1231,238 @@ exports.getProjectOverviewTasks = async (req, res, next) => {
   }
 };
 
+/**
+ * @desc    Get allocation data for time sheet overview
+ * @route   POST /api/reporting/allocation
+ * @access  Private
+ */
+exports.getAllocationData = async (req, res, next) => {
+  try {
+    const { teams, projects, categories, duration, date_range, archived, billable } = req.body;
+    const userId = req.user._id;
+
+    // 1. Determine date range from duration if prompt provided
+    let startDate, endDate;
+    const now = dayjs();
+
+    if (date_range && Array.isArray(date_range) && date_range.length === 2) {
+      startDate = dayjs(date_range[0]).startOf('day').toDate();
+      endDate = dayjs(date_range[1]).endOf('day').toDate();
+    } else if (duration) {
+      switch (duration) {
+        case 'today':
+          startDate = now.startOf('day').toDate();
+          endDate = now.endOf('day').toDate();
+          break;
+        case 'yesterday':
+          startDate = now.subtract(1, 'day').startOf('day').toDate();
+          endDate = now.subtract(1, 'day').endOf('day').toDate();
+          break;
+        case 'this_week':
+          startDate = now.startOf('week').toDate();
+          endDate = now.endOf('week').toDate();
+          break;
+        case 'last_week':
+          startDate = now.subtract(1, 'week').startOf('week').toDate();
+          endDate = now.subtract(1, 'week').endOf('week').toDate();
+          break;
+        case 'this_month':
+          startDate = now.startOf('month').toDate();
+          endDate = now.endOf('month').toDate();
+          break;
+        case 'last_month':
+          startDate = now.subtract(1, 'month').startOf('month').toDate();
+          endDate = now.subtract(1, 'month').endOf('month').toDate();
+          break;
+        case 'this_year':
+          startDate = now.startOf('year').toDate();
+          endDate = now.endOf('year').toDate();
+          break;
+        default:
+          // Stay undefined if no match
+      }
+    }
+
+    const dateFilter = {};
+    if (startDate && endDate) {
+      dateFilter.created_at = { $gte: startDate, $lte: endDate };
+    }
+
+    // 2. Get user's visible projects
+    // Scoped to projects where the user is a member OR they own the team (admin/owner)
+    const teamMemberships = await TeamMember.find({ user_id: userId, is_active: true }).select('team_id');
+    const myTeamIds = teamMemberships.map(tm => tm.team_id).filter(Boolean);
+
+    const projectMemberships = await ProjectMember.find({ user_id: userId, is_active: true }).select('project_id');
+    const myProjectIds = projectMemberships.map(m => m.project_id).filter(Boolean);
+
+    // Initial project query: visible projects in my teams
+    const pQuery = {
+      $or: [
+        { _id: { $in: myProjectIds } },
+        { team_id: { $in: myTeamIds } } // Assuming team members can see projects in their team (or filter by role if needed)
+      ]
+    };
+
+    if (!archived) pQuery.is_archived = false;
+    if (teams && teams.length) pQuery.team_id = { $in: teams };
+    if (projects && projects.length) pQuery._id = { $in: projects };
+    if (categories && categories.length) pQuery.category_id = { $in: categories };
+
+    const matchingProjects = await Project.find(pQuery)
+      .populate('status_id', 'name color_code')
+      .select('name color_code status_id project_health')
+      .lean();
+
+    const finalProjectIds = matchingProjects.map(p => p._id);
+    
+    // 3. Get members who have logs in this range OR are in these projects
+    // To keep it focused, let's get members with logs in the selected range for these projects
+    const logs = await TimeLog.find({
+      project_id: { $in: finalProjectIds },
+      ...dateFilter
+    }).populate('user_id', 'name avatar_url').lean();
+
+    // Collect all users who have logs
+    const usersMap = new Map();
+    logs.forEach(log => {
+      if (log.user_id && !usersMap.has(log.user_id._id.toString())) {
+        usersMap.set(log.user_id._id.toString(), log.user_id);
+      }
+    });
+
+    // If no logs, fallback to project members if date range is NOT set
+    if (usersMap.size === 0 && !startDate) {
+        const pMembers = await ProjectMember.find({ project_id: { $in: finalProjectIds }, is_active: true })
+            .populate('user_id', 'name avatar_url')
+            .lean();
+        pMembers.forEach(pm => {
+            if (pm.user_id && !usersMap.has(pm.user_id._id.toString())) {
+                usersMap.set(pm.user_id._id.toString(), pm.user_id);
+            }
+        });
+    }
+
+    const users = Array.from(usersMap.values());
+
+    // 4. Aggregate logs into projects grid
+    let responseProjects = matchingProjects.map(p => {
+      const pLogs = logs.filter(l => l.project_id.toString() === p._id.toString());
+      let projectTotal = 0;
+      
+      const time_logs = users.map(u => {
+        const userLogs = pLogs.filter(l => l.user_id && l.user_id._id.toString() === u._id.toString());
+        const hours = userLogs.reduce((acc, l) => acc + (l.hours || 0), 0);
+        projectTotal += hours;
+        return { time_logged: formatHours(hours) };
+      });
+
+      return {
+        id: p._id,
+        name: p.name,
+        color_code: p.color_code,
+        status_color_code: p.status_id?.color_code || '#8c8c8c',
+        status_icon: 'bi bi-circle-fill',
+        progress: 0,
+        time_logs,
+        total: formatHours(projectTotal),
+        totalHours: projectTotal // for filtering
+      };
+    });
+
+    // CRITICAL: If a duration/date range is used, only show projects that have logs
+    if (startDate || (projects && projects.length)) {
+      // If user specifically filtered projects, show them. 
+      // Otherwise, filter out projects with zero logs in this range.
+      if (!projects || projects.length === 0) {
+        responseProjects = responseProjects.filter(p => p.totalHours > 0);
+      }
+    }
+
+    const responseUsers = users.map(u => {
+      const uLogs = logs.filter(l => l.user_id && l.user_id._id.toString() === u._id.toString());
+      const totalHours = uLogs.reduce((acc, l) => acc + (l.hours || 0), 0);
+      return {
+        id: u._id,
+        name: u.name,
+        total_time: formatHours(totalHours)
+      };
+    });
+
+    res.json({
+      done: true,
+      body: {
+        projects: responseProjects,
+        users: responseUsers
+      }
+    });
+
+  } catch (error) {
+    logger.error('getAllocationData Error: %s', error.message);
+    next(error);
+  }
+};
+
+/**
+ * @desc    Get allocation categories
+ */
+exports.getAllocationCategories = async (req, res, next) => {
+    try {
+        const categories = await ProjectCategory.find().select('name color_code').lean();
+        res.json({ done: true, body: categories });
+    } catch (error) { next(error); }
+};
+
+/**
+ * @desc    Get allocation projects
+ */
+exports.getAllocationProjects = async (req, res, next) => {
+    try {
+        const userId = req.user._id;
+        const memberships = await ProjectMember.find({ user_id: userId, is_active: true }).select('project_id');
+        const projects = await Project.find({ _id: { $in: memberships.map(m => m.project_id) }, is_archived: false }).select('name color_code').lean();
+        res.json({ done: true, body: projects });
+    } catch (error) { next(error); }
+};
+
+/**
+ * @desc    Time Reports Projects
+ */
+exports.getTimeReportsProjects = async (req, res, next) => {
+    try {
+        const { archived } = req.body;
+        const userId = req.user._id;
+        const memberships = await ProjectMember.find({ user_id: userId, is_active: true }).select('project_id');
+        const query = { _id: { $in: memberships.map(m => m.project_id) } };
+        if (!archived) query.is_archived = false;
+
+        const projects = await Project.find(query).select('name color_code').lean();
+        res.json({ done: true, body: projects });
+    } catch (error) { next(error); }
+};
+
+/**
+ * @desc    Time Reports Members
+ */
+exports.getTimeReportsMembers = async (req, res, next) => {
+    try {
+        const userId = req.user._id;
+        const memberships = await TeamMember.find({ user_id: userId, is_active: true }).select('team_id');
+        const teamIds = memberships.map(m => m.team_id);
+        const members = await TeamMember.find({ team_id: { $in: teamIds }, is_active: true }).populate('user_id', 'name avatar_url').lean();
+        res.json({ done: true, body: members.map(m => m.user_id) });
+    } catch (error) { next(error); }
+};
+
+/**
+ * @desc    Estimated Vs Actual
+ */
+exports.getEstimatedVsActual = async (req, res, next) => {
+    try {
+        res.json({ done: true, body: [] }); // Stub
+    } catch (error) { next(error); }
+};
+
 function getPriorityName(p) {
     if (p === 0 || p === 'low') return 'Low';
     if (p === 1 || p === 'medium') return 'Medium';
