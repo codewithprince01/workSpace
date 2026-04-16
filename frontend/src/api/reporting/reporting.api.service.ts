@@ -171,7 +171,19 @@ export const reportingApiService = {
   getProjects: async (body: any | null = null): Promise<IServerResponse<IRPTProjectsViewModel>> => {
     const q = toQueryString(body);
     const url = `${rootUrl}/projects${q}`;
-    const response = await apiClient.get<IServerResponse<IRPTProjectsViewModel>>(url);
+    const response = await apiClient.post<IServerResponse<IRPTProjectsViewModel>>(url, body);
+    return response.data;
+  },
+
+  getTasksReports: async (body: any | null = null): Promise<IServerResponse<any>> => {
+    const url = `${rootUrl}/tasks`;
+    const response = await apiClient.post<IServerResponse<any>>(url, body);
+    return response.data;
+  },
+
+  getTasksReportingFilters: async (): Promise<IServerResponse<any>> => {
+    const url = `${rootUrl}/tasks/filters`;
+    const response = await apiClient.get<IServerResponse<any>>(url);
     return response.data;
   },
 

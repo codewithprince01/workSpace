@@ -1005,6 +1005,194 @@ async function getStatusIdsByCategory(projectId, category) {
    return statuses.map(s => s._id);
 }
 
+const dayjs = require('dayjs');
+
+// ... (exports.getInfo, etc.)
+
+/**
+ * @desc    Get tasks reporting data
+ * @route   POST /api/reporting/tasks
+ * @access  Private
+ */
+exports.getTasksReports = async (req, res, next) => {
+  try {
+    const { 
+        index, size, field, order, search, 
+        projects: projectIds, teams: teamIds, statuses: statusIds, 
+        priorities, project_managers, archived, categories 
+    } = req.body;
+    
+    const userId = req.user._id;
+    const page = parseInt(index) || 1;
+    const limit = parseInt(size) || 10;
+    const skip = (page - 1) * limit;
+
+    // 1. Determine which projects the user can see
+    const memberships = await ProjectMember.find({ user_id: userId, is_active: true }).select('project_id');
+    const allowedProjectIds = memberships.map(m => m.project_id);
+
+    // 2. Build Project Filter first (to narrow down tasks)
+    const pQuery = { _id: { $in: allowedProjectIds } };
+    if (!archived) pQuery.is_archived = false;
+    if (teamIds && teamIds.length) pQuery.team_id = { $in: teamIds };
+    if (categories && categories.length) pQuery.category_id = { $in: categories };
+    if (project_managers && project_managers.length) pQuery.owner_id = { $in: project_managers };
+
+    const matchingProjects = await Project.find(pQuery).select('_id name color_code').lean();
+    const finalProjectIds = matchingProjects.map(p => p._id);
+
+    // 3. Build Task Filter
+    const query = { project_id: { $in: finalProjectIds }, is_archived: false };
+    
+    if (search) {
+        query.name = { $regex: search, $options: 'i' };
+    }
+    if (projectIds && projectIds.length) {
+        query.project_id = { $in: projectIds.filter(id => finalProjectIds.some(fid => fid.equals(id))) };
+    }
+    if (statusIds && statusIds.length) {
+        query.status_id = { $in: statusIds };
+    }
+    if (priorities && priorities.length) {
+        query.priority = { $in: priorities };
+    }
+
+    // 4. Counts for Stat Cards and Pagination
+    const now = new Date();
+    const statsQuery = { project_id: { $in: finalProjectIds }, is_archived: false };
+    
+    // Status Categories
+    const allStatusesInScope = await TaskStatus.find({ project_id: { $in: finalProjectIds } }).select('category').lean();
+    const doneStatusIds = allStatusesInScope.filter(s => s.category === 'done').map(s => s._id);
+    const inProgressStatusIds = allStatusesInScope.filter(s => s.category === 'doing').map(s => s._id);
+
+    const [totalFiltered, completed, inProgress, overdue, unassigned, dueThisWeek, totalAllScope] = await Promise.all([
+        Task.countDocuments(query), // For pagination
+        Task.countDocuments({ ...statsQuery, status_id: { $in: doneStatusIds } }),
+        Task.countDocuments({ ...statsQuery, status_id: { $in: inProgressStatusIds } }),
+        Task.countDocuments({ 
+            ...statsQuery, 
+            due_date: { $lt: now }, 
+            status_id: { $nin: doneStatusIds } 
+        }),
+        Task.countDocuments({ 
+            ...statsQuery, 
+            $or: [{ assignees: { $exists: false } }, { assignees: { $size: 0 } }] 
+        }),
+        Task.countDocuments({ 
+            ...statsQuery, 
+            due_date: { 
+                $gte: dayjs().startOf('week').toDate(), 
+                $lte: dayjs().endOf('week').toDate() 
+            } 
+        }),
+        Task.countDocuments(statsQuery)
+    ]);
+
+    const sort = {};
+    if (field && order) {
+        sort[field] = order === 'ascend' || order === 'asc' ? 1 : -1;
+    } else {
+        sort.created_at = -1;
+    }
+
+    // 5. Fetch Tasks
+    const tasks = await Task.find(query)
+        .populate('project_id', 'name color_code')
+        .populate('status_id', 'name color_code category')
+        .populate('assignees', 'name avatar_url email')
+        .populate('phase_id', 'name')
+        .sort(sort)
+        .skip(skip)
+        .limit(limit)
+        .lean();
+
+    const priorityList = [
+        { id: 3, name: 'Critical', color: '#880808' },
+        { id: 2, name: 'High', color: '#ff4d4f' },
+        { id: 1, name: 'Medium', color: '#faad14' },
+        { id: 0, name: 'Low', color: '#52c41a' }
+    ];
+
+    // 6. Enrichment
+    const enrichedTasks = tasks.map(task => {
+        let daysOverdue = 0;
+        if (task.due_date && task.status_id?.category !== 'done') {
+            const now = dayjs();
+            const due = dayjs(task.due_date);
+            if (now.isAfter(due)) {
+                daysOverdue = now.diff(due, 'day');
+            }
+        }
+
+        const overloggedTime = Math.max(0, (task.actual_hours || 0) - (task.estimated_hours || 0));
+
+        return {
+            id: task._id,
+            parent_task_id: task.parent_task_id,
+            task_no: task.task_no,
+            name: task.name,
+            project_id: task.project_id?._id,
+            project_name: task.project_id?.name || 'Unknown',
+            project_color: task.project_id?.color_code,
+            status_id: task.status_id?._id,
+            status_name: task.status_id?.name || 'Unknown',
+            status_color: task.status_id?.color_code,
+            status_category: task.status_id?.category || 'todo',
+            priority: task.priority,
+            priority_label: priorityList.find(p => p.id === task.priority)?.name || 'Medium',
+            priority_color: priorityList.find(p => p.id === task.priority)?.color || '#faad14',
+            assignees: (task.assignees || []).map(u => ({
+                id: u._id,
+                name: u.name,
+                avatar_url: u.avatar_url
+            })),
+            start_date: task.start_date,
+            due_date: task.due_date,
+            created_at: task.created_at,
+            updated_at: task.updated_at,
+            completed_at: task.completed_at,
+            days_overdue: daysOverdue,
+            estimated_time: task.estimated_hours || 0,
+            actual_time: task.actual_hours || 0,
+            estimated_time_string: formatHours(task.estimated_hours),
+            actual_time_string: formatHours(task.actual_hours)
+        };
+    });
+
+    res.json({
+        done: true,
+        body: {
+            total: totalFiltered,
+            stats: {
+                total: totalAllScope,
+                completed,
+                inProgress,
+                overdue,
+                unassigned,
+                dueThisWeek
+            },
+            tasks: enrichedTasks
+        }
+    });
+
+  } catch (error) {
+    logger.error('getTasksReports Error: %s', error.message);
+    next(error);
+  }
+};
+
+// --- Helpers ---
+
+function getPriorityColor(priority) {
+    switch(priority) {
+        case 2: return '#ff4d4f'; // High (Red)
+        case 1: return '#faad14'; // Medium (Yellow)
+        case 0: return '#52c41a'; // Low (Green)
+        default: return '#d9d9d9';
+    }
+}
+
 function getHealthColor(health) {
     switch(health) {
         case 'good': return '#52c41a';
@@ -1015,5 +1203,84 @@ function getHealthColor(health) {
 }
 
 function formatHours(hours) {
-    return hours ? `${hours}h` : '0h';
+    if (!hours) return '0h';
+    return `${hours}h`;
 }
+
+/**
+ * @desc    Get filters for tasks reporting
+ * @route   GET /api/reporting/tasks/filters
+ * @access  Private
+ */
+exports.getTasksReportingFilters = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+
+    // 1. Teams
+    const teamMemberships = await TeamMember.find({ user_id: userId, is_active: true }).populate('team_id', 'name color_code');
+    const teams = teamMemberships.map(tm => tm.team_id).filter(Boolean);
+
+    // 2. Projects
+    const projectMemberships = await ProjectMember.find({ user_id: userId, is_active: true }).select('project_id');
+    const allowedProjectIds = projectMemberships.map(m => m.project_id);
+    const projects = await Project.find({ _id: { $in: allowedProjectIds }, is_archived: false }).select('name color_code team_id owner_id category_id').lean();
+
+    // 3. Statuses (Distinct names/ids across allowed projects)
+    const statuses = await TaskStatus.find({ project_id: { $in: allowedProjectIds } }).select('name color_code category').lean();
+    
+    // Group statuses by name to avoid duplicates across projects
+    const uniqueStatusesMap = new Map();
+    statuses.forEach(s => {
+        if (!uniqueStatusesMap.has(s.name)) {
+            uniqueStatusesMap.set(s.name, s);
+        }
+    });
+    const uniqueStatuses = Array.from(uniqueStatusesMap.values());
+
+    // 4. Priorities
+    const priorities = [
+        { id: 3, name: 'Critical', color: '#880808' },
+        { id: 2, name: 'High', color: '#ff4d4f' },
+        { id: 1, name: 'Medium', color: '#faad14' },
+        { id: 0, name: 'Low', color: '#52c41a' }
+    ];
+
+    // 5. Project Managers
+    const ownerIds = projects.map(p => p.owner_id).filter(Boolean);
+    const projectManagers = await TeamMember.find({ user_id: { $in: ownerIds }, is_active: true })
+        .populate('user_id', 'name avatar_url')
+        .select('user_id')
+        .lean();
+    
+    const uniquePMsMap = new Map();
+    projectManagers.forEach(m => {
+        if (m.user_id && !uniquePMsMap.has(m.user_id._id.toString())) {
+            uniquePMsMap.set(m.user_id._id.toString(), {
+                id: m.user_id._id,
+                name: m.user_id.name,
+                avatar_url: m.user_id.avatar_url
+            });
+        }
+    });
+
+    // 6. Categories
+    const categoryIds = projects.map(p => p.category_id).filter(Boolean);
+    const categories = await ProjectCategory.find({ _id: { $in: categoryIds } }).select('name color_code').lean();
+
+    res.json({
+        done: true,
+        body: {
+            teams: teams.map(t => ({ id: t._id, name: t.name, color: t.color_code })),
+            projects: projects.map(p => ({ id: p._id, name: p.name, color: p.color_code, team_id: p.team_id })),
+            statuses: uniqueStatuses.map(s => ({ id: s._id, name: s.name, color: s.color_code, category: s.category })),
+            priorities,
+            project_managers: Array.from(uniquePMsMap.values()),
+            categories: categories.map(c => ({ id: c._id, name: c.name, color: c.color_code }))
+        }
+    });
+
+  } catch (error) {
+    logger.error('getTasksReportingFilters Error: %s', error.message);
+    next(error);
+  }
+};

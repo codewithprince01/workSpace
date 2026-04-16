@@ -6,7 +6,19 @@ const { Notification } = require('../models');
 // Apply protection to all routes
 router.use(protect);
 
-// GET /api/notifications - Get notifications
+// ── GET ROUTES ────────────────────────────────────────────────
+
+// GET /api/notifications/unread-count
+router.get('/unread-count', async (req, res) => {
+  try {
+    const unreadCount = await Notification.countDocuments({ user_id: req.user._id, is_read: false });
+    res.json({ done: true, body: unreadCount });
+  } catch (error) {
+    res.status(500).json({ done: false, message: 'Failed to fetch unread count' });
+  }
+});
+
+// GET /api/notifications - Get notifications (paginated)
 router.get('/', async (req, res) => {
   try {
     const page = parseInt(req.query.index) || 1;
@@ -15,7 +27,14 @@ router.get('/', async (req, res) => {
 
     const query = { user_id: req.user._id };
     
-    // Optional: filter by read/unread
+    // Support frontend filter values: 'Unread' or 'Read'
+    if (req.query.filter === 'Unread') {
+        query.is_read = false;
+    } else if (req.query.filter === 'Read') {
+        query.is_read = true;
+    }
+    
+    // Legacy support for ?read=false
     if (req.query.read === 'false') {
         query.is_read = false;
     }
@@ -27,12 +46,8 @@ router.get('/', async (req, res) => {
         .limit(limit)
         .populate('team_id', 'name')
         .populate('project_id', 'name')
-        .populate('user_id', 'name avatar_url'); // sender/actor info if we stored it? Schema only has 'user_id' as recipient.
+        .populate('user_id', 'name avatar_url');
     
-    // NOTE: The schema has user_id as the recipient.
-    // If we want to show WHO triggered it, we might need a 'sender_id' or include it in the message. 
-    // Schema doesn't have sender_id. We'll rely on message content for now.
-
     res.json({
       done: true,
       body: {
@@ -46,36 +61,12 @@ router.get('/', async (req, res) => {
   }
 });
 
-// PUT /api/notifications/:id - Mark notification as read
-router.put('/:id', async (req, res) => {
-  try {
-    const notification = await Notification.findOneAndUpdate(
-        { _id: req.params.id, user_id: req.user._id },
-        { is_read: true },
-        { new: true }
-    );
-    res.json({ done: true, body: notification });
-  } catch (error) {
-    res.status(500).json({ done: false, message: 'Failed to update notification' });
-  }
-});
+// ── PUT ROUTES ────────────────────────────────────────────────
 
-// PUT /api/notifications/read-all - Mark all notifications as read
-router.put('/read-all/update', async (req, res) => { // Frontend might call /read-all or /read-all/update? The stub was /read-all
-  // Let's support both if needed, but standard REST usually implies an action.
-  // The stub had '/read-all'.
-  try {
-    await Notification.updateMany(
-        { user_id: req.user._id, is_read: false },
-        { is_read: true }
-    );
-    res.json({ done: true });
-  } catch (error) {
-    res.status(500).json({ done: false, message: 'Failed to mark all as read' });
-  }
-});
+// IMPORTANT: Static paths must come BEFORE parameterized ones (:id)
+// otherwise /read-all will be treated as an ID and cause a CastError.
 
-// Match the original stub path exactly for safety
+// PUT /api/notifications/read-all - Mark all as read
 router.put('/read-all', async (req, res) => {
   try {
     await Notification.updateMany(
@@ -84,17 +75,41 @@ router.put('/read-all', async (req, res) => {
     );
     res.json({ done: true });
   } catch (error) {
+    console.error('Read-all error:', error);
     res.status(500).json({ done: false, message: 'Failed to mark all as read' });
   }
 });
 
-// GET /api/notifications/unread-count
-router.get('/unread-count', async (req, res) => {
+// PUT /api/notifications/read-all/update (Alias support)
+router.put('/read-all/update', async (req, res) => {
   try {
-    const unreadCount = await Notification.countDocuments({ user_id: req.user._id, is_read: false });
-    res.json({ done: true, body: unreadCount });
+    await Notification.updateMany(
+        { user_id: req.user._id, is_read: false },
+        { is_read: true }
+    );
+    res.json({ done: true });
   } catch (error) {
-    res.status(500).json({ done: false, message: 'Failed to fetch unread count' });
+    res.status(500).json({ done: false, message: 'Failed to mark all as read' });
+  }
+});
+
+// PUT /api/notifications/:id - Mark single notification as read
+router.put('/:id', async (req, res) => {
+  try {
+    const notification = await Notification.findOneAndUpdate(
+        { _id: req.params.id, user_id: req.user._id },
+        { is_read: true },
+        { new: true }
+    );
+    
+    if (!notification) {
+      return res.status(404).json({ done: false, message: 'Notification not found' });
+    }
+
+    res.json({ done: true, body: notification });
+  } catch (error) {
+    console.error('Update notification error:', error);
+    res.status(500).json({ done: false, message: 'Failed to update notification' });
   }
 });
 
