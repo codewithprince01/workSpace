@@ -1,3 +1,4 @@
+import React, { useCallback, useEffect, useState } from 'react';
 import { fetchProjectHealth } from '@/features/projects/lookups/projectHealth/projectHealthSlice';
 import {
   fetchProjectData,
@@ -7,79 +8,92 @@ import { useAppDispatch } from '@/hooks/useAppDispatch';
 import { useAppSelector } from '@/hooks/useAppSelector';
 import { IProjectHealth } from '@/types/project/projectHealth.types';
 import { CaretDownFilled } from '@/shared/antd-imports';
-import { Button, Card, Checkbox, Dropdown, List, Space } from '@/shared/antd-imports';
-import React, { useEffect, useState, useCallback } from 'react';
+import { Button, Card, Checkbox, Dropdown, Flex, List } from '@/shared/antd-imports';
 import { useTranslation } from 'react-i18next';
-import debounce from 'lodash/debounce'; // Install lodash if not already present
 
 const ProjectHealthFilterDropdown = () => {
   const dispatch = useAppDispatch();
   const { t } = useTranslation('reporting-projects-filters');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [selectedHealths, setSelectedHealths] = useState<IProjectHealth[]>([]);
+  const [localSelected, setLocalSelected] = useState<IProjectHealth[]>([]);
 
-  const { projectHealths, loading: projectHealthsLoading } = useAppSelector(
-    state => state.projectHealthReducer
-  );
+  const {
+    projectHealths,
+    loading: projectHealthsLoading,
+    initialized,
+  } = useAppSelector(state => state.projectHealthReducer);
   const { mode: themeMode } = useAppSelector(state => state.themeReducer);
-  const { selectedProjectHealths, isLoading: projectLoading } = useAppSelector(
-    state => state.projectReportsReducer
-  );
 
+  // Fetch only once
   useEffect(() => {
-    setSelectedHealths(selectedProjectHealths);
-  }, [selectedProjectHealths]);
+    if (!initialized && !projectHealthsLoading) {
+      dispatch(fetchProjectHealth());
+    }
+  }, [dispatch, initialized, projectHealthsLoading]);
 
-  useEffect(() => {
-    if (!projectHealthsLoading) dispatch(fetchProjectHealth());
-  }, [dispatch]);
-
-  const debouncedUpdate = useCallback(
-    debounce((healths: IProjectHealth[]) => {
-      dispatch(setSelectedProjectHealths(healths));
-      dispatch(fetchProjectData());
-    }, 300),
+  const handleToggle = useCallback(
+    (health: IProjectHealth) => {
+      setLocalSelected(prev => {
+        const exists = prev.some(h => h.id === health.id);
+        const updated = exists
+          ? prev.filter(h => h.id !== health.id)
+          : [...prev, health];
+        dispatch(setSelectedProjectHealths(updated));
+        dispatch(fetchProjectData());
+        return updated;
+      });
+    },
     [dispatch]
   );
 
-  const handleHealthChange = (health: IProjectHealth) => {
-    const isSelected = selectedHealths.some(h => h.id === health.id);
-    let updatedHealths: IProjectHealth[];
+  const isChecked = (health: IProjectHealth) =>
+    localSelected.some(h => h.id === health.id);
 
-    if (isSelected) {
-      updatedHealths = selectedHealths.filter(h => h.id !== health.id);
-    } else {
-      updatedHealths = [...selectedHealths, health];
-    }
+  const selectedCount = localSelected.length;
+  const label =
+    selectedCount === 0
+      ? t('healthText')
+      : selectedCount === 1
+        ? localSelected[0].name || t('healthText')
+        : `${selectedCount} Healths`;
 
-    setSelectedHealths(updatedHealths);
-    debouncedUpdate(updatedHealths);
-  };
-
-  const projectHealthDropdownContent = (
+  const dropdownContent = (
     <Card className="custom-card" styles={{ body: { padding: 0 } }}>
-      <List style={{ padding: 0 }}>
-        {projectHealths.map(item => (
+      <List style={{ padding: 0 }} loading={projectHealthsLoading}>
+        {projectHealths.map(health => (
           <List.Item
             className={`custom-list-item ${themeMode === 'dark' ? 'dark' : ''}`}
-            key={item.id}
+            key={health.id}
             style={{
               display: 'flex',
               gap: 8,
               padding: '4px 8px',
               border: 'none',
+              cursor: 'pointer',
             }}
           >
-            <Space>
-              <Checkbox
-                id={item.id}
-                checked={selectedHealths.some(h => h.id === item.id)}
-                onChange={() => handleHealthChange(item)}
-                disabled={projectLoading}
-              >
-                {item.name}
-              </Checkbox>
-            </Space>
+            <Checkbox
+              checked={isChecked(health)}
+              onChange={() => handleToggle(health)}
+              style={{ width: '100%' }}
+            >
+              <Flex align="center" gap={8}>
+                {/* Color dot from health.color_code */}
+                {health.color_code && (
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      width: 10,
+                      height: 10,
+                      borderRadius: '50%',
+                      backgroundColor: health.color_code,
+                      flexShrink: 0,
+                    }}
+                  />
+                )}
+                {health.name}
+              </Flex>
+            </Checkbox>
           </List.Item>
         ))}
       </List>
@@ -90,20 +104,20 @@ const ProjectHealthFilterDropdown = () => {
     <Dropdown
       overlayClassName="custom-dropdown"
       trigger={['click']}
-      dropdownRender={() => projectHealthDropdownContent}
+      dropdownRender={() => dropdownContent}
       onOpenChange={open => setIsDropdownOpen(open)}
     >
       <Button
         icon={<CaretDownFilled />}
         iconPosition="end"
         loading={projectHealthsLoading}
-        className={`transition-colors duration-300 ${
-          isDropdownOpen
-            ? 'border-[#1890ff] text-[#1890ff]'
-            : 'hover:text-[#1890ff] hover:border-[#1890ff]'
-        }`}
+        style={
+          selectedCount > 0 || isDropdownOpen
+            ? { borderColor: '#1890ff', color: '#1890ff' }
+            : {}
+        }
       >
-        {t('healthText')}
+        {label}
       </Button>
     </Dropdown>
   );

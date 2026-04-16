@@ -77,7 +77,7 @@ const CategoriesSettings = () => {
       key: 'associatedTask',
       title: t('associatedTaskColumn'),
       render: (record: IProjectCategoryViewModel) => (
-        <Typography.Text>{record.usage}</Typography.Text>
+        <Typography.Text>{record.project_count || 0}</Typography.Text>
       ),
     },
     {
@@ -91,9 +91,18 @@ const CategoriesSettings = () => {
             okText={t('deleteConfirmationOk')}
             cancelText={t('deleteConfirmationCancel')}
             onConfirm={() => record.id && dispatch(deleteCategory(record.id))}
+            onCancel={(e) => e?.stopPropagation()}
           >
             <Tooltip title="Delete">
-              <Button shape="default" icon={<DeleteOutlined />} size="small" />
+              <Button 
+                shape="default" 
+                icon={<DeleteOutlined />} 
+                size="small"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                }}
+              />
             </Tooltip>
           </Popconfirm>
         ),

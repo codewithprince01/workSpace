@@ -9,6 +9,38 @@ const logger = require('../utils/logger');
 router.use(protect);
 
 /**
+ * POST /api/attachments/avatar
+ * Upload user avatar
+ */
+router.post('/avatar', async (req, res) => {
+    try {
+        const { file, file_name, size } = req.body;
+
+        if (!file || !file_name) {
+            return res.status(400).json({ done: false, message: 'file and file_name are required' });
+        }
+
+        // Generate a unique key for the avatar
+        const key = `avatars/${req.user._id}-${Date.now()}-${file_name}`;
+
+        // Upload the file to storage
+        const url = await storageService.uploadBase64(key, file, file_name);
+
+        // Update user's avatar_url
+        const { User } = require('../models');
+        await User.findByIdAndUpdate(req.user._id, { avatar_url: url });
+
+        res.json({
+            done: true,
+            body: { url }
+        });
+    } catch (error) {
+        logger.error('Avatar upload error: %s', error.message);
+        res.status(500).json({ done: false, message: 'Failed to upload avatar' });
+    }
+});
+
+/**
  * GET /api/attachments/upload-url
  * Returns a presigned URL for secure frontend upload
  */

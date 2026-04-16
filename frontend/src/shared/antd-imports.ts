@@ -65,6 +65,8 @@ import {
   Mentions,
   Radio,
   Steps,
+  Slider,
+  Rate,
   App as AntdApp
 } from 'antd/es';
 
@@ -190,7 +192,9 @@ export {
   CloudDownloadOutlined,
   CopyOutlined,
   RollbackOutlined,
-  DashboardOutlined
+  DashboardOutlined,
+  SmileOutlined,
+  ThunderboltOutlined
 } from '@ant-design/icons';
 
 // Re-export all components with React
@@ -250,6 +254,8 @@ export {
   Mentions,
   Radio,
   Steps,
+  Slider,
+  Rate,
   AntdApp
 };
 

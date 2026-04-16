@@ -7,6 +7,7 @@ module.exports = {
   surveys: require('./surveys.controller'),
   settings: require('./settings.controller'),
   projectTemplates: require('./project-templates.controller'),
+  taskTemplates: require('./task-templates.controller'),
   reporting: require('./reporting.controller'),
   taskDependencies: require('./task-dependencies.controller')
 };

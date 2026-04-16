@@ -122,6 +122,7 @@ app.use(passport.session());
 
 // Static files
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 // View engine (if needed)
 app.set('views', path.join(__dirname, 'views'));

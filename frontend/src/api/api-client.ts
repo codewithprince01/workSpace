@@ -87,6 +87,11 @@ apiClient.interceptors.request.use(
 // Response interceptor with notification handling based on done flag
 apiClient.interceptors.response.use(
   response => {
+    // Skip JSON parsing for blob responses
+    if (response.config?.responseType === 'blob') {
+      return response;
+    }
+
     // Handle 302 redirect
     if (response.status === 302) {
       const redirectUrl = response.headers.location;

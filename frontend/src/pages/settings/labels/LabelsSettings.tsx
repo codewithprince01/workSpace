@@ -127,13 +127,17 @@ const LabelsSettings = () => {
               okText={t('deleteButton', 'Delete')}
               cancelText={t('cancelButton', 'Cancel')}
               onConfirm={() => deleteLabel(record.id!)}
+              onCancel={(e) => e?.stopPropagation()}
             >
               <Tooltip title={t('deleteTooltip', 'Delete')}>
                 <Button 
                   shape="default" 
                   icon={<DeleteOutlined />} 
                   size="small"
-                  onClick={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                  }}
                 />
               </Tooltip>
             </Popconfirm>
@@ -173,7 +177,7 @@ const LabelsSettings = () => {
         className="custom-two-colors-row-table"
         dataSource={filteredData}
         columns={columns}
-        rowKey={record => record.id!}
+        rowKey={(record, index) => record.id || index}
         onRow={(record) => ({
           style: { cursor: 'pointer' },
           onClick: () => handleEditClick(record.id!),

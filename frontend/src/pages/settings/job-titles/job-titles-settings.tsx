@@ -132,7 +132,10 @@ const JobTitlesSettings = () => {
               <Button
                 size="small"
                 icon={<EditOutlined />}
-                onClick={() => record.id && handleEditClick(record.id)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (record.id) handleEditClick(record.id);
+                }}
               />
             </Tooltip>
 
@@ -142,9 +145,18 @@ const JobTitlesSettings = () => {
               okText={t('deleteConfirmationOk')}
               cancelText={t('deleteConfirmationCancel')}
               onConfirm={() => record.id && deleteJobTitle(record.id)}
+              onCancel={(e) => e?.stopPropagation()}
             >
               <Tooltip title="Delete">
-                <Button shape="default" icon={<DeleteOutlined />} size="small" />
+                <Button 
+                  shape="default" 
+                  icon={<DeleteOutlined />} 
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                  }}
+                />
               </Tooltip>
             </Popconfirm>
           </Flex>

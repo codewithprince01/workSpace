@@ -7,6 +7,7 @@ const { requireReportsAccess, checkProjectRole } = require('../middlewares/proje
 router.use(protect);
 
 // Reporting routes - require owner or admin role (checked per-request)
+router.get('/info', reporting.getInfo);
 router.get('/overview/statistics', reporting.getOverviewStatistics);
 router.get('/overview/teams', reporting.getOverviewTeams);
 router.post('/projects', reporting.getProjectsReports);

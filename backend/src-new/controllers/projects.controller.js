@@ -11,6 +11,18 @@ const extractObjectId = (value) => {
   return mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : null;
 };
 
+const normalizeProjectStatusValue = (value) => {
+  if (!value) return null;
+  if (typeof value === 'object' && value.id) return value.id;
+  return value;
+};
+
+const normalizeProjectHealthValue = (value) => {
+  if (!value) return null;
+  if (typeof value === 'object' && value.id) return value.id;
+  return value;
+};
+
 /**
  * @swagger
  * components:

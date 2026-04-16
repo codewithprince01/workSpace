@@ -1,116 +1,125 @@
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { categoriesApiService } from '@/api/settings/categories/categories.api.service';
-import { fetchProjectCategories } from '@/features/projects/lookups/projectCategories/projectCategoriesSlice';
-import { setSelectedProjectCategories } from '@/features/reporting/projectReports/project-reports-slice';
+import {
+  fetchProjectData,
+  setSelectedProjectCategories,
+  setAllProjectCategories,
+} from '@/features/reporting/projectReports/project-reports-slice';
 import { useAppDispatch } from '@/hooks/useAppDispatch';
 import { useAppSelector } from '@/hooks/useAppSelector';
 import { IProjectCategoryViewModel } from '@/types/project/projectCategory.types';
 import { CaretDownFilled } from '@/shared/antd-imports';
-import { Badge, Button, Card, Checkbox, Dropdown, Empty, Flex, Input, InputRef, List } from '@/shared/antd-imports';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Badge, Button, Card, Checkbox, Dropdown,
+  Empty, Flex, Input, InputRef, List, Typography,
+} from '@/shared/antd-imports';
 import { useTranslation } from 'react-i18next';
 
 const ProjectCategoriesFilterDropdown = () => {
-  const { t } = useTranslation('reporting-projects-filters');
   const dispatch = useAppDispatch();
-
+  const { t } = useTranslation('reporting-projects-filters');
+  const inputRef = useRef<InputRef>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const categoryInputRef = useRef<InputRef>(null);
-  const { mode: themeMode } = useAppSelector(state => state.themeReducer);
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [orgCategories, setOrgCategories] = useState<IProjectCategoryViewModel[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [categories, setCategories] = useState<IProjectCategoryViewModel[]>([]);
   const [loading, setLoading] = useState(false);
-  const { projectCategories, loading: projectCategoriesLoading } = useAppSelector(
-    state => state.projectCategoriesReducer
-  );
+  const [localSelected, setLocalSelected] = useState<IProjectCategoryViewModel[]>([]);
 
-  const handleCategoryDropdownOpen = (open: boolean) => {
-    setIsDropdownOpen(open);
-
-    if (open) {
-      setTimeout(() => {
-        categoryInputRef.current?.focus();
-      }, 0);
-    }
-  };
-
-  const getOrgCategories = async () => {
-    setLoading(true);
-    const response = await categoriesApiService.getCategoriesByOrganization();
-    if (response.done) {
-      setOrgCategories(response.body as IProjectCategoryViewModel[]);
-    }
-    setLoading(false);
-  };
+  const { mode: themeMode } = useAppSelector(state => state.themeReducer);
 
   useEffect(() => {
-    getOrgCategories();
+    const load = async () => {
+      setLoading(true);
+      try {
+        const res = await categoriesApiService.getCategoriesByOrganization();
+        if (res.done) setCategories(res.body as IProjectCategoryViewModel[]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
   }, []);
 
-  // Add filtered categories memo
-  const filteredCategories = useMemo(() => {
-    if (!searchQuery.trim()) return orgCategories;
-
-    return orgCategories.filter(category =>
-      category.name?.toLowerCase().includes(searchQuery.toLowerCase().trim())
-    );
-  }, [orgCategories, searchQuery]);
-
-  const handleCategoryChange = (category: IProjectCategoryViewModel) => {
-    const isSelected = orgCategories.some(h => h.id === category.id);
-    let updatedCategory: IProjectCategoryViewModel[];
-
-    if (isSelected) {
-      updatedCategory = orgCategories.filter(h => h.id !== category.id);
-    } else {
-      updatedCategory = [...orgCategories, category];
-    }
-    dispatch(setSelectedProjectCategories(category));
+  const handleOpenChange = (open: boolean) => {
+    setIsDropdownOpen(open);
+    if (open) setTimeout(() => inputRef.current?.focus(), 0);
   };
 
-  useEffect(() => {
-    if (!projectCategoriesLoading) dispatch(fetchProjectCategories());
-  }, [dispatch]);
+  const filteredCategories = useMemo(
+    () =>
+      searchQuery.trim()
+        ? categories.filter(c =>
+            (c.name || '').toLowerCase().includes(searchQuery.toLowerCase())
+          )
+        : categories,
+    [categories, searchQuery]
+  );
 
-  const projectCategoryDropdownContent = (
-    <Card className="custom-card" styles={{ body: { padding: 8, width: 260 } }}>
+  const isChecked = useCallback(
+    (cat: IProjectCategoryViewModel) => localSelected.some(c => c.id === cat.id),
+    [localSelected]
+  );
+
+  const handleToggle = useCallback(
+    (cat: IProjectCategoryViewModel) => {
+      setLocalSelected(prev => {
+        const exists = prev.some(c => c.id === cat.id);
+        const updated = exists ? prev.filter(c => c.id !== cat.id) : [...prev, cat];
+        dispatch(setAllProjectCategories(updated));
+        dispatch(fetchProjectData());
+        return updated;
+      });
+    },
+    [dispatch]
+  );
+
+  const selectedCount = localSelected.length;
+  const label =
+    selectedCount === 0
+      ? t('categoryText')
+      : selectedCount === 1
+        ? localSelected[0].name || t('categoryText')
+        : `${selectedCount} Categories`;
+
+  const dropdownContent = (
+    <Card className="custom-card" styles={{ body: { padding: 8, width: 240 } }}>
       <Flex vertical gap={8}>
+        {/* Search — useful since categories can be many */}
         <Input
-          ref={categoryInputRef}
+          ref={inputRef}
           value={searchQuery}
           onChange={e => setSearchQuery(e.currentTarget.value)}
           placeholder={t('searchByCategoryPlaceholder')}
+          size="small"
         />
-
-        <List
-          style={{
-            padding: 0,
-            maxHeight: 200,
-            overflowY: 'auto',
-          }}
-        >
+        <List style={{ padding: 0, maxHeight: 220, overflowY: 'auto' }} loading={loading}>
           {filteredCategories.length ? (
-            filteredCategories.map(category => (
+            filteredCategories.map(cat => (
               <List.Item
                 className={`custom-list-item ${themeMode === 'dark' ? 'dark' : ''}`}
-                key={category.id}
+                key={cat.id}
                 style={{
                   display: 'flex',
-                  justifyContent: 'flex-start',
                   gap: 8,
                   padding: '4px 8px',
                   border: 'none',
+                  cursor: 'pointer',
                 }}
               >
-                <Checkbox id={category.id} onChange={() => handleCategoryChange(category)}>
-                  <Flex gap={8}>
-                    <Badge color={category.color_code} />
-                    {category.name}
+                <Checkbox
+                  checked={isChecked(cat)}
+                  onChange={() => handleToggle(cat)}
+                  style={{ width: '100%' }}
+                >
+                  <Flex gap={8} align="center">
+                    <Badge color={cat.color_code || '#8c8c8c'} />
+                    {cat.name}
                   </Flex>
                 </Checkbox>
               </List.Item>
             ))
           ) : (
-            <Empty />
+            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
           )}
         </List>
       </Flex>
@@ -121,20 +130,16 @@ const ProjectCategoriesFilterDropdown = () => {
     <Dropdown
       overlayClassName="custom-dropdown"
       trigger={['click']}
-      dropdownRender={() => projectCategoryDropdownContent}
-      onOpenChange={handleCategoryDropdownOpen}
+      dropdownRender={() => dropdownContent}
+      onOpenChange={handleOpenChange}
     >
       <Button
         icon={<CaretDownFilled />}
         iconPosition="end"
-        loading={projectCategoriesLoading}
-        className={`transition-colors duration-300 ${
-          isDropdownOpen
-            ? 'border-[#1890ff] text-[#1890ff]'
-            : 'hover:text-[#1890ff hover:border-[#1890ff]'
-        }`}
+        loading={loading}
+        style={selectedCount > 0 || isDropdownOpen ? { borderColor: '#1890ff', color: '#1890ff' } : {}}
       >
-        {t('categoryText')}
+        {label}
       </Button>
     </Dropdown>
   );

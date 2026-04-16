@@ -71,9 +71,9 @@ const LanguageAndRegionSettings = () => {
     const res = await timezonesApiService.update(values);
     if (res.done) {
       const authorizeResponse = await authApiService.verify();
-      if (authorizeResponse.authenticated) {
-        setSession(authorizeResponse.user);
-        dispatch(setUser(authorizeResponse.user));
+      if (authorizeResponse.authenticated && authorizeResponse.data?.user) {
+        setSession(authorizeResponse.data.user);
+        dispatch(setUser(authorizeResponse.data.user));
       }
     }
   };

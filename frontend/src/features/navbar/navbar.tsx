@@ -48,6 +48,11 @@ const Navbar = () => {
   // Filter nav routes based on current permissions
   useEffect(() => {
     const filteredRoutes = navRoutes.filter(route => {
+      // Filter out trash from navbar (trash is already in settings)
+      if (route.name === 'trash') {
+        return false;
+      }
+      
       // Filter out reports if user doesn't have reports access
       if (route.requiresReportsAccess && !projectRole.canAccessReports) {
         return false;
@@ -98,10 +103,7 @@ const Navbar = () => {
       });
   }, []);
 
-  useEffect(() => {
-    const storedNavRoutesList: NavRoutesType[] = getJSONFromLocalStorage('navRoutes') || navRoutes;
-    setNavRoutesList(storedNavRoutesList);
-  }, []);
+  // Initial population of nav routes handled by the filtered effect above
 
   useEffect(() => {
     if (currentSession?.trial_expire_date) {

@@ -15,6 +15,7 @@ const Schedule = lazy(() => import('@/pages/schedule/schedule'));
 const ProjectView = lazy(() => import('@/pages/projects/projectView/project-view'));
 const Unauthorized = lazy(() => import('@/pages/unauthorized/unauthorized'));
 const GanttDemoPage = lazy(() => import('@/pages/GanttDemoPage'));
+const CalendarPage = lazy(() => import('@/pages/calendar/calendar-page'));
 
 // Define AdminGuard component with defensive programming
 const AdminGuard = ({ children }: { children: React.ReactNode }) => {
@@ -101,6 +102,14 @@ const mainRoutes: RouteObject[] = [
         element: (
           <Suspense fallback={<SuspenseFallback />}>
             <GanttDemoPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: 'calendar',
+        element: (
+          <Suspense fallback={<SuspenseFallback />}>
+            <CalendarPage />
           </Suspense>
         ),
       },

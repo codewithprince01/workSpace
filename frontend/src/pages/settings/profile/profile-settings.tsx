@@ -66,10 +66,11 @@ const ProfileSettings = () => {
       });
       if (res.done) {
         trackMixpanelEvent(evt_settings_profile_picture_update);
+        setImageUrl(res.body.url);
         const authorizeResponse = await authApiService.verify();
-        if (authorizeResponse.authenticated) {
-          setSession(authorizeResponse.user);
-          dispatch(setUser(authorizeResponse.user));
+        if (authorizeResponse.authenticated && authorizeResponse.data?.user) {
+          setSession(authorizeResponse.data.user);
+          dispatch(setUser(authorizeResponse.data.user));
         }
       }
     } catch (e) {

@@ -41,6 +41,8 @@ type ProjectReportsState = {
   selectedProjectHealths: IProjectHealth[];
   selectedProjectCategories: IProjectCategory[];
   selectedProjectManagers: IProjectManager[];
+  selectedProjectTeams: any[];
+  viewMode: 'table' | 'grouped';
 };
 
 export const fetchProjectData = createAsyncThunk(
@@ -58,6 +60,7 @@ export const fetchProjectData = createAsyncThunk(
       healths: state.selectedProjectHealths.map((h: IProjectHealth) => h.id || ''),
       categories: state.selectedProjectCategories.map((c: IProjectCategory) => c.id || ''),
       project_managers: state.selectedProjectManagers.map((m: IProjectManager) => m.id || ''),
+      teams: state.selectedProjectTeams.map((t: any) => t.id || ''),
       archived: state.archived,
     };
     const response = await reportingProjectsApiService.getProjects(body);
@@ -99,6 +102,8 @@ const initialState: ProjectReportsState = {
   selectedProjectHealths: [],
   selectedProjectCategories: [],
   selectedProjectManagers: [],
+  selectedProjectTeams: [],
+  viewMode: 'table',
 };
 
 const projectReportsSlice = createSlice({
@@ -130,6 +135,10 @@ const projectReportsSlice = createSlice({
         state.selectedProjectCategories.push(category);
       }
     },
+    setAllProjectCategories: (state, action) => {
+      state.selectedProjectCategories = action.payload; // full array replacement
+      state.index = 1;
+    },
     setSelectedProjectManagers: (state, action) => {
       const manager = action.payload;
       const index = state.selectedProjectManagers.findIndex(m => m.id === manager.id);
@@ -138,6 +147,23 @@ const projectReportsSlice = createSlice({
       } else {
         state.selectedProjectManagers.push(manager);
       }
+    },
+    setSelectedProjectTeams: (state, action) => {
+      const team = action.payload;
+      const index = state.selectedProjectTeams.findIndex((t: any) => t.id === team.id);
+      if (index >= 0) {
+        state.selectedProjectTeams.splice(index, 1);
+      } else {
+        state.selectedProjectTeams.push(team);
+      }
+    },
+    // Batch set — replaces entire list at once (for Select All / Clear All)
+    setAllProjectTeams: (state, action) => {
+      state.selectedProjectTeams = action.payload; // array or []
+      state.index = 1;
+    },
+    setViewMode: (state, action) => {
+      state.viewMode = action.payload;
     },
     setArchived: (state, action) => {
       state.archived = action.payload;
@@ -211,6 +237,8 @@ const projectReportsSlice = createSlice({
       state.searchQuery = '';
       state.filterIndex = filterIndex();
       state.archived = false;
+      state.selectedProjectTeams = [];
+      state.viewMode = 'table';
     },
   },
   extraReducers: builder => {
@@ -258,7 +286,11 @@ export const {
   setSelectedProjectStatuses,
   setSelectedProjectHealths,
   setSelectedProjectCategories,
+  setAllProjectCategories,
   setSelectedProjectManagers,
+  setSelectedProjectTeams,
+  setAllProjectTeams,
+  setViewMode,
   setArchived,
   setProjectStartDate,
   setProjectEndDate,

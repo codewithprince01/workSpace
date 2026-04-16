@@ -2,6 +2,7 @@ const { Task, TaskStatus, Project, ProjectMember, TaskComment, TaskAttachment } 
 const { generateTaskKeyForProject } = require('../utils/task-key');
 const { sanitizeText, sanitizeRich } = require('../utils/sanitize');
 const logger = require('../utils/logger');
+const calendarSyncService = require('./calendar-sync.service');
 
 /**
  * Task Service
@@ -51,6 +52,10 @@ exports.createTask = async (data, reporterId) => {
     labels,
     phase_id
   });
+  
+  if (task.due_date) {
+    await calendarSyncService.syncTaskToCalendar(task);
+  }
 
   return task;
 };
@@ -68,11 +73,12 @@ exports.deleteTask = async (taskId) => {
   task.is_archived = false;
   await task.save();
 
-  // Move subtasks to trash
   await Task.updateMany(
     { parent_task_id: taskId },
     { is_trashed: true, is_archived: false }
   );
+
+  await calendarSyncService.removeTaskFromCalendar(taskId);
 
   logger.info(`Task Service: Moved task ${taskId} and its subtasks to trash`);
   return task;

@@ -67,6 +67,22 @@ const userSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Team',
     default: null
+  },
+  popup_notifications_enabled: {
+    type: Boolean,
+    default: true
+  },
+  email_notifications_enabled: {
+    type: Boolean,
+    default: true
+  },
+  daily_digest_enabled: {
+    type: Boolean,
+    default: true
+  },
+  show_unread_items_count: {
+    type: Boolean,
+    default: true
   }
 }, {
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }

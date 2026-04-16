@@ -4,6 +4,26 @@ const logger = require('../utils/logger');
 const cacheService = require('../services/cache.service');
 
 /**
+ * @desc    Get reporting info
+ * @route   GET /api/reporting/info
+ * @access  Private
+ */
+exports.getInfo = async (req, res, next) => {
+  try {
+    // Return basic info - organization name can be added later if needed
+    res.json({
+      done: true,
+      body: {
+        organization_name: ''
+      }
+    });
+  } catch (error) {
+    logger.error('getInfo Error: %s', error.message);
+    next(error);
+  }
+};
+
+/**
  * @desc    Get reporting overview statistics
  * @route   GET /api/reporting/overview/statistics
  * @access  Private
@@ -142,7 +162,7 @@ exports.getOverviewTeams = async (req, res, next) => {
 exports.getProjectsReports = async (req, res, next) => {
   try {
     logger.debug('Reporting Projects Body: %j', req.body);
-    const { index, size, field, order, search, archived, statuses, healths, categories, project_managers } = req.body;
+    const { index, size, field, order, search, archived, statuses, healths, categories, project_managers, teams } = req.body;
     const userId = req.user._id;
 
     const page = parseInt(index) || 1;
@@ -164,6 +184,22 @@ exports.getProjectsReports = async (req, res, next) => {
     
     if (healths && healths.length > 0) query.health = { $in: healths };
     if (categories && categories.length > 0) query.category_id = { $in: categories };
+
+    // Teams Filter — filter by team_id
+    if (teams && teams.length > 0) {
+      const validTeamIds = teams
+        .filter(id => id && mongoose.Types.ObjectId.isValid(id))
+        .map(id => new mongoose.Types.ObjectId(id));
+      if (validTeamIds.length > 0) query.team_id = { $in: validTeamIds };
+    }
+
+    // Project Managers Filter — filter by owner_id
+    if (project_managers && project_managers.length > 0) {
+      const validManagerIds = project_managers
+        .filter(id => id && mongoose.Types.ObjectId.isValid(id))
+        .map(id => new mongoose.Types.ObjectId(id));
+      if (validManagerIds.length > 0) query.owner_id = { $in: validManagerIds };
+    }
 
     const total = await Project.countDocuments(query);
 
@@ -422,7 +458,6 @@ exports.getAllocationData = async (req, res, next) => {
 
     
     const projects = await Project.find(projectQuery)
-        .populate('status_id', 'icon color_code') 
         .select('name color_code status team_id')
         .lean();
     
@@ -558,120 +593,120 @@ exports.getMembersReports = async (req, res, next) => {
     const limit = parseInt(size) || 10;
     const skip = (page - 1) * limit;
 
-    // Get members in user's team(s)
-    // First find user's active team
-    const myMembership = await TeamMember.findOne({ user_id: userId, is_active: true });
-    if (!myMembership) {
-        return res.json({ done: true, body: { total: 0, members: [] } });
+    // ── Step 1: Get ALL teams the user belongs to ──────────────────────────
+    const myMemberships = await TeamMember.find({ user_id: userId, is_active: true }).select('team_id');
+    if (!myMemberships.length) {
+      return res.json({ done: true, body: { total: 0, members: [] } });
     }
-    const teamId = myMembership.team_id;
-    logger.debug('getMembersReports teamId: %s', teamId);
+    const teamIds = myMemberships.map(m => m.team_id).filter(Boolean);
 
-    // Build query for members
-    const memberQuery = { team_id: teamId, is_active: true };
-    // If search text provided, we need to filter by User name.
-    
-    let memberIds = [];
+    // ── Step 2: Get all projects in those teams ─────────────────────────────
+    const projects = await Project.find({ team_id: { $in: teamIds }, is_archived: archived ? undefined : false })
+      .select('_id team_id name')
+      .lean();
+    const projectIds = projects.map(p => p._id);
+    const projectTeamMap = {};
+    projects.forEach(p => { projectTeamMap[p._id.toString()] = p.team_id?.toString(); });
+
+    // ── Step 3: Get ALL project members across those projects ───────────────
+    const projectMembers = await ProjectMember.find({
+      project_id: { $in: projectIds },
+      is_active: true,
+    })
+      .populate('user_id', 'name avatar_url email color_code')
+      .lean();
+
+    // ── Step 4: Deduplicate by user_id ─────────────────────────────────────
+    const uniqueUsersMap = {};
+    projectMembers.forEach(pm => {
+      if (!pm.user_id) return;
+      const uid = pm.user_id._id.toString();
+      if (!uniqueUsersMap[uid]) {
+        uniqueUsersMap[uid] = pm.user_id;
+      }
+    });
+
+    let allUsers = Object.values(uniqueUsersMap);
+
+    // ── Step 5: Apply search filter (by name) ──────────────────────────────
     if (search) {
-        const users = await mongoose.model('User').find({ name: { $regex: search, $options: 'i' } }).select('_id');
-        const uIds = users.map(u => u._id);
-        memberQuery.user_id = { $in: uIds };
+      const q = search.toLowerCase();
+      allUsers = allUsers.filter(u => (u.name || '').toLowerCase().includes(q));
     }
 
-    const total = await TeamMember.countDocuments(memberQuery);
-    
-    const members = await TeamMember.find(memberQuery)
-        .populate('user_id', 'name avatar_url email')
-        .skip(skip)
-        .limit(limit)
-        .lean();
-    
-    logger.debug(`getMembersReports: found ${members.length} members`);
+    // ── Step 6: Sort ───────────────────────────────────────────────────────
+    const sortField = field || 'name';
+    const sortDir = (order === 'asc' || order === 'ascend') ? 1 : -1;
+    allUsers.sort((a, b) => {
+      const av = (a[sortField] || '').toString().toLowerCase();
+      const bv = (b[sortField] || '').toString().toLowerCase();
+      return sortDir * av.localeCompare(bv);
+    });
 
-    const memberUserIds = members.map(m => m.user_id?._id).filter(Boolean);
+    const total = allUsers.length;
 
-    // --- Batch Task Stats ---
-    const taskQuery = { assignees: { $in: memberUserIds }, is_archived: false };
+    // ── Step 7: Paginate ───────────────────────────────────────────────────
+    const pagedUsers = allUsers.slice(skip, skip + limit);
+    const pagedUserIds = pagedUsers.map(u => u._id);
+
+    // ── Step 8: Batch Task Stats ───────────────────────────────────────────
+    const taskQuery = { assignees: { $in: pagedUserIds }, is_archived: false };
     if (date_range && Array.isArray(date_range) && date_range.length === 2) {
       taskQuery.due_date = { $gte: new Date(date_range[0]), $lte: new Date(date_range[1]) };
     }
     const allTasks = await Task.find(taskQuery).select('assignees status_id due_date project_id').lean();
-    
-    // Batch fetch status categories for all found status IDs
-    const statusIds = allTasks.map(t => t.status_id).filter(Boolean);
+
+    const statusIds = [...new Set(allTasks.map(t => t.status_id?.toString()).filter(Boolean))];
     const statuses = await TaskStatus.find({ _id: { $in: statusIds } }).select('category').lean();
     const statusMap = {};
-    statuses.forEach(s => statusMap[s._id.toString()] = s.category);
-
-    // Fetch related projects in one go to calculate distinct project counts
-    const projectIdsInTasks = [...new Set(allTasks.map(t => t.project_id?.toString()).filter(Boolean))];
+    statuses.forEach(s => { statusMap[s._id.toString()] = s.category; });
 
     const memberStatsMap = {};
     const now = new Date();
-
     allTasks.forEach(task => {
       task.assignees.forEach(uid => {
-        const userIdStr = uid.toString();
-        if (!memberStatsMap[userIdStr]) {
-          memberStatsMap[userIdStr] = { todo: 0, doing: 0, done: 0, overdue: 0, total: 0, projects: new Set() };
+        const uidStr = uid.toString();
+        if (!memberStatsMap[uidStr]) {
+          memberStatsMap[uidStr] = { todo: 0, doing: 0, done: 0, overdue: 0, total: 0, projects: new Set() };
         }
-
-        const stats = memberStatsMap[userIdStr];
+        const stats = memberStatsMap[uidStr];
         stats.total++;
         if (task.project_id) stats.projects.add(task.project_id.toString());
-
         const cat = statusMap[task.status_id?.toString()] || 'todo';
         if (cat === 'done') stats.done++;
         else if (cat === 'doing') stats.doing++;
         else stats.todo++;
-
-        if (task.due_date && new Date(task.due_date) < now && cat !== 'done') {
-          stats.overdue++;
-        }
+        if (task.due_date && new Date(task.due_date) < now && cat !== 'done') stats.overdue++;
       });
     });
 
-    // --- Final Enrichment ---
-    const enrichedMembers = members.map((m) => {
-        if (!m.user_id) return null;
-        const uid = m.user_id._id.toString();
-        const stats = memberStatsMap[uid] || { todo: 0, doing: 0, done: 0, overdue: 0, total: 0, projects: new Set() };
-
-        return {
-            id: m.user_id._id,
-            name: m.user_id.name,
-            email: m.user_id.email,
-            avatar_url: m.user_id.avatar_url,
-            color_code: m.user_id.color_code || '#888',
-            teams: 'Team Name', 
-            projects: stats.projects.size,
-            tasks: stats.total,
-            completed: stats.done,
-            ongoing: stats.todo + stats.doing,
-            overdue: stats.overdue,
-            todo: stats.todo,
-            tasks_stat: {
-                total: stats.total,
-                todo: stats.todo,
-                doing: stats.doing,
-                done: stats.done
-            }
-        };
-    }).filter(Boolean);
-
-    const resultBody = {
-        total,
-        members: enrichedMembers
-    };
-
-    // --- Save to Cache ---
-    if (typeof cacheKey !== 'undefined') {
-        await cacheService.set(cacheKey, resultBody, constants.CACHE_TTL);
-    }
+    // ── Step 9: Build response ────────────────────────────────────────────
+    const enrichedMembers = pagedUsers.map(u => {
+      const uid = u._id.toString();
+      const stats = memberStatsMap[uid] || { todo: 0, doing: 0, done: 0, overdue: 0, total: 0, projects: new Set() };
+      return {
+        id: u._id,
+        name: u.name,
+        email: u.email,
+        avatar_url: u.avatar_url,
+        color_code: u.color_code || '#888',
+        projects: stats.projects.size,
+        tasks: stats.total,
+        completed: stats.done,
+        ongoing: stats.todo + stats.doing,
+        overdue: stats.overdue,
+        tasks_stat: {
+          total: stats.total,
+          todo: stats.todo,
+          doing: stats.doing,
+          done: stats.done,
+        },
+      };
+    });
 
     res.json({
-        done: true,
-        body: resultBody
+      done: true,
+      body: { total, members: enrichedMembers },
     });
 
   } catch (error) {
@@ -679,6 +714,7 @@ exports.getMembersReports = async (req, res, next) => {
     next(error);
   }
 };
+
 
 /**
  * @desc    Get allocation categories

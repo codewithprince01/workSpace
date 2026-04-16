@@ -21,5 +21,7 @@ module.exports = {
   TaskPhase: require('./TaskPhase'),
   CustomColumn: require('./CustomColumn'),
   ProjectInvitation: require('./ProjectInvitation'),
-  TaskDependency: require('./TaskDependency')
+  TaskDependency: require('./TaskDependency'),
+  JobTitle: require('./JobTitle'),
+  CalendarEvent: require('./CalendarEvent')
 };

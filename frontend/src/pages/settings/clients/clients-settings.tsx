@@ -137,7 +137,6 @@ const ClientsSettings: React.FC = () => {
                     shape="default"
                     icon={<DeleteOutlined />}
                     size="small"
-                    onClick={() => deleteClientHandler(record.id)}
                   />
                 </Tooltip>
               </Popconfirm>

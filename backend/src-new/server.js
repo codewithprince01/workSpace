@@ -4,6 +4,7 @@ const http = require('http');
 const app = require('./app');
 const connectDB = require('./config/db');
 const { initializeSocket } = require('./sockets');
+const { initCalendarReminders } = require('./services/calendar-reminder.service');
 
 const DEFAULT_PORT = Number(process.env.PORT || 3000);
 
@@ -43,6 +44,9 @@ const startServer = async () => {
 
     // Start listening with automatic fallback if port is busy
     const activePort = await listenWithFallback(DEFAULT_PORT, 20);
+
+    // Initialize Background Jobs
+    initCalendarReminders();
 
     console.log('');
     console.log('===============================================');

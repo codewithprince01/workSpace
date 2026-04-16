@@ -415,12 +415,26 @@ exports.resetPassword = async (req, res, next) => {
  */
 exports.updatePassword = async (req, res, next) => {
   try {
-    const { currentPassword, newPassword } = req.body;
+    const { password, new_password, confirm_password } = req.body;
+    
+    if (!password || !new_password || !confirm_password) {
+      return res.status(400).json({
+        success: false,
+        message: 'All password fields are required'
+      });
+    }
     
     const user = await User.findById(req.user._id).select('+password');
     
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+    
     // Check current password
-    const isMatch = await user.comparePassword(currentPassword);
+    const isMatch = await user.comparePassword(password);
     if (!isMatch) {
       return res.status(400).json({
         success: false,
@@ -428,11 +442,31 @@ exports.updatePassword = async (req, res, next) => {
       });
     }
     
-    user.password = newPassword;
+    // Check if new passwords match
+    if (new_password !== confirm_password) {
+      return res.status(400).json({
+        success: false,
+        message: 'New passwords do not match'
+      });
+    }
+    
+    user.password = new_password;
     await user.save();
     
     sendTokenResponse(user, 200, res, 'Password updated successfully');
   } catch (error) {
+    console.error('Update password error:', error);
     next(error);
   }
+};
+
+module.exports = {
+  signup: exports.signup,
+  login: exports.login,
+  logout: exports.logout,
+  verify: exports.verify,
+  forgotPassword: exports.forgotPassword,
+  resetPassword: exports.resetPassword,
+  updatePassword: exports.updatePassword,
+  getMe: exports.getMe
 };

@@ -1,5 +1,5 @@
-import { Button, Card, Checkbox, Dropdown, Flex, Skeleton, Space, Typography } from '@/shared/antd-imports';
-import { DownOutlined } from '@/shared/antd-imports';
+import { Button, Card, Checkbox, Dropdown, Flex, Space, Typography } from '@/shared/antd-imports';
+import { DownOutlined, FileExcelOutlined, SearchOutlined } from '@/shared/antd-imports';
 import MembersReportsTable from './members-reports-table/members-reports-table';
 import TimeWiseFilter from '@/components/reporting/time-wise-filter';
 import { useAppDispatch } from '@/hooks/useAppDispatch';
@@ -29,16 +29,19 @@ const MembersReports = () => {
   const { trackMixpanelEvent } = useMixpanelTracking();
 
   const { archived, searchQuery, total } = useAppSelector(state => state.membersReportsReducer);
-  const { duration, dateRange } = useAppSelector(state => state.reportingReducer);
+  const { duration, dateRange, mode: themeMode } = useAppSelector(state => state.reportingReducer);
 
-  const handleExport = () => {
-    if (!currentSession?.team_name) return;
-    reportingExportApiService.exportMembers(
-      currentSession.team_name,
-      duration,
-      dateRange,
-      archived
-    );
+  const handleExport = async () => {
+    try {
+      await reportingExportApiService.exportMembers(
+        currentSession?.team_name || '',
+        duration,
+        dateRange,
+        archived
+      );
+    } catch (error) {
+      console.error('Export failed:', error);
+    }
   };
 
   useEffect(() => {
@@ -50,23 +53,37 @@ const MembersReports = () => {
     dispatch(setDateRange(dateRange));
   }, [dateRange, duration]);
 
+  const exportMenuItems = [
+    {
+      key: 'excel',
+      label: 'Download Excel',
+      icon: <FileExcelOutlined style={{ color: '#52c41a' }} />,
+      onClick: handleExport,
+    },
+  ];
+
   return (
     <Flex vertical>
       <CustomPageHeader
         title={`Members (${total})`}
         children={
-          <Space>
-            <Button>
-              <Checkbox checked={archived} onChange={() => dispatch(setArchived(!archived))}>
-                <Typography.Text>{t('includeArchivedButton')}</Typography.Text>
-              </Checkbox>
+          <Space size={12}>
+            <Button
+              className={`transition-all duration-300 ${archived ? 'border-[#1890ff] text-[#1890ff]' : ''}`}
+              onClick={() => dispatch(setArchived(!archived))}
+              style={{ padding: '4px 12px' }}
+            >
+              <Flex align="center" gap={8}>
+                <Checkbox checked={archived} style={{ pointerEvents: 'none' }} />
+                <Typography.Text style={{ color: archived ? '#1890ff' : 'inherit' }}>
+                  {t('includeArchivedButton')}
+                </Typography.Text>
+              </Flex>
             </Button>
 
             <TimeWiseFilter />
 
-            <Dropdown
-              menu={{ items: [{ key: '1', label: t('excelButton') }], onClick: handleExport }}
-            >
+            <Dropdown menu={{ items: exportMenuItems }} trigger={['click']}>
               <Button type="primary" icon={<DownOutlined />} iconPosition="end">
                 {t('exportButton')}
               </Button>
@@ -76,12 +93,17 @@ const MembersReports = () => {
       />
 
       <Card
+        styles={{
+          body: { padding: '16px 0' },
+          header: { borderBottom: 'none' }
+        }}
         title={
-          <Flex justify="flex-end">
+          <Flex justify="flex-end" style={{ padding: '0 16px' }}>
             <CustomSearchbar
               placeholderText={t('searchByNameInputPlaceholder')}
               searchQuery={searchQuery}
               setSearchQuery={query => dispatch(setSearchQuery(query))}
+              prefix={<SearchOutlined style={{ color: '#8c8c8c' }} />}
             />
           </Flex>
         }

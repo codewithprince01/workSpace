@@ -1,8 +1,8 @@
 import { useEffect, useState, useMemo, useCallback, memo } from 'react';
-import { Button, ConfigProvider, Flex, PaginationProps, Table, TableColumnsType } from '@/shared/antd-imports';
+import { Button, ConfigProvider, Flex, PaginationProps, Table, TableColumnsType, Typography, Tag, Collapse } from '@/shared/antd-imports';
 import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
-import { ExpandAltOutlined } from '@/shared/antd-imports';
+import { ExpandAltOutlined, RightOutlined } from '@/shared/antd-imports';
 
 import { useAppSelector } from '@/hooks/useAppSelector';
 import { useAppDispatch } from '@/hooks/useAppDispatch';
@@ -58,12 +58,13 @@ const ProjectsReportsTable = () => {
     selectedProjectHealths,
     selectedProjectCategories,
     selectedProjectManagers,
+    selectedProjectTeams,
     archived,
+    viewMode,
   } = useAppSelector(state => state.projectReportsReducer);
 
   const columnsVisibility = useAppSelector(state => state.projectReportsTableColumnsReducer);
 
-  // Memoize the drawer open handler to prevent recreation on every render
   const handleDrawerOpen = useCallback(
     (record: IRPTProject) => {
       setSelectedProject(record);
@@ -92,7 +93,6 @@ const ProjectsReportsTable = () => {
               project={record.name}
               projectColor={record.color_code}
             />
-
             <Button
               className="hidden group-hover:flex"
               type="text"
@@ -238,13 +238,11 @@ const ProjectsReportsTable = () => {
     [t, order, handleDrawerOpen]
   );
 
-  // filter columns based on the `hidden` state from Redux
   const visibleColumns = useMemo(
     () => columns.filter(col => columnsVisibility[col.key as string]),
     [columns, columnsVisibility]
   );
 
-  // Memoize the table change handler to prevent recreation on every render
   const handleTableChange = useCallback(
     (pagination: PaginationProps, filters: any, sorter: any) => {
       if (sorter.order) dispatch(setOrder(sorter.order));
@@ -265,6 +263,7 @@ const ProjectsReportsTable = () => {
     selectedProjectHealths,
     selectedProjectCategories,
     selectedProjectManagers,
+    selectedProjectTeams,
     archived,
     index,
     pageSize,
@@ -300,7 +299,6 @@ const ProjectsReportsTable = () => {
     []
   );
 
-  // Memoize pagination configuration to prevent recreation on every render
   const paginationConfig = useMemo(
     () => ({
       showSizeChanger: true,
@@ -312,29 +310,97 @@ const ProjectsReportsTable = () => {
     [total, index]
   );
 
-  // Memoize scroll configuration to prevent recreation on every render
   const scrollConfig = useMemo(() => ({ x: 'max-content' }), []);
-
-  // Memoize row key function to prevent recreation on every render
   const getRowKey = useCallback((record: IRPTProject) => record.id, []);
-
-  // Memoize onRow function to prevent recreation on every render
   const getRowProps = useCallback(() => tableRowProps, [tableRowProps]);
 
+  // ── Grouped view: group projects by team name ───────────────────────────────
+  const groupedByTeam = useMemo(() => {
+    const map: Record<string, IRPTProject[]> = {};
+    projectList.forEach(p => {
+      const key = p.team_name || 'No Team';
+      if (!map[key]) map[key] = [];
+      map[key].push(p);
+    });
+    return map;
+  }, [projectList]);
+
+  const collapseItems = useMemo(() => {
+    return Object.entries(groupedByTeam).map(([teamName, projects]) => ({
+      key: teamName,
+      label: (
+        <Flex align="center" gap={8}>
+          <Typography.Text strong>{teamName}</Typography.Text>
+          <Tag color="blue" style={{ borderRadius: 12 }}>
+            {projects.length} {projects.length === 1 ? 'project' : 'projects'}
+          </Tag>
+        </Flex>
+      ),
+      children: (
+        <ConfigProvider {...tableConfig}>
+          <Table
+            columns={visibleColumns}
+            dataSource={projects}
+            pagination={false}
+            scroll={scrollConfig}
+            loading={false}
+            rowKey={getRowKey}
+            onRow={getRowProps}
+            size="small"
+          />
+        </ConfigProvider>
+      ),
+    }));
+  }, [groupedByTeam, visibleColumns, scrollConfig, getRowKey, getRowProps, tableConfig]);
+
+  // ── Render ──────────────────────────────────────────────────────────────────
   return (
-    <ConfigProvider {...tableConfig}>
-      <Table
-        columns={visibleColumns}
-        dataSource={projectList}
-        pagination={paginationConfig}
-        scroll={scrollConfig}
-        loading={isLoading}
-        onChange={handleTableChange}
-        rowKey={getRowKey}
-        onRow={getRowProps}
-      />
+    <>
+      {viewMode === 'grouped' ? (
+        <Flex vertical gap={0}>
+          {isLoading ? (
+            <ConfigProvider {...tableConfig}>
+              <Table columns={visibleColumns} dataSource={[]} loading pagination={false} />
+            </ConfigProvider>
+          ) : (
+            <Collapse
+              defaultActiveKey={Object.keys(groupedByTeam)}
+              expandIcon={({ isActive }) => (
+                <RightOutlined rotate={isActive ? 90 : 0} style={{ fontSize: 12 }} />
+              )}
+              style={{ background: 'transparent', border: 'none' }}
+              items={collapseItems}
+            />
+          )}
+          {/* Pagination still shown below grouped view for all records */}
+          <Flex justify="flex-end" style={{ marginTop: 16 }}>
+            <ConfigProvider>
+              <Table
+                columns={[]}
+                dataSource={[]}
+                pagination={paginationConfig}
+                onChange={handleTableChange}
+                style={{ display: 'none' }}
+              />
+            </ConfigProvider>
+          </Flex>
+        </Flex>
+      ) : (
+        <ConfigProvider {...tableConfig}>
+          <Table
+            columns={visibleColumns}
+            dataSource={projectList}
+            pagination={paginationConfig}
+            scroll={scrollConfig}
+            loading={isLoading}
+            onChange={handleTableChange}
+            rowKey={getRowKey}
+            onRow={getRowProps}
+          />
+        </ConfigProvider>
+      )}
       {createPortal(<ProjectReportsDrawer selectedProject={selectedProject} />, document.body)}
-    </ConfigProvider>
+    </>
   );
 };
 

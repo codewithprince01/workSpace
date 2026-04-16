@@ -18,7 +18,6 @@ import {
 } from '@/shared/antd-imports';
 import { useTranslation } from 'react-i18next';
 import { useDocumentTitle } from '@/hooks/useDoumentTItle';
-import PinRouteToNavbarButton from '@/components/PinRouteToNavbarButton';
 import logger from '@/utils/errorLogger';
 import { TrashTask, trashApiService } from '@/api/tasks/trash.api.service';
 
@@ -240,8 +239,6 @@ const TrashSettings = () => {
           </Space>
 
           <Divider type="vertical" style={{ height: 24, margin: '0 4px' }} />
-
-          <PinRouteToNavbarButton name="trash" path="/worklenz/settings/trash" />
         </Flex>
       }
     >

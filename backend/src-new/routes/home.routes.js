@@ -259,13 +259,22 @@ router.get('/tasks', async (req, res) => {
 router.get('/projects', async (req, res) => {
    try {
      const { Project, ProjectMember } = require('../models');
-     const { view } = req.query; // 0 = Recent, 1 = Favourites
+     const { view, team_id } = req.query; // 0 = Recent, 1 = Favourites
      
      // Build membership query
      const membershipQuery = { 
        user_id: req.user._id, 
        is_active: true 
      };
+     
+     // If team_id is provided, filter by team
+     if (team_id) {
+       const { TeamMember } = require('../models');
+       const teamMember = await TeamMember.findOne({ user_id: req.user._id, team_id: team_id, is_active: true });
+       if (!teamMember) {
+         return res.json({ done: true, body: [] });
+       }
+     }
      
      // If view=1 (Favourites), filter by is_favorite
      if (view === '1') {
@@ -282,7 +291,12 @@ router.get('/projects', async (req, res) => {
         favoriteMap[m.project_id.toString()] = m.is_favorite;
      });
      
-     const projects = await Project.find({ _id: { $in: projectIds }, is_archived: false })
+     const projectQuery = { _id: { $in: projectIds }, is_archived: false };
+     if (team_id) {
+       projectQuery.team_id = team_id;
+     }
+     
+     const projects = await Project.find(projectQuery)
         .sort({ updated_at: -1 })
         .limit(10)
         .lean();

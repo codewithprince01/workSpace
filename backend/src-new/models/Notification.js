@@ -21,7 +21,7 @@ const notificationSchema = new Schema({
   },
   type: {
     type: String,
-    enum: ['task_assigned', 'task_updated', 'comment_added', 'mention', 'project_invite', 'team_invite'],
+    enum: ['task_assigned', 'task_updated', 'comment_added', 'mention', 'project_invite', 'team_invite', 'calendar_reminder'],
     required: true
   },
   message: {

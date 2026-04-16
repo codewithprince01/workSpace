@@ -26,6 +26,12 @@ export const navRoutes: NavRoutesType[] = [
   //   freePlanFeature: false,
   // },
   {
+    name: 'calendar',
+    path: '/worklenz/calendar',
+    adminOnly: false,
+    freePlanFeature: true,
+  },
+  {
     name: 'reporting',
     path: '/worklenz/reporting/overview',
     adminOnly: false,

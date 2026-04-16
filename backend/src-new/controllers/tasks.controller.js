@@ -1,6 +1,7 @@
 const { Task, TaskStatus, TaskComment, TaskAttachment, Project, ProjectMember, TeamMember, TaskPhase, TaskLabel, ActivityLog, TimeLog, RunningTimer } = require('../models');
 const taskService = require('../services/task.service');
 const logger = require('../utils/logger');
+const calendarSyncService = require('../services/calendar-sync.service');
 
 /**
  * @desc    Create task
@@ -237,8 +238,9 @@ exports.update = async (req, res, next) => {
         task.progress = 0;
       }
     }
-    
     await task.save();
+
+    await calendarSyncService.syncTaskToCalendar(task);
     
     const populatedTask = await Task.findById(task._id)
       .populate('status_id', 'name color_code')
