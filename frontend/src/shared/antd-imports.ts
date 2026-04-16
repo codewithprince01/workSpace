@@ -194,7 +194,8 @@ export {
   RollbackOutlined,
   DashboardOutlined,
   SmileOutlined,
-  ThunderboltOutlined
+  ThunderboltOutlined,
+  ExportOutlined
 } from '@ant-design/icons';
 
 // Re-export all components with React

@@ -8,7 +8,9 @@ import {
   SearchOutlined, ReloadOutlined, 
   ClockCircleOutlined, UserOutlined,
   DownOutlined, ExportOutlined, RightOutlined,
-  FilterOutlined, CloseCircleOutlined
+  FilterOutlined, CloseCircleOutlined,
+  ProjectOutlined, CheckCircleOutlined, CalendarOutlined,
+  FileExcelOutlined, FileTextOutlined
 } from '@/shared/antd-imports';
 import CustomPageHeader from '@/pages/reporting/page-header/custom-page-header';
 import { useTranslation } from 'react-i18next';
@@ -66,7 +68,7 @@ const TasksReports = () => {
     teams: [] as string[],
     projects: [] as string[],
     statuses: [] as string[],
-    priorities: [] as number[],
+    priorities: [] as string[],
     project_managers: [] as string[]
   });
 
@@ -85,6 +87,7 @@ const TasksReports = () => {
     setLoading(true);
     try {
       const res = await reportingApiService.getTasksReports(params);
+      console.log('Reporting API Response:', res); // Log as requested
       if (res.done) {
         setData(res.body.tasks);
         setTotal(res.body.total);
@@ -97,13 +100,83 @@ const TasksReports = () => {
     }
   }, [params]);
 
+  const handleExport = (type: 'csv' | 'excel') => {
+    if (!data || data.length === 0) return;
+
+    const exportData = data.map(task => ({
+      'Task Name': task.name,
+      'Key': task.key || '-',
+      'Project': task.project_name || '-',
+      'Status': task.status_name || '-',
+      'Priority': task.priority_label || '-',
+      'Assignees': task.assignees?.map((a: any) => a.name).join(', ') || 'Unassigned',
+      'Due Date': task.due_date ? dayjs(task.due_date).format('MMM DD, YYYY') : '-',
+      'Progress': `${task.progress || 0}%`,
+      'Estimated (h)': task.estimated_time || 0,
+      'Logged (h)': task.logged_time || 0,
+      'Overlogged (h)': task.overlogged_time || 0,
+      'Phase': task.phase_name || '-',
+      'Created': task.created_at ? dayjs(task.created_at).format('MMM DD, YYYY') : '-',
+    }));
+
+    if (type === 'csv') {
+      const headers = Object.keys(exportData[0]).join(',');
+      const rows = exportData.map(row => 
+        Object.values(row).map(val => {
+            const strValue = String(val).replace(/"/g, '""');
+            return `"${strValue}"`;
+        }).join(',')
+      );
+      const csvStr = [headers, ...rows].join('\n');
+      const blob = new Blob([csvStr], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `Tasks_Report_${dayjs().format('YYYY-MM-DD')}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } else {
+      let html = '<html><head><meta charset="UTF-8"></head><body><table border="1">';
+      html += '<tr style="background:#f2f2f2"><th>' + Object.keys(exportData[0]).join('</th><th>') + '</th></tr>';
+      exportData.forEach(row => {
+        html += '<tr><td>' + Object.values(row).join('</td><td>') + '</td></tr>';
+      });
+      html += '</table></body></html>';
+      const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `Tasks_Report_${dayjs().format('YYYY-MM-DD')}.xls`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
+  const exportMenu = (
+    <div style={{ backgroundColor: '#1d1d1d', border: '1px solid #333', borderRadius: '8px', padding: '4px 0', boxShadow: '0 4px 12px rgba(0,0,0,0.5)', minWidth: '180px' }}>
+      <div className="custom-option-item" onClick={() => handleExport('csv')} style={{ padding: '8px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+        <FileTextOutlined style={{ marginRight: 10, color: '#1677ff' }} />
+        <span style={{ color: '#fff' }}>Export to CSV</span>
+      </div>
+      <div className="custom-option-item" onClick={() => handleExport('excel')} style={{ padding: '8px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+        <FileExcelOutlined style={{ marginRight: 10, color: '#52c41a' }} />
+        <span style={{ color: '#fff' }}>Export to Excel</span>
+      </div>
+    </div>
+  );
+
+  // Real-time polling logic
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(fetchData, 60000); // 1 minute polling for reporting
+    return () => clearInterval(interval);
+  }, [fetchData]);
+
   useEffect(() => {
     fetchFilters();
   }, [fetchFilters]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
 
   const handleTableChange = (pagination: any, filters: any, sorter: any) => {
     setParams(p => ({
@@ -184,25 +257,26 @@ const TasksReports = () => {
       dataIndex: 'name',
       key: 'name',
       fixed: 'left',
-      width: 250,
+      width: 300,
       sorter: true,
       render: (name: string, record: any) => {
         const isSubtask = !!record.parent_task_id;
+        const displayName = name === '-' ? 'Untitled Task' : name;
         return (
-          <div style={{ paddingLeft: isSubtask ? '12px' : '8px', display: 'flex', alignItems: 'center' }}>
+          <div style={{ paddingLeft: isSubtask ? '12px' : '8px', paddingRight: '16px', display: 'flex', alignItems: 'center' }}>
               {isSubtask && <span style={{ color: '#8c8c8c', marginRight: '6px', fontSize: '11px', opacity: 0.8 }}>»</span>}
-              <Text style={{ color: '#fff', fontSize: '13px', fontWeight: 500 }}>{name}</Text>
+              <Text style={{ color: '#fff', fontSize: '13px', fontWeight: 500 }}>{displayName}</Text>
           </div>
         );
       },
     },
     {
         title: 'Key',
-        dataIndex: 'task_no',
-        key: 'task_no',
-        width: 100,
-        sorter: true,
-        render: (no: string) => <Text style={{ color: '#888', fontSize: '13px' }}>{no || ''}</Text>,
+        dataIndex: 'key',
+        key: 'key',
+        width: 120,
+        sorter: false,
+        render: (key: string) => <div style={{ paddingLeft: '16px' }}><Text style={{ color: '#888', fontSize: '13px' }}>{key || '-'}</Text></div>,
     },
     {
       title: 'Project',
@@ -212,8 +286,8 @@ const TasksReports = () => {
       sorter: true,
       render: (name: string, record: any) => (
         <Space size={8}>
-          <div style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: record.project_color || '#a052f2' }} />
-          <Text style={{ color: '#bfbfbf', fontSize: '13px' }}>{name}</Text>
+          <div style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: record.project_color || '#8c8c8c' }} />
+          <Text style={{ color: '#bfbfbf', fontSize: '13px' }}>{name || '-'}</Text>
         </Space>
       ),
     },
@@ -224,22 +298,25 @@ const TasksReports = () => {
       width: 130,
       sorter: true,
       render: (name: string, record: any) => {
-        let color = '#d9d9d9';
-        if (record.status_category === 'done') color = '#22c55e';
-        else if (record.status_category === 'doing') color = '#3b82f6';
-        else color = '#8c8c8c';
+        if (!name || name === '-') return '-';
+        let color = '#8c8c8c'; // Default Grey
+        if (record.status_category === 'done') color = '#52c41a';    // Green
+        else if (record.status_category === 'doing') color = '#1890ff'; // Blue
+        
+        const textColor = '#fff';
 
         return (
           <div 
             style={{ 
-              backgroundColor: `${color}20`, 
-              color: color, 
-              padding: '2px 10px',
-              borderRadius: '12px',
+              backgroundColor: color, 
+              color: textColor, 
+              padding: '1px 12px',
+              borderRadius: '20px',
               fontSize: '11px',
-              fontWeight: 600,
+              fontWeight: 500,
               display: 'inline-block',
-              border: `1px solid ${color}40`
+              textAlign: 'center',
+              minWidth: '60px'
             }}
           >
             {name}
@@ -253,37 +330,44 @@ const TasksReports = () => {
       key: 'priority',
       width: 120,
       sorter: true,
-      render: (label: string, record: any) => (
-        <div 
-          style={{ 
-            backgroundColor: `${record.priority_color}20`, 
-            color: record.priority_color, 
-            padding: '2px 10px',
-            borderRadius: '12px',
-            fontSize: '11px',
-            fontWeight: 600,
-            display: 'inline-block',
-            border: `1px solid ${record.priority_color}40`
-          }}
-        >
-          {label}
-        </div>
-      ),
+      render: (label: string, record: any) => {
+        if (!label || label === '-') return '-';
+        return (
+          <div 
+            style={{ 
+              backgroundColor: record.priority_color || '#faad14', 
+              color: '#fff', 
+              padding: '1px 12px',
+              borderRadius: '20px',
+              fontSize: '11px',
+              fontWeight: 500,
+              display: 'inline-block',
+              textAlign: 'center',
+              minWidth: '60px'
+            }}
+          >
+            {label}
+          </div>
+        );
+      },
     },
     {
       title: 'Assignees',
       dataIndex: 'assignees',
       key: 'assignees',
       width: 140,
-      render: (assignees: any[]) => (
-        <Avatar.Group maxCount={3} size={22}>
-          {assignees?.map((user: any) => (
-            <Tooltip title={user.name} key={user.id}>
-              <Avatar src={user.avatar_url} style={{ border: '1px solid #141414' }}>{user.name?.charAt(0)}</Avatar>
-            </Tooltip>
-          ))}
-        </Avatar.Group>
-      ),
+      render: (assignees: any[]) => {
+        if (!assignees || assignees.length === 0) return '-';
+        return (
+          <Avatar.Group maxCount={3} size={22}>
+            {assignees.map((user: any) => (
+              <Tooltip title={user.name} key={user.id}>
+                <Avatar src={user.avatar_url} style={{ border: '1px solid #141414' }}>{user.name?.charAt(0)}</Avatar>
+              </Tooltip>
+            ))}
+          </Avatar.Group>
+        );
+      },
     },
     {
         title: 'Start Date',
@@ -293,7 +377,7 @@ const TasksReports = () => {
         sorter: true,
         render: (date: string) => date ? (
           <Text style={{ color: '#bfbfbf', fontSize: '13px' }}>{dayjs(date).format('MMM DD')}</Text>
-        ) : '',
+        ) : '-',
       },
     {
       title: 'Due Date',
@@ -303,94 +387,126 @@ const TasksReports = () => {
       sorter: true,
       render: (date: string) => date ? (
         <Text style={{ color: '#ef4444', fontSize: '13px' }}>{dayjs(date).format('MMM DD')}</Text>
-      ) : '',
+      ) : '-',
     },
     {
-        title: 'Created At',
+        title: 'Created',
         dataIndex: 'created_at',
         key: 'created_at',
-        width: 120,
+        width: 140,
         sorter: true,
         render: (date: string) => date ? (
           <Text style={{ color: '#8c8c8c', fontSize: '13px' }}>{dayjs(date).format('MMM DD')}</Text>
-        ) : '',
+        ) : '-',
     },
     {
-        title: 'Completed At',
+        title: 'Completed',
         dataIndex: 'completed_at',
         key: 'completed_at',
-        width: 120,
+        width: 140,
         sorter: true,
         render: (date: string) => date ? (
           <Text style={{ color: '#8c8c8c', fontSize: '13px' }}>{dayjs(date).format('MMM DD')}</Text>
-        ) : '',
+        ) : '-',
     },
     {
         title: 'Last Updated',
         dataIndex: 'updated_at',
         key: 'updated_at',
-        width: 120,
+        width: 140,
         sorter: true,
         render: (date: string) => date ? (
           <Text style={{ color: '#8c8c8c', fontSize: '13px' }}>{dayjs(date).format('MMM DD')}</Text>
-        ) : '',
+        ) : '-',
     },
     {
         title: 'Days Overdue',
         dataIndex: 'days_overdue',
         key: 'days_overdue',
-        width: 120,
+        width: 130,
         sorter: true,
         render: (days: number) => days > 0 ? (
-          <Tag color="error" style={{ borderRadius: '4px', border: 'none', backgroundColor: '#ef444420', color: '#ef4444', fontWeight: 600 }}>{days} Days</Tag>
-        ) : '',
+          <Text style={{ color: '#ef4444', fontWeight: 600 }}>{days}</Text>
+        ) : '-',
     },
     {
-      title: 'Estimated Time',
-      dataIndex: 'estimated_time_string',
+      title: 'Estimated',
+      dataIndex: 'estimated_time',
       key: 'estimated_time',
       width: 130,
-      sorter: true,
-      render: (time: string) => <Text style={{ color: '#bfbfbf', fontSize: '13px' }}>{time || ''}</Text>,
+      sorter: false,
+      render: (hours: number) => {
+        if (!hours) return '-';
+        const h = Math.floor(hours);
+        const m = Math.round((hours - h) * 60);
+        return <Text style={{ color: '#bfbfbf', fontSize: '13px' }}>{h}h {m}m</Text>;
+      },
     },
     {
-      title: 'Logged Time',
-      dataIndex: 'actual_time_string',
-      key: 'actual_time',
+      title: 'Logged',
+      dataIndex: 'logged_time',
+      key: 'logged_time',
       width: 130,
-      sorter: true,
-      render: (time: string) => <Text style={{ color: '#bfbfbf', fontSize: '13px' }}>{time || ''}</Text>,
+      sorter: false,
+      render: (hours: number) => {
+        if (!hours) return '-';
+        const h = Math.floor(hours);
+        const m = Math.round((hours - h) * 60);
+        return <Text style={{ color: '#bfbfbf', fontSize: '13px' }}>{h}h {m}m</Text>;
+      },
     },
     {
-        title: 'Overlogged Time',
-        dataIndex: 'overlogged_time_string',
+        title: 'Overlogged',
+        dataIndex: 'overlogged_time',
         key: 'overlogged_time',
         width: 150,
-        sorter: true,
-        render: (time: string) => (
-          <Text style={{ color: '#ff4d4f', fontSize: '13px' }}>{time || ''}</Text>
-        ),
+        sorter: false,
+        render: (hours: number) => {
+          if (!hours || hours <= 0) return '-';
+          const h = Math.floor(hours);
+          const m = Math.round((hours - h) * 60);
+          return <Text style={{ color: '#ff4d4f', fontSize: '13px' }}>{h}h {m}m</Text>;
+        },
     },
     {
         title: 'Phase',
         dataIndex: 'phase_name',
         key: 'phase',
         width: 150,
-        sorter: true,
-        render: (name: string) => <Text style={{ color: '#bfbfbf', fontSize: '13px' }}>{name || ''}</Text>,
+        sorter: false,
+        render: (name: string) => <Text style={{ color: '#bfbfbf', fontSize: '13px' }}>{name || '-'}</Text>,
     },
     {
         title: 'Labels',
         dataIndex: 'labels',
         key: 'labels',
         width: 180,
-        render: (labels: any[]) => (
-          <Space size={[4, 4]} wrap>
-            {labels?.map((l, i) => (
-              <Tag key={i} color={l.color} style={{ margin: 0, fontSize: '11px', borderRadius: '4px', border: 'none' }}>{l.name}</Tag>
-            ))}
-          </Space>
-        ),
+        render: (labels: any[]) => {
+          if (!labels || labels.length === 0) return '-';
+          return (
+            <Space size={[4, 4]} wrap>
+              {labels.map((l, i) => {
+                const labelName = typeof l === 'object' ? l.name : l;
+                const labelColor = typeof l === 'object' ? (l.color || l.color_code || '#333') : '#333';
+                return (
+                    <Tag 
+                        key={i} 
+                        style={{ 
+                            margin: 0, 
+                            fontSize: '11px', 
+                            borderRadius: '4px', 
+                            border: 'none', 
+                            backgroundColor: labelColor === '#333' ? '#333' : `${labelColor}20`, 
+                            color: labelColor === '#333' ? '#fff' : labelColor 
+                        }}
+                    >
+                        {labelName}
+                    </Tag>
+                );
+              })}
+            </Space>
+          );
+        },
     },
     {
         title: 'Progress',
@@ -399,17 +515,17 @@ const TasksReports = () => {
         width: 120,
         sorter: true,
         render: (p: number) => (
-          <Text style={{ color: '#bfbfbf', fontSize: '13px' }}>{p}%</Text>
+          <Text style={{ color: '#bfbfbf', fontSize: '13px' }}>{p || 0}%</Text>
         ),
     },
     {
         title: 'Subtasks',
         dataIndex: 'subtask_count',
         key: 'subtasks',
-        width: 120,
+        width: 100,
         sorter: true,
         render: (count: number) => (
-          <Text style={{ color: '#8c8c8c', fontSize: '13px' }}>{count || 0} Subtasks</Text>
+          <Text style={{ color: '#8c8c8c', fontSize: '13px' }}>{count || 0}</Text>
         ),
     },
   ];
@@ -474,11 +590,15 @@ const TasksReports = () => {
         maxTagCount={0}
         value={value}
         onChange={onChange}
-        placeholder={placeholder}
-        style={{ width }}
+        placeholder={value.length > 0 ? "" : placeholder} // Hide placeholder if values selected
+        style={{ width: 140 }}
         className="dark-select premium-select"
-        maxTagPlaceholder={`${placeholder} (${value.length})`}
-        suffixIcon={<span style={{ borderTop: '5px solid #fff', borderLeft: '4px solid transparent', borderRight: '4px solid transparent', display: 'inline-block', margin: '0 4px' }} />}
+        maxTagPlaceholder={() => (
+            <span style={{ color: '#fff', fontSize: '13px' }}>
+                {placeholder} <span style={{ color: '#1890ff', marginLeft: '4px' }}>({value.length})</span>
+            </span>
+        )}
+        suffixIcon={<DownOutlined style={{ color: '#8c8c8c', fontSize: '10px' }} />}
         dropdownStyle={{ minWidth: showSearch ? 280 : 200 }}
         dropdownRender={(menu) => (
           <div className="premium-dropdown">
@@ -534,19 +654,21 @@ const TasksReports = () => {
             <div style={{ maxHeight: 250, overflow: 'auto' }}>
                 {filteredOptions.length > 0 ? (
                     <div className="dropdown-options-list">
-                        {filteredOptions.map(opt => (
-                            <div 
-                                key={opt.id} 
-                                className={`custom-option-item ${value.includes(opt.id) ? 'selected' : ''}`}
-                                onClick={() => {
-                                    const newValue = value.includes(opt.id) 
-                                        ? value.filter(v => v !== opt.id) 
-                                        : [...value, opt.id];
-                                    onChange(newValue);
-                                }}
-                                style={{ padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-                            >
-                                <Checkbox checked={value.includes(opt.id)} className="premium-checkbox" />
+                        {filteredOptions.map(opt => {
+                            const isSelected = value.some(val => String(val) === String(opt.id));
+                            return (
+                                <div 
+                                    key={String(opt.id)} 
+                                    className={`custom-option-item ${isSelected ? 'selected' : ''}`}
+                                    onClick={() => {
+                                        const newValue = isSelected 
+                                            ? value.filter(v => String(v) !== String(opt.id)) 
+                                            : [...value, opt.id];
+                                        onChange(newValue);
+                                    }}
+                                    style={{ padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                                >
+                                    <Checkbox checked={isSelected} className="premium-checkbox" />
                                 <div style={{ marginLeft: 10, display: 'flex', alignItems: 'center' }}>
                                     {opt.avatar_url && <Avatar src={opt.avatar_url} size={24} style={{ marginRight: 10 }} />}
                                     {badgeMode ? (
@@ -572,7 +694,7 @@ const TasksReports = () => {
                                     )}
                                 </div>
                             </div>
-                        ))}
+                        ); })}
                     </div>
                 ) : (
                     <div style={{ padding: '16px', textAlign: 'center', color: '#555' }}>No options found</div>
@@ -587,7 +709,7 @@ const TasksReports = () => {
   return (
     <div className="reporting-tasks-page" style={{ padding: '24px', backgroundColor: '#141414', minHeight: '100vh', color: '#fff' }}>
       {/* Header Row */}
-      <Flex justify="space-between" align="center" style={{ marginBottom: '24px' }}>
+      <Flex justify="space-between" align="center" style={{ marginBottom: '24px', flexWrap: 'nowrap', gap: '16px' }}>
         <Title level={4} style={{ color: '#fff', margin: 0, fontWeight: 500, fontSize: '18px' }}>All Tasks ({total})</Title>
         <Space size={12}>
           <Checkbox 
@@ -597,11 +719,18 @@ const TasksReports = () => {
           >
             Include Archived
           </Checkbox>
-          <Button ghost icon={<ReloadOutlined />} onClick={fetchData} style={{ borderRadius: '6px', backgroundColor: '#262626', border: 'none', color: '#8c8c8c', fontSize: '13px' }}>Refresh</Button>
-          <Button ghost onClick={clearAllFilters} style={{ borderRadius: '6px', backgroundColor: '#262626', border: 'none', color: '#8c8c8c', fontSize: '13px' }}>Clear Filters</Button>
-          <Button type="primary" style={{ backgroundColor: '#1677ff', borderRadius: '6px', fontWeight: 500 }}>
-            Export <DownOutlined style={{ fontSize: '10px' }} />
-          </Button>
+          <Button ghost icon={<ReloadOutlined />} onClick={fetchData} style={{ borderRadius: '6px', backgroundColor: '#262626', border: 'none', color: '#bfbfbf', fontSize: '13px' }}>Refresh</Button>
+          <Button ghost onClick={clearAllFilters} style={{ borderRadius: '6px', backgroundColor: '#262626', border: 'none', color: '#bfbfbf', fontSize: '13px' }}>Clear Filters</Button>
+          
+          <Dropdown dropdownRender={() => exportMenu} trigger={['click']}>
+            <Button type="primary" style={{ backgroundColor: '#1677ff', borderRadius: '6px', fontWeight: 500 }}>
+                <Space>
+                    <ExportOutlined />
+                    Export
+                    <DownOutlined style={{ fontSize: '10px' }} />
+                </Space>
+            </Button>
+          </Dropdown>
         </Space>
       </Flex>
 
@@ -623,7 +752,7 @@ const TasksReports = () => {
       {/* Main Container */}
       <div style={{ backgroundColor: '#1d1d1d', borderRadius: '8px', padding: '24px' }}>
         {/* Filter Bar */}
-        <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'nowrap', gap: '16px' }}>
           <Space size={10}>
             <FilterSelect 
                 placeholder="Teams" 
@@ -770,6 +899,14 @@ const TasksReports = () => {
           background: transparent !important;
           color: #fff !important;
         }
+        /* Ultra-Dense Row Styles */
+        .dark-reporting-table .ant-table-tbody > tr > td {
+          padding-top: 2px !important;
+          padding-bottom: 2px !important;
+          height: 28px !important;
+          font-size: 13px;
+        }
+        
         /* General Table Header Styles */
         .dark-reporting-table .ant-table-thead > tr > th {
           background: transparent !important;
@@ -777,8 +914,8 @@ const TasksReports = () => {
           border-bottom: 2px solid #262626 !important;
           font-size: 13px;
           font-weight: 600;
-          padding: 8px 24px 8px 0 !important;
-          height: 32px !important;
+          height: 28px !important;
+          padding: 4px 16px !important;
         }
 
         /* Sticky Column Styles */
@@ -786,7 +923,16 @@ const TasksReports = () => {
         .ant-table-cell-fix-right {
           background: #151515 !important;
           z-index: 2 !important;
-          padding: 8px 16px 8px 16px !important; /* Unified 16px start */
+          padding: 4px 16px !important;
+        }
+        .dark-reporting-table .ant-table-cell-fix-left-last {
+          border-right: 1px solid #333 !important;
+          box-shadow: 4px 0 8px rgba(0,0,0,0.3) !important;
+        }
+        
+        /* Universal Padding for Data Columns */
+        .dark-reporting-table .ant-table-tbody > tr > td:not(.ant-table-cell-fix-left) {
+             padding-left: 16px !important;
         }
         .ant-table-cell-fix-left-last::after {
           box-shadow: inset 10px 0 12px -8px rgba(0, 0, 0, 0.9) !important;
@@ -819,18 +965,22 @@ const TasksReports = () => {
           border-radius: 6px !important;
           font-size: 13px !important;
           height: 32px !important;
-          padding: 0 12px !important;
         }
-        .premium-select.ant-select-focused .ant-select-selector {
-          border-color: #1677ff !important;
-          box-shadow: 0 0 0 2px rgba(22, 119, 255, 0.2) !important;
-        }
-        .ant-select-selection-overflow {
-            display: none !important; /* Hide tags to keep it clean like the image */
+        .premium-select .ant-select-selection-item {
+          color: #fff !important;
+          line-height: 30px !important;
+          display: flex !important;
+          align-items: center !important;
         }
         .premium-select .ant-select-selection-placeholder {
             color: #fff !important;
             opacity: 1 !important;
+            line-height: 30px !important;
+            display: flex !important;
+            align-items: center !important;
+        }
+        .ant-select-selection-overflow-item {
+            width: 100% !important;
         }
 
         .premium-dropdown {
