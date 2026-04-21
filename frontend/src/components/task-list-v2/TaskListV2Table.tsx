@@ -15,12 +15,16 @@ import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import {
   SortableContext,
   verticalListSortingStrategy,
+  horizontalListSortingStrategy,
   sortableKeyboardCoordinates,
+  arrayMove,
+  useSortable,
 } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
-import { HolderOutlined } from '@/shared/antd-imports';
+import { HolderOutlined, SettingOutlined } from '@/shared/antd-imports';
 import { tasksCustomColumnsService } from '@/api/tasks/tasks-custom-columns.service';
 import { tasksApiService } from '@/api/tasks/tasks.api.service';
 
@@ -66,7 +70,7 @@ import TaskGroupHeader from './TaskGroupHeader';
 import OptimizedBulkActionBar from '@/components/task-management/optimized-bulk-action-bar';
 import CustomColumnModal from '@/pages/projects/projectView/taskList/task-list-table/custom-columns/custom-column-modal/custom-column-modal';
 import AddTaskRow from './components/AddTaskRow';
-import { AddCustomColumnButton, CustomColumnHeader } from './components/CustomColumnComponents';
+import { AddCustomColumnButton } from './components/CustomColumnComponents';
 import TaskListSkeleton from './components/TaskListSkeleton';
 import ConvertToSubtaskDrawer from '@/components/task-list-common/convert-to-subtask-drawer/convert-to-subtask-drawer';
 import EmptyListPlaceholder from '@/components/EmptyListPlaceholder';
@@ -208,6 +212,156 @@ import { BASE_COLUMNS, ColumnStyle } from './constants/columns';
 import { Task } from '@/types/task-management.types';
 import { SocketEvents } from '@/shared/socket-events';
 
+const getColumnOrderStorageKey = (projectId?: string) =>
+  `worklenz.taskListV2.columnOrder.${projectId || 'global'}`;
+
+const REORDERABLE_EXCLUDED_COLUMN_IDS = new Set(['dragHandle', 'checkbox', 'taskKey', 'title']);
+const isReorderableColumn = (column: any) =>
+  !column?.isSticky && !REORDERABLE_EXCLUDED_COLUMN_IDS.has(String(column?.id));
+
+const HeaderDragHandle: React.FC<{
+  attributes?: any;
+  listeners?: any;
+  setActivatorNodeRef: (element: HTMLElement | null) => void;
+  isDarkMode: boolean;
+  onHoverChange?: (hovered: boolean) => void;
+}> = ({ attributes, listeners, setActivatorNodeRef, isDarkMode, onHoverChange }) => (
+  <button
+    ref={setActivatorNodeRef}
+    type="button"
+    aria-label="Reorder column"
+    className={`absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full border transition-all duration-150 opacity-0 group-hover:opacity-100 hover:opacity-100 cursor-grab active:cursor-grabbing z-20 shadow-sm ${
+      isDarkMode
+        ? 'border-emerald-400/60 bg-[#0b2b27] hover:bg-[#12413b]'
+        : 'border-emerald-500/50 bg-emerald-50 hover:bg-emerald-100'
+    }`}
+    onClick={e => e.stopPropagation()}
+    onMouseEnter={() => onHoverChange?.(true)}
+    onMouseLeave={() => onHoverChange?.(false)}
+    {...attributes}
+    {...listeners}
+  >
+    <span className="grid grid-cols-2 gap-[2px] place-content-center">
+      {Array.from({ length: 6 }).map((_, idx) => (
+        <span
+          key={idx}
+          className={`h-[2px] w-[2px] rounded-full ${isDarkMode ? 'bg-emerald-300' : 'bg-emerald-600'}`}
+        />
+      ))}
+    </span>
+  </button>
+);
+
+const SortableColumnHeaderCell: React.FC<{
+  column: any;
+  index: number;
+  orderedColumns: any[];
+  isDarkMode: boolean;
+  t: (value: string) => string;
+  onCustomSettings: (columnId: string) => void;
+}> = ({ column, index, orderedColumns, isDarkMode, t, onCustomSettings }) => {
+  const [isTextHovered, setIsTextHovered] = useState(false);
+  const [isHandleHovered, setIsHandleHovered] = useState(false);
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: column.id });
+
+  let leftPosition = 0;
+  if (column.isSticky) {
+    for (let i = 0; i < index; i++) {
+      const prevColumn = orderedColumns[i];
+      if (prevColumn.isSticky) {
+        leftPosition += parseInt(prevColumn.width.replace('px', ''), 10);
+      }
+    }
+  }
+
+  const columnStyle: ColumnStyle = {
+    width: column.width,
+    flexShrink: 0,
+    ...((column as any).minWidth && { minWidth: (column as any).minWidth }),
+    ...((column as any).maxWidth && { maxWidth: (column as any).maxWidth }),
+    ...(column.isSticky && {
+      position: 'sticky' as const,
+      left: leftPosition,
+      zIndex: 15,
+      backgroundColor: isDarkMode ? '#141414' : '#f9fafb',
+    }),
+    ...(transform && { transform: CSS.Transform.toString(transform) }),
+    ...(transition && { transition }),
+    ...(isDragging && { zIndex: 40, opacity: 0.9 }),
+  };
+
+  const canReorder = isReorderableColumn(column);
+  const isCustom = Boolean((column as any).isCustom);
+  const showSettingsIcon = isCustom && isTextHovered && !isHandleHovered;
+
+  return (
+    <div
+      ref={setNodeRef}
+      key={column.id}
+      className={`group relative text-sm font-semibold text-gray-600 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700 ${
+        column.id === 'dragHandle'
+          ? 'flex items-center justify-center'
+          : column.id === 'checkbox'
+            ? 'flex items-center justify-center'
+            : column.id === 'taskKey'
+              ? 'flex items-center pl-3'
+              : column.id === 'title'
+                ? 'flex items-center justify-between'
+                : column.id === 'description'
+                  ? 'flex items-center px-2'
+                  : column.id === 'labels'
+                    ? 'flex items-center gap-0.5 flex-wrap min-w-0 px-2'
+                    : column.id === 'assignees'
+                      ? 'flex items-center px-2'
+                      : 'flex items-center justify-center px-2'
+      }`}
+      style={columnStyle}
+    >
+      {column.id === 'dragHandle' || column.id === 'checkbox' ? (
+        <span />
+      ) : isCustom ? (
+        <div className="flex items-center w-full pr-10 min-w-0">
+          <button
+            type="button"
+            className="flex items-center w-full min-w-0 text-left"
+            onMouseEnter={() => setIsTextHovered(true)}
+            onMouseLeave={() => setIsTextHovered(false)}
+            onClick={() => onCustomSettings(column.key || column.id)}
+            title={column.name || column.label || 'Custom column'}
+          >
+            <span className="truncate block">{column.name || column.label || 'Text'}</span>
+            <SettingOutlined
+              className={`ml-2 text-xs transition-all duration-150 flex-shrink-0 ${
+                showSettingsIcon ? 'opacity-100 scale-100 text-blue-500' : 'opacity-0 scale-95 pointer-events-none'
+              }`}
+            />
+          </button>
+        </div>
+      ) : (
+        t(column.label || '')
+      )}
+
+      {canReorder && (
+        <HeaderDragHandle
+          attributes={attributes}
+          listeners={listeners}
+          setActivatorNodeRef={setActivatorNodeRef}
+          isDarkMode={isDarkMode}
+          onHoverChange={setIsHandleHovered}
+        />
+      )}
+    </div>
+  );
+};
+
 const TaskListV2Section: React.FC = () => {
   const dispatch = useAppDispatch();
   const { projectId: urlProjectId } = useParams();
@@ -241,6 +395,7 @@ const TaskListV2Section: React.FC = () => {
   const [hasStoredFieldPrefs, setHasStoredFieldPrefs] = useState(false);
   const [addTaskRows, setAddTaskRows] = useState<{[groupId: string]: string[]}>({});
   const [indicatorHydrationDone, setIndicatorHydrationDone] = useState(false);
+  const [columnOrder, setColumnOrder] = useState<string[]>([]);
 
   // Configure sensors for drag and drop
   const sensors = useSensors(
@@ -256,6 +411,13 @@ const TaskListV2Section: React.FC = () => {
       activationConstraint: {
         delay: 250,
         tolerance: 5,
+      },
+    })
+  );
+  const columnHeaderSensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 4,
       },
     })
   );
@@ -357,6 +519,30 @@ const TaskListV2Section: React.FC = () => {
     return [...baseVisibleColumns, ...visibleCustomColumns];
   }, [fields, columns, customColumns, t]);
 
+  const orderedVisibleColumns = useMemo(() => {
+    const reorderableColumns = visibleColumns.filter(
+      col => !col.isSticky && !REORDERABLE_EXCLUDED_COLUMN_IDS.has(String(col.id))
+    );
+
+    if (!reorderableColumns.length) return visibleColumns;
+
+    const reorderableById = new Map(reorderableColumns.map(col => [String(col.id), col]));
+    const ordered = columnOrder
+      .map(id => reorderableById.get(String(id)))
+      .filter((col): col is any => Boolean(col));
+    const missing = reorderableColumns.filter(col => !columnOrder.includes(String(col.id)));
+    const orderedReorderable = [...ordered, ...missing];
+    let reorderableIndex = 0;
+
+    return visibleColumns.map(col => {
+      const isFixed = col.isSticky || REORDERABLE_EXCLUDED_COLUMN_IDS.has(String(col.id));
+      if (isFixed) return col;
+      const next = orderedReorderable[reorderableIndex];
+      reorderableIndex += 1;
+      return next || col;
+    });
+  }, [visibleColumns, columnOrder]);
+
   // Effects
   useEffect(() => {
     if (urlProjectId) {
@@ -441,6 +627,51 @@ const TaskListV2Section: React.FC = () => {
       setHasStoredFieldPrefs(false);
     }
   }, []);
+
+  useEffect(() => {
+    const storageKey = getColumnOrderStorageKey(urlProjectId);
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (!raw) {
+        setColumnOrder([]);
+        return;
+      }
+
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        setColumnOrder(parsed.map(String));
+      } else {
+        setColumnOrder([]);
+      }
+    } catch {
+      setColumnOrder([]);
+    }
+  }, [urlProjectId]);
+
+  useEffect(() => {
+    const reorderableIds = visibleColumns
+      .filter(col => !col.isSticky && !REORDERABLE_EXCLUDED_COLUMN_IDS.has(String(col.id)))
+      .map(col => String(col.id));
+
+    if (!reorderableIds.length) return;
+
+    setColumnOrder(prev => {
+      const sanitizedPrev = prev.filter(id => reorderableIds.includes(id));
+      const missing = reorderableIds.filter(id => !sanitizedPrev.includes(id));
+      const next = [...sanitizedPrev, ...missing];
+      const changed =
+        next.length !== prev.length || next.some((id, idx) => id !== prev[idx]);
+
+      if (changed) {
+        try {
+          localStorage.setItem(getColumnOrderStorageKey(urlProjectId), JSON.stringify(next));
+        } catch {
+          // Ignore storage write failures
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [visibleColumns, urlProjectId]);
 
   // Keep local Fields list in sync with backend columns:
   // - add newly created custom columns for all users
@@ -632,7 +863,7 @@ const TaskListV2Section: React.FC = () => {
     (columnKey: string) => {
       if (!columnKey) return;
 
-      const columnData = visibleColumns.find(col => col.key === columnKey || col.id === columnKey);
+      const columnData = orderedVisibleColumns.find(col => col.key === columnKey || col.id === columnKey);
 
       // Use the UUID for API calls, not the key (nanoid)
       // For custom columns, prioritize the uuid field over id field
@@ -647,7 +878,41 @@ const TaskListV2Section: React.FC = () => {
       );
       dispatch(toggleCustomColumnModalOpen(true));
     },
-    [dispatch, visibleColumns]
+    [dispatch, orderedVisibleColumns]
+  );
+
+  const handleColumnHeaderDragEnd = useCallback(
+    (event: any) => {
+      const { active, over } = event;
+      if (!active?.id || !over?.id || active.id === over.id) return;
+      const activeId = String(active.id);
+      const overId = String(over.id);
+
+      if (
+        REORDERABLE_EXCLUDED_COLUMN_IDS.has(activeId) ||
+        REORDERABLE_EXCLUDED_COLUMN_IDS.has(overId)
+      ) {
+        return;
+      }
+
+      setColumnOrder(prev => {
+        const oldIndex = prev.indexOf(activeId);
+        const newIndex = prev.indexOf(overId);
+        if (oldIndex < 0 || newIndex < 0) return prev;
+
+        const next = arrayMove(prev, oldIndex, newIndex);
+        try {
+          localStorage.setItem(
+            getColumnOrderStorageKey(urlProjectId),
+            JSON.stringify(next)
+          );
+        } catch {
+          // Ignore storage write failures
+        }
+        return next;
+      });
+    },
+    [urlProjectId]
   );
 
   // Add callback for task added
@@ -768,12 +1033,12 @@ const TaskListV2Section: React.FC = () => {
             projectId={urlProjectId || ''}
           />
           {isGroupEmpty && !isGroupCollapsed && (
-            <EmptyGroupMessage visibleColumns={visibleColumns} isDarkMode={isDarkMode} />
+            <EmptyGroupMessage visibleColumns={orderedVisibleColumns} isDarkMode={isDarkMode} />
           )}
         </div>
       );
     },
-    [virtuosoGroups, collapsedGroups, handleGroupCollapse, visibleColumns, t, isDarkMode]
+    [virtuosoGroups, collapsedGroups, handleGroupCollapse, orderedVisibleColumns, t, isDarkMode]
   );
 
   const renderTask = useCallback(
@@ -792,7 +1057,7 @@ const TaskListV2Section: React.FC = () => {
             groupType={item.groupType}
             groupValue={item.groupValue}
             projectId={urlProjectId}
-            visibleColumns={visibleColumns}
+            visibleColumns={orderedVisibleColumns}
             onTaskAdded={handleTaskAdded}
             rowId={item.rowId}
             autoFocus={item.autoFocus}
@@ -806,7 +1071,7 @@ const TaskListV2Section: React.FC = () => {
           projectId={urlProjectId}
           groupBy={currentGrouping || 'status'}
           groupName={itemGroup?.title || ''}
-          visibleColumns={visibleColumns}
+          visibleColumns={orderedVisibleColumns}
           isFirstInGroup={isFirstInGroup}
           updateTaskCustomColumnValue={updateTaskCustomColumnValue}
         />
@@ -815,7 +1080,7 @@ const TaskListV2Section: React.FC = () => {
     [
       virtuosoItems,
       virtuosoGroups,
-      visibleColumns,
+      orderedVisibleColumns,
       urlProjectId,
       handleTaskAdded,
       updateTaskCustomColumnValue,
@@ -834,86 +1099,55 @@ const TaskListV2Section: React.FC = () => {
           backgroundColor: isDarkMode ? '#141414' : '#f9fafb' 
         }}
       >
-        <div
-          className="flex items-center px-1 py-3 w-full"
-          style={{ minWidth: 'max-content', height: '44px' }}
+        <DndContext
+          sensors={columnHeaderSensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleColumnHeaderDragEnd}
         >
-          {visibleColumns.map((column, index) => {
-            // Calculate left position for sticky columns
-            let leftPosition = 0;
-            if (column.isSticky) {
-              for (let i = 0; i < index; i++) {
-                const prevColumn = visibleColumns[i];
-                if (prevColumn.isSticky) {
-                  leftPosition += parseInt(prevColumn.width.replace('px', ''));
-                }
-              }
-            }
-
-            const columnStyle: ColumnStyle = {
-              width: column.width,
-              flexShrink: 0,
-              ...((column as any).minWidth && { minWidth: (column as any).minWidth }),
-              ...((column as any).maxWidth && { maxWidth: (column as any).maxWidth }),
-              ...(column.isSticky && {
-                position: 'sticky' as const,
-                left: leftPosition,
-                zIndex: 15,
-                backgroundColor: isDarkMode ? '#141414' : '#f9fafb', // custom dark header : bg-gray-50
-              }),
-            };
-
-            return (
-              <div
-                key={column.id}
-                className={`text-sm font-semibold text-gray-600 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700 ${
-                  column.id === 'dragHandle'
-                    ? 'flex items-center justify-center'
-                    : column.id === 'checkbox'
-                      ? 'flex items-center justify-center'
-                      : column.id === 'taskKey'
-                        ? 'flex items-center pl-3'
-                        : column.id === 'title'
-                          ? 'flex items-center justify-between'
-                          : column.id === 'description'
-                            ? 'flex items-center px-2'
-                            : column.id === 'labels'
-                              ? 'flex items-center gap-0.5 flex-wrap min-w-0 px-2'
-                              : column.id === 'assignees'
-                                ? 'flex items-center px-2'
-                                : 'flex items-center justify-center px-2'
-                }`}
-                style={columnStyle}
-              >
-                {column.id === 'dragHandle' || column.id === 'checkbox' ? (
-                  <span></span>
-                ) : (column as any).isCustom ? (
-                  <CustomColumnHeader
-                    column={column}
-                    onSettingsClick={handleCustomColumnSettings}
-                  />
-                ) : (
-                  t(column.label || '')
-                )}
-              </div>
-            );
-          })}
-          {/* Add Custom Column Button - positioned at the end and scrolls with content */}
-          <div
-            className="flex items-center justify-center px-2 border-r border-gray-200 dark:border-gray-700"
-            style={{ width: '50px', flexShrink: 0 }}
+          <SortableContext
+            items={orderedVisibleColumns.map(col => String(col.id))}
+            strategy={horizontalListSortingStrategy}
           >
-            <AddCustomColumnButton />
-          </div>
-        </div>
+            <div
+              className="flex items-center px-1 py-3 w-full"
+              style={{ minWidth: 'max-content', height: '44px' }}
+            >
+              {orderedVisibleColumns.map((column, index) => (
+                <SortableColumnHeaderCell
+                  key={column.id}
+                  column={column}
+                  index={index}
+                  orderedColumns={orderedVisibleColumns}
+                  isDarkMode={isDarkMode}
+                  t={t}
+                  onCustomSettings={handleCustomColumnSettings}
+                />
+              ))}
+              {/* Add Custom Column Button - positioned at the end and scrolls with content */}
+              <div
+                className="flex items-center justify-center px-2 border-r border-gray-200 dark:border-gray-700"
+                style={{ width: '50px', flexShrink: 0 }}
+              >
+                <AddCustomColumnButton />
+              </div>
+            </div>
+          </SortableContext>
+        </DndContext>
       </div>
     ),
-    [visibleColumns, t, handleCustomColumnSettings]
+    [
+      orderedVisibleColumns,
+      t,
+      handleCustomColumnSettings,
+      isDarkMode,
+      columnHeaderSensors,
+      handleColumnHeaderDragEnd,
+    ]
   );
 
   // Loading and error states
   if (loading || loadingColumns) {
-    return <TaskListSkeleton visibleColumns={visibleColumns} />;
+    return <TaskListSkeleton visibleColumns={orderedVisibleColumns} />;
   }
   if (error)
     return (
@@ -993,7 +1227,7 @@ const TaskListV2Section: React.FC = () => {
                       groupType="phase"
                       groupValue="Unmapped"
                       projectId={urlProjectId || ''}
-                      visibleColumns={visibleColumns}
+                      visibleColumns={orderedVisibleColumns}
                       onTaskAdded={handleTaskAdded}
                       rowId="add-task-Unmapped-0"
                       autoFocus={false}
@@ -1104,9 +1338,9 @@ const TaskListV2Section: React.FC = () => {
 
                         return (
                           <div key={task.id || `add-task-${group.id}-${taskIndex}`}>
-                            {showDropSpacerBefore && <DropSpacer isVisible={true} visibleColumns={visibleColumns} isDarkMode={isDarkMode} />}
+                            {showDropSpacerBefore && <DropSpacer isVisible={true} visibleColumns={orderedVisibleColumns} isDarkMode={isDarkMode} />}
                             {renderTask(globalTaskIndex, isFirstTaskInGroup)}
-                            {showDropSpacerAfter && <DropSpacer isVisible={true} visibleColumns={visibleColumns} isDarkMode={isDarkMode} />}
+                            {showDropSpacerAfter && <DropSpacer isVisible={true} visibleColumns={orderedVisibleColumns} isDarkMode={isDarkMode} />}
                           </div>
                         );
                       })
@@ -1124,7 +1358,7 @@ const TaskListV2Section: React.FC = () => {
           {activeId ? (
             <div 
               className="bg-white dark:bg-gray-800 shadow-2xl rounded-lg border-2 border-blue-500 dark:border-blue-400 opacity-95"
-              style={{ width: visibleColumns.find(col => col.id === 'title')?.width || '300px' }}
+              style={{ width: orderedVisibleColumns.find(col => col.id === 'title')?.width || '300px' }}
             >
               <div className="px-4 py-3">
                 <div className="flex items-center gap-3">
