@@ -12,6 +12,7 @@ import {
 } from '@tanstack/react-table';
 import { IProjectTask } from '@/types/project/projectTasksViewModel.types';
 import { useAppSelector } from '@/hooks/useAppSelector';
+import { useAppDispatch } from '@/hooks/useAppDispatch';
 import React from 'react';
 import './task-list-custom.css';
 import TaskListInstantTaskInput from './task-list-instant-task-input/task-list-instant-task-input';
@@ -26,6 +27,7 @@ interface TaskListCustomProps {
 }
 
 const TaskListCustom: React.FC<TaskListCustomProps> = ({ tasks, color, groupId, onTaskSelect }) => {
+  const dispatch = useAppDispatch();
   const [rowSelection, setRowSelection] = useState({});
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
@@ -56,8 +58,9 @@ const TaskListCustom: React.FC<TaskListCustomProps> = ({ tasks, color, groupId, 
         statuses,
         handleTaskSelect,
         getCurrentSession,
+        dispatch,
       }),
-    [expandedRows, statuses, handleTaskSelect, getCurrentSession]
+    [expandedRows, statuses, handleTaskSelect, getCurrentSession, dispatch]
   );
 
   const table = useReactTable({

@@ -13,7 +13,7 @@ const PhaseHeader = () => {
   const { project } = useAppSelector(state => state.projectReducer);
 
   return (
-    <Flex align="center" justify="space-between">
+    <Flex align="center" justify="space-between" style={{ width: '100%' }}>
       {project?.phase_label || t('phasesText')}
       <ConfigPhaseButton />
     </Flex>

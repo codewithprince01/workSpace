@@ -118,89 +118,90 @@ const SortablePhaseItem: React.FC<PhaseItemProps & { id: string }> = ({
     <div
       ref={setNodeRef}
       style={style}
-      className={`group relative py-1.5 px-2 rounded border transition-all duration-200 ${
+      className={`group relative py-2.5 px-3 mb-2 rounded-lg border transition-all duration-300 ${
         isDarkMode
-          ? 'bg-gray-700 border-gray-600 hover:bg-gray-600 hover:border-gray-500'
-          : 'bg-white border-gray-200 hover:bg-gray-50 hover:border-gray-300'
-      } ${isDragging ? 'shadow-lg opacity-50 rotate-2 scale-105' : 'shadow-sm hover:shadow-md'}`}
+          ? 'bg-[#1f1f1f] border-[#303030] hover:bg-[#262626] hover:border-[#404040]'
+          : 'bg-white border-gray-100 hover:bg-gray-50 hover:border-gray-300 shadow-sm'
+      } ${isDragging ? 'shadow-xl z-50 scale-[1.02] border-blue-500/50' : 'hover:shadow-md'}`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-3">
         {/* Drag Handle */}
         <div
           {...attributes}
           {...listeners}
-          className={`flex-shrink-0 cursor-grab active:cursor-grabbing p-1 rounded transition-all duration-200 ${
+          className={`flex-shrink-0 cursor-grab active:cursor-grabbing p-1.5 rounded-md transition-all duration-200 ${
             isDarkMode 
-              ? 'text-gray-400 hover:text-gray-300 hover:bg-gray-600' 
-              : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+              ? 'text-gray-500 hover:text-gray-300 hover:bg-gray-700/50' 
+              : 'text-gray-400 hover:text-gray-600 hover:bg-gray-200/50'
           }`}
         >
           <HolderOutlined className="text-sm" />
         </div>
 
-        {/* Phase Color */}
-        <div className="flex-shrink-0 flex items-center gap-1">
-          <ColorPicker
-            value={color}
-            onChange={(value) => setColor(value.toHexString())}
-            onChangeComplete={handleColorChangeComplete}
-            size="small"
-            className="phase-color-picker"
-          />
-          <div 
-            className="w-2.5 h-2.5 rounded border shadow-sm"
-            style={{
-              backgroundColor: color,
-              borderColor: isDarkMode ? '#6b7280' : '#d1d5db',
-            }}
-          />
-        </div>
-
-        {/* Phase Name */}
-        <div className="flex-1 min-w-0">
-          {isEditing ? (
-            <Input
-              ref={inputRef}
-              value={editName}
-              onChange={(e) => setEditName(e.target.value)}
-              onBlur={handleSave}
-              onKeyDown={handleKeyDown}
-              className={`font-medium text-xs border-0 px-1 py-1 shadow-none ${
-                isDarkMode 
-                  ? 'bg-transparent text-gray-200 placeholder-gray-400' 
-                  : 'bg-transparent text-gray-900 placeholder-gray-500'
-              }`}
-              placeholder={t('enterPhaseName')}
+        {/* Phase Color & Name Container */}
+        <div className="flex flex-1 items-center gap-3 min-w-0">
+          <div className="flex-shrink-0 relative group/color">
+            <ColorPicker
+              value={color}
+              onChange={(value) => setColor(value.toHexString())}
+              onChangeComplete={handleColorChangeComplete}
+              size="small"
+              className="phase-color-picker opacity-0 absolute inset-0 z-10 cursor-pointer"
             />
-          ) : (
-            <Text
-              className={`text-xs font-medium cursor-pointer transition-colors select-none ${
-                isDarkMode ? 'text-gray-200 hover:text-gray-100' : 'text-gray-800 hover:text-gray-900'
-              }`}
-              onClick={handleClick}
-              title={t('rename')}
-            >
-              {phase.name}
-            </Text>
-          )}
+            <div 
+              className="w-4 h-4 rounded-full border-2 shadow-sm transition-transform group-hover/color:scale-110"
+              style={{
+                backgroundColor: color,
+                borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+              }}
+            />
+          </div>
+
+          <div className="flex-1 min-w-0">
+            {isEditing ? (
+              <Input
+                ref={inputRef}
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                onBlur={handleSave}
+                onKeyDown={handleKeyDown}
+                className={`font-semibold text-sm border-0 px-0 py-0 shadow-none focus:ring-0 ${
+                  isDarkMode 
+                    ? 'bg-transparent text-gray-100 placeholder-gray-500' 
+                    : 'bg-transparent text-gray-900 placeholder-gray-400'
+                }`}
+                placeholder={t('enterPhaseName')}
+              />
+            ) : (
+              <Text
+                className={`text-sm font-semibold cursor-pointer transition-colors block truncate ${
+                  isDarkMode ? 'text-gray-200 hover:text-white' : 'text-gray-800 hover:text-blue-600'
+                }`}
+                onClick={handleClick}
+                title={t('rename')}
+              >
+                {phase.name}
+              </Text>
+            )}
+          </div>
         </div>
 
         {/* Hover Actions */}
-        <div className={`flex items-center gap-1 transition-all duration-200 ${
-          isHovered || isEditing ? 'opacity-100' : 'opacity-0'
+        <div className={`flex items-center gap-1.5 transition-all duration-300 ${
+          isHovered || isEditing ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-2'
         }`}>
           <Tooltip title={t('rename')}>
             <Button
               type="text"
               size="small"
-              icon={<EditOutlined />}
+              icon={<EditOutlined style={{ fontSize: '13px' }} />}
               onClick={() => setIsEditing(true)}
-              className={`h-6 w-6 flex items-center justify-center transition-all duration-200 ${
+              className={`h-7 w-7 flex items-center justify-center rounded-md transition-all duration-200 ${
                 isDarkMode 
-                  ? 'text-gray-400 hover:text-gray-300 hover:bg-gray-600' 
-                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                  ? 'text-gray-400 hover:text-blue-400 hover:bg-blue-500/10' 
+                  : 'text-gray-500 hover:text-blue-600 hover:bg-blue-50'
               }`}
             />
           </Tooltip>
@@ -208,12 +209,12 @@ const SortablePhaseItem: React.FC<PhaseItemProps & { id: string }> = ({
             <Button
               type="text"
               size="small"
-              icon={<DeleteOutlined />}
+              icon={<DeleteOutlined style={{ fontSize: '13px' }} />}
               onClick={() => onDelete(id)}
-              className={`h-6 w-6 flex items-center justify-center transition-all duration-200 ${
+              className={`h-7 w-7 flex items-center justify-center rounded-md transition-all duration-200 ${
                 isDarkMode 
-                  ? 'text-red-400 hover:text-red-300 hover:bg-red-800' 
-                  : 'text-red-500 hover:text-red-600 hover:bg-red-50'
+                  ? 'text-gray-400 hover:text-red-400 hover:bg-red-500/10' 
+                  : 'text-gray-500 hover:text-red-600 hover:bg-red-50'
               }`}
             />
           </Tooltip>
@@ -463,19 +464,22 @@ const ManagePhaseModal: React.FC<ManagePhaseModalProps> = ({
       className={`${isDarkMode ? 'dark-modal' : ''} phase-manage-modal`}
       loading={loadingPhases || sorting}
     >
-      <div className="space-y-4">
+      <div className="space-y-6">
         {/* Phase Label Configuration */}
-        <div className={`p-3 rounded border transition-all duration-200 ${
+        <div className={`p-4 rounded-xl border transition-all duration-300 ${
           isDarkMode 
-            ? 'bg-gray-800 border-gray-700 text-gray-300' 
-            : 'bg-blue-50 border-blue-200 text-blue-700'
+            ? 'bg-[#1f1f1f] border-[#303030] shadow-inner' 
+            : 'bg-blue-50/50 border-blue-100 shadow-sm'
         }`}>
-          <div className="space-y-2">
-            <Text className={`text-xs font-medium ${
-              isDarkMode ? 'text-gray-300' : 'text-blue-700'
-            }`}>
-              {t('phaseLabel')}
-            </Text>
+          <Flex vertical gap={10}>
+            <Flex align="center" gap={8}>
+              <EditOutlined className={isDarkMode ? 'text-blue-400' : 'text-blue-600'} />
+              <Text className={`text-sm font-bold ${
+                isDarkMode ? 'text-gray-200' : 'text-blue-800'
+              }`}>
+                {t('phaseLabel')}
+              </Text>
+            </Flex>
             <Input
               placeholder={t('enterPhaseName')}
               value={phaseName}
@@ -483,98 +487,84 @@ const ManagePhaseModal: React.FC<ManagePhaseModalProps> = ({
               onPressEnter={handlePhaseNameBlur}
               onBlur={handlePhaseNameBlur}
               disabled={isSaving}
-              size="small"
+              size="large"
+              className={`rounded-lg border-2 transition-all ${
+                isDarkMode 
+                  ? 'bg-[#141414] border-[#333333] text-white focus:border-blue-500' 
+                  : 'bg-white border-blue-100 text-gray-900 focus:border-blue-500'
+              }`}
             />
-          </div>
+          </Flex>
         </div>
 
-        {/* Info Banner */}
-        <div className={`p-3 rounded border transition-all duration-200 ${
+        {/* Info Banner - Subtle and Minimal */}
+        <div className={`px-4 py-2 rounded-lg border-l-4 transition-all duration-300 ${
           isDarkMode 
-            ? 'bg-gray-800 border-gray-700 text-gray-300' 
-            : 'bg-blue-50 border-blue-200 text-blue-700'
+            ? 'bg-[#1f1f1f] border-blue-500/50 text-gray-400' 
+            : 'bg-blue-50/30 border-blue-500 text-blue-700'
         }`}>
-          <Text className={`text-xs font-medium ${
-            isDarkMode ? 'text-gray-300' : 'text-blue-700'
-          }`}>
-            🎨 Drag {(phaseName || project?.phase_label || t('phasesText')).toLowerCase()} to reorder them. Click on a {(phaseName || project?.phase_label || t('phaseText')).toLowerCase()} name to rename it. Each {(phaseName || project?.phase_label || t('phaseText')).toLowerCase()} can have a custom color.
+          <Text className="text-[11px] italic opacity-80">
+            💡 Drag items to reorder. Click a name to rename. Customize colors by clicking the dot.
           </Text>
         </div>
 
-        {/* Add New Phase Form */}
-        {showAddForm && (
-          <div className={`p-2 rounded border-2 border-dashed transition-all duration-200 ${
-            isDarkMode 
-              ? 'border-gray-600 bg-gray-700 hover:border-gray-500' 
-              : 'border-gray-300 bg-white hover:border-gray-400'
-          } shadow-sm`}>
-            <div className="flex gap-2">
-              <Input
-                placeholder={t('enterNewPhaseName')}
-                value={newPhaseName}
-                onChange={(e) => setNewPhaseName(e.target.value)}
-                onKeyDown={handleKeyDown}
-                className={`flex-1 ${
-                  isDarkMode 
-                    ? 'bg-gray-600 border-gray-500 text-gray-100 placeholder-gray-400' 
-                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                }`}
-                size="small"
-                autoFocus
-              />
-              <Button
-                type="primary"
-                onClick={handleCreatePhase}
-                disabled={!newPhaseName.trim()}
-                size="small"
-                className="text-xs"
-              >
-                {t('create')}
-              </Button>
-              <Button
-                onClick={() => {
-                  setNewPhaseName('');
-                  setShowAddForm(false);
-                }}
-                size="small"
-                className={`text-xs ${
-                  isDarkMode 
-                    ? 'text-gray-300 hover:text-gray-200 border-gray-600' 
-                    : 'text-gray-600 hover:text-gray-800 border-gray-300'
-                }`}
-              >
-                {t('cancel')}
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* Add Phase Button */}
-        {!showAddForm && (
-          <div className={`p-3 rounded border-2 border-dashed transition-colors ${
-            isDarkMode 
-              ? 'border-gray-600 bg-gray-800/50 hover:border-gray-500' 
-              : 'border-gray-300 bg-gray-50/50 hover:border-gray-400'
-          }`}>
-            <div className="flex items-center justify-between">
-              <Text className={`text-xs font-medium ${
-                isDarkMode ? 'text-gray-300' : 'text-gray-700'
-              }`}>
-                {phaseName || project?.phase_label || t('phasesText')} {t('optionsText')}
+        {/* Add New Phase Section - Prominent & Stylish */}
+        <div className={`p-4 rounded-xl border-2 border-dashed transition-all duration-500 ${
+          showAddForm 
+            ? (isDarkMode ? 'border-blue-500/50 bg-blue-500/5' : 'border-blue-400 bg-blue-50/50')
+            : (isDarkMode ? 'border-[#303030] bg-transparent' : 'border-gray-200 bg-gray-50/30')
+        }`}>
+          {!showAddForm ? (
+            <Flex align="center" justify="space-between">
+              <Text className={`text-sm font-bold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                {(phaseName || project?.phase_label || t('phasesText'))} Options
               </Text>
               <Button 
                 type="primary" 
                 icon={<PlusOutlined />} 
                 onClick={() => setShowAddForm(true)}
                 disabled={loadingPhases}
-                size="small"
-                className="text-xs"
+                className="rounded-lg h-9 font-bold shadow-lg shadow-blue-500/20"
               >
-                {t('addOption')}
+                Add Option
               </Button>
+            </Flex>
+          ) : (
+            <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+              <Input
+                placeholder="Enter new option name..."
+                value={newPhaseName}
+                onChange={(e) => setNewPhaseName(e.target.value)}
+                onKeyDown={handleKeyDown}
+                className={`h-10 text-sm rounded-lg ${
+                  isDarkMode 
+                    ? 'bg-[#141414] border-[#404040] text-white' 
+                    : 'bg-white border-gray-300'
+                }`}
+                autoFocus
+              />
+              <Flex gap={10} justify="end">
+                <Button
+                  onClick={() => {
+                    setNewPhaseName('');
+                    setShowAddForm(false);
+                  }}
+                  className={`rounded-lg ${isDarkMode ? 'text-gray-400 border-[#404040]' : ''}`}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="primary"
+                  onClick={handleCreatePhase}
+                  disabled={!newPhaseName.trim()}
+                  className="rounded-lg font-bold"
+                >
+                  Create Option
+                </Button>
+              </Flex>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Phase List with Drag & Drop */}
         <DndContext sensors={sensors} onDragEnd={handleDragEnd}>

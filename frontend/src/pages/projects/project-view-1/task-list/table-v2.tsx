@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Checkbox, Flex, Tag, Tooltip } from '@/shared/antd-imports';
+import { Checkbox, DatePicker, Flex, Tag, Tooltip, Typography } from '@/shared/antd-imports';
 import { HolderOutlined } from '@/shared/antd-imports';
 import {
   DndContext,
@@ -25,7 +25,22 @@ import { ITaskListGroup } from '@/types/tasks/taskList.types';
 import { IProjectTask } from '@/types/project/projectTasksViewModel.types';
 import { SocketEvents } from '@/shared/socket-events';
 import { reorderTasks } from '@/features/tasks/tasks.slice';
+import { toggleDrawer } from '@/features/projects/singleProject/phase/phase.slice';
 import { evt_project_task_list_drag_and_move } from '@/shared/worklenz-analytics-events';
+import PhaseDropdown from '@/components/taskListCommon/phase-dropdown/phase-dropdown';
+import StatusDropdown from '@/components/taskListCommon/statusDropdown/StatusDropdown';
+import PriorityDropdown from '@/components/taskListCommon/priorityDropdown/PriorityDropdown';
+import AssigneeSelector from '@/components/taskListCommon/assignee-selector/assignee-selector';
+import LabelsSelector from '@/components/taskListCommon/labelsSelector/LabelsSelector';
+import Avatars from '@/components/avatars/avatars';
+import TaskProgress from './taskListTable/taskListTableCells/TaskProgress';
+import TimeTracker from './taskListTable/taskListTableCells/TimeTracker';
+import { simpleDateFormat } from '@/utils/simpleDateFormat';
+import { durationDateFormat } from '@/utils/durationDateFormat';
+import CustomColorLabel from '@/components/task-list-common/labelsSelector/custom-color-label';
+import CustomNumberLabel from '@/components/task-list-common/labelsSelector/custom-number-label';
+import { useTranslation } from 'react-i18next';
+import { columnList } from './taskListTable/columns/columnList';
 
 // Draggable Row Component
 interface DraggableRowProps {
@@ -109,6 +124,7 @@ const TaskListTable = ({
   onTaskExpand?: (taskId: string) => void;
 }) => {
   const [hoverRow, setHoverRow] = useState<string | null>(null);
+  const { t } = useTranslation('task-list-table');
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
   const tableRef = useRef<HTMLDivElement | null>(null);
   const parentRef = useRef<HTMLDivElement | null>(null);
@@ -159,34 +175,102 @@ const TaskListTable = ({
   // Memoize cell render functions
   const renderCell = useCallback(
     (columnKey: string | number, task: IProjectTask, isSubtask = false) => {
-      const cellContent = {
-        taskId: () => {
+      switch (columnKey) {
+        case 'taskId':
           const key = task.task_key?.toString() || '';
           return (
             <Tooltip title={key}>
               <Tag>{key}</Tag>
             </Tooltip>
           );
-        },
-        task: () => (
-          <Flex align="center" className={isSubtask ? 'pl-6' : 'pl-2'}>
-            {task.name}
-          </Flex>
-        ),
-      }[columnKey];
-
-      if (cellContent) return cellContent();
-
-      // Handle custom columns
-      if (task.custom_column_values && task.custom_column_values[columnKey]) {
-        return (
-          <div className="pl-2 overflow-hidden text-ellipsis whitespace-nowrap">
-            {String(task.custom_column_values[columnKey])}
-          </div>
-        );
+        case 'task':
+          return (
+            <Flex align="center" className={isSubtask ? 'pl-6' : 'pl-2'}>
+              {task.name}
+            </Flex>
+          );
+        case 'description':
+          return <Typography.Text style={{ width: 200 }}></Typography.Text>;
+        case 'progress':
+          return task?.progress || task?.progress === 0 ? (
+            <TaskProgress progress={task?.progress} numberOfSubTasks={task?.sub_tasks?.length || 0} />
+          ) : (
+            <div></div>
+          );
+        case 'members':
+          return (
+            <Flex gap={4} align="center">
+              <Avatars members={task.names || []} />
+              <AssigneeSelector task={task} groupId={null} />
+            </Flex>
+          );
+        case 'labels':
+          return (
+            <Flex gap={4} align="center">
+              {task?.labels && task?.labels?.length <= 2 ? (
+                task?.labels?.map(label => <CustomColorLabel key={label.id} label={label} />)
+              ) : (
+                <Flex gap={4}>
+                  <CustomColorLabel label={task?.labels ? task.labels[0] : null} />
+                  <CustomColorLabel label={task?.labels ? task.labels[1] : null} />
+                  <CustomNumberLabel
+                    labelList={task?.labels?.map(l => l.name || '') || []}
+                    namesString={`+${(task?.labels?.length || 0) - 2}`}
+                  />
+                </Flex>
+              )}
+              <LabelsSelector task={task} />
+            </Flex>
+          );
+        case 'phases':
+          return <PhaseDropdown task={task} />;
+        case 'status':
+          return <StatusDropdown currentStatus={task.status || ''} />;
+        case 'priority':
+          return <PriorityDropdown currentPriority={task.priority || ''} />;
+        case 'timeTracking':
+          return <TimeTracker taskId={task.id || ''} initialTime={task.timer_start_time || 0} />;
+        case 'estimation':
+          return <Typography.Text>0h 0m</Typography.Text>;
+        case 'startDate':
+          return task.start_date ? (
+            <Typography.Text>{simpleDateFormat(task.start_date)}</Typography.Text>
+          ) : (
+            <DatePicker
+              placeholder="Set a start date"
+              suffixIcon={null}
+              style={{ border: 'none', width: '100%', height: '100%', padding: 0 }}
+            />
+          );
+        case 'dueDate':
+          return task.end_date ? (
+            <Typography.Text>{simpleDateFormat(task.end_date)}</Typography.Text>
+          ) : (
+            <DatePicker
+              placeholder="Set a due date"
+              suffixIcon={null}
+              style={{ border: 'none', width: '100%', height: '100%', padding: 0 }}
+            />
+          );
+        case 'completedDate':
+          return <Typography.Text>{durationDateFormat(task.completed_at || null)}</Typography.Text>;
+        case 'createdDate':
+          return <Typography.Text>{durationDateFormat(task.created_at || null)}</Typography.Text>;
+        case 'lastUpdated':
+          return <Typography.Text>{durationDateFormat(task.updated_at || null)}</Typography.Text>;
+        case 'reporter':
+          return <Typography.Text>{task.reporter}</Typography.Text>;
+        default:
+          // Handle custom columns
+          if (task.custom_column_values && task.custom_column_values[columnKey]) {
+            return (
+              <div className="pl-2 overflow-hidden text-ellipsis whitespace-nowrap">
+                {String(task.custom_column_values[columnKey])}
+              </div>
+            );
+          }
+          return null;
       }
-
-      return null;
     },
     []
   );
@@ -280,7 +364,19 @@ const TaskListTable = ({
             className="flex items-center px-3 border-r"
             style={{ width: column.width }}
           >
-            {column.key}
+            {(column.key === 'phases' || column.key === 'phase') ? (
+              <div className="flex items-center justify-between w-full">
+                <span>{t('phasesText')}</span>
+                <div 
+                  onClick={() => dispatch(toggleDrawer())} 
+                  style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                >
+                  <SettingOutlined style={{ fontSize: '14px', color: '#fff' }} />
+                </div>
+              </div>
+            ) : (
+              t(`${columnList.find(c => c.key === column.key)?.columnHeader || column.key}Column`)
+            )}
           </div>
         ))}
       </div>

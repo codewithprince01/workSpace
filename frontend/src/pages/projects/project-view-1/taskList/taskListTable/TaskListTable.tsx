@@ -1,7 +1,7 @@
 import { useAppSelector } from '@/hooks/useAppSelector';
 import { columnList } from './columns/columnList';
 import AddTaskListRow from './taskListTableRows/AddTaskListRow';
-import { Checkbox, Flex, Tag, Tooltip } from '@/shared/antd-imports';
+import { Avatar, Checkbox, DatePicker, Flex, Tag, Tooltip, Typography } from '@/shared/antd-imports';
 import React, { useEffect, useState } from 'react';
 import { useSelectedProject } from '@/hooks/useSelectedProject';
 import TaskCell from './taskListTableCells/TaskCell';
@@ -13,6 +13,18 @@ import { deselectAll } from '@features/projects/bulkActions/bulkActionSlice';
 import { useTranslation } from 'react-i18next';
 import { IProjectTask } from '@/types/project/projectTasksViewModel.types';
 import { HolderOutlined } from '@/shared/antd-imports';
+import PhaseDropdown from '@/components/taskListCommon/phase-dropdown/phase-dropdown';
+import StatusDropdown from '@/components/taskListCommon/statusDropdown/StatusDropdown';
+import PriorityDropdown from '@/components/taskListCommon/priorityDropdown/PriorityDropdown';
+import AssigneeSelector from '@/components/taskListCommon/assignee-selector/assignee-selector';
+import LabelsSelector from '@/components/taskListCommon/labelsSelector/LabelsSelector';
+import Avatars from '@/components/avatars/avatars';
+import TaskProgress from './taskListTableCells/TaskProgress';
+import TimeTracker from './taskListTableCells/TimeTracker';
+import { simpleDateFormat } from '@/utils/simpleDateFormat';
+import { durationDateFormat } from '@/utils/durationDateFormat';
+import CustomColorLabel from '@/components/task-list-common/labelsSelector/custom-color-label';
+import CustomNumberLabel from '@/components/task-list-common/labelsSelector/custom-number-label';
 
 const TaskListTable = ({
   taskList,
@@ -178,75 +190,105 @@ const TaskListTable = ({
 
       // description column
       case 'description':
-        return (
-          <div style={{ width: 260 }}>
-            {/* <Typography.Paragraph ellipsis={{ expandable: false }} style={{ marginBlockEnd: 0 }} >
-              {task.description || ''}
-            </Typography.Paragraph> */}
-          </div>
+        return <Typography.Text style={{ width: 200 }}></Typography.Text>;
+ 
+       // progress column
+       case 'progress': {
+        return task?.progress || task?.progress === 0 ? (
+          <TaskProgress progress={task?.progress} numberOfSubTasks={task?.sub_tasks?.length || 0} />
+        ) : (
+          <div></div>
         );
-
-      // progress column
-      case 'progress': {
-        return <div></div>;
-      }
-
-      // members column
-      case 'members':
-        return <div></div>;
-
-      // labels column
-      case 'labels':
-        return <div></div>;
-
-      // phase column
-      case 'phases':
-        return <div></div>;
-
-      // status column
-      case 'status':
-        return <div></div>;
-
-      // priority column
-      case 'priority':
-        return <div></div>;
-
-      // // time tracking column
-      // case 'timeTracking':
-      //   return (
-      //     <TimeTracker
-      //       taskId={task.id}
-      //       initialTime={task.timer_start_time || 0}
-      //     />
-      //   );
-
-      // estimation column
-      case 'estimation':
-        return <div></div>;
-
-      // start date column
-      case 'startDate':
-        return <div></div>;
-
-      // due date column
-      case 'dueDate':
-        return <div></div>;
-
-      // completed date column
-      case 'completedDate':
-        return <div></div>;
-
-      // created date column
-      case 'createdDate':
-        return <div></div>;
-
-      // last updated column
-      case 'lastUpdated':
-        return <div></div>;
-
-      // recorder column
-      case 'reporter':
-        return <div></div>;
+       }
+ 
+       // members column
+       case 'members':
+        return (
+          <Flex gap={4} align="center">
+            <Avatars members={task.names || []} />
+            <AssigneeSelector task={task} groupId={null} />
+          </Flex>
+        );
+ 
+       // labels column
+       case 'labels':
+        return (
+          <Flex gap={4} align="center">
+            {task?.labels && task?.labels?.length <= 2 ? (
+              task?.labels?.map(label => <CustomColorLabel key={label.id} label={label} />)
+            ) : (
+              <Flex gap={4}>
+                <CustomColorLabel label={task?.labels ? task.labels[0] : null} />
+                <CustomColorLabel label={task?.labels ? task.labels[1] : null} />
+                <CustomNumberLabel
+                  labelList={task?.labels?.map(l => l.name || '') || []}
+                  namesString={`+${(task?.labels?.length || 0) - 2}`}
+                />
+              </Flex>
+            )}
+            <LabelsSelector task={task} />
+          </Flex>
+        );
+ 
+       // phase column
+       case 'phases':
+         return <PhaseDropdown task={task} />;
+ 
+       // status column
+       case 'status':
+        return <StatusDropdown currentStatus={task.status || ''} />;
+ 
+       // priority column
+       case 'priority':
+        return <PriorityDropdown currentPriority={task.priority || ''} />;
+ 
+       // time tracking column
+       case 'timeTracking':
+         return <TimeTracker taskId={task.id || ''} initialTime={task.timer_start_time || 0} />;
+ 
+       // estimation column
+       case 'estimation':
+        return <Typography.Text>0h 0m</Typography.Text>;
+ 
+       // start date column
+       case 'startDate':
+        return task.start_date ? (
+          <Typography.Text>{simpleDateFormat(task.start_date)}</Typography.Text>
+        ) : (
+          <DatePicker
+            placeholder="Set a start date"
+            suffixIcon={null}
+            style={{ border: 'none', width: '100%', height: '100%', padding: 0 }}
+          />
+        );
+ 
+       // due date column
+       case 'dueDate':
+        return task.end_date ? (
+          <Typography.Text>{simpleDateFormat(task.end_date)}</Typography.Text>
+        ) : (
+          <DatePicker
+            placeholder="Set a due date"
+            suffixIcon={null}
+            style={{ border: 'none', width: '100%', height: '100%', padding: 0 }}
+          />
+        );
+ 
+       // completed date column
+       case 'completedDate':
+        return <Typography.Text>{durationDateFormat(task.completed_at || null)}</Typography.Text>;
+ 
+       // created date column
+       case 'createdDate':
+        return <Typography.Text>{durationDateFormat(task.created_at || null)}</Typography.Text>;
+ 
+       // last updated column
+       case 'lastUpdated':
+        return <Typography.Text>{durationDateFormat(task.updated_at || null)}</Typography.Text>;
+ 
+       // recorder column
+       case 'reporter':
+        return <Typography.Text>{task.reporter}</Typography.Text>;
 
       // default case for unsupported columns
       default:

@@ -6,6 +6,7 @@ import { ITaskListConfigV2, ITaskListGroup } from '@/types/tasks/taskList.types'
 import { useAppDispatch } from '@/hooks/useAppDispatch';
 import { fetchTaskGroups, fetchTaskListColumns } from '@/features/tasks/tasks.slice';
 import { fetchStatusesCategories } from '@/features/taskAttributes/taskStatusSlice';
+import { fetchPhasesByProjectId } from '@/features/projects/singleProject/phase/phases.slice';
 import TaskListTableWrapper from './task-list-table-wrapper/task-list-table-wrapper';
 import { columnList } from './taskListTable/columns/columnList';
 
@@ -45,6 +46,7 @@ const TaskList = () => {
       };
       dispatch(fetchTaskGroups(config));
       dispatch(fetchTaskListColumns(projectId));
+      dispatch(fetchPhasesByProjectId(projectId));
     }
     if (!statusCategories.length) {
       dispatch(fetchStatusesCategories());

@@ -25,19 +25,12 @@ const PhaseDropdown = ({ task }: PhaseDropdownProps) => {
   const handlePhaseOptionSelect = (value: string) => {
     if (!connected || !task.id || !value) return;
     try {
-      socket?.emit(
-        SocketEvents.TASK_PHASE_CHANGE.toString(),
-        {
-          task_id: task.id,
-          phase_id: value,
-          parent_task: task.parent_task_id,
-        },
-        (error: Error | null) => {
-          if (error) {
-            logger.error('Phase change failed:', error);
-          }
-        }
-      );
+      const body = {
+        task_id: task.id,
+        phase_id: value,
+        parent_task: task.parent_task_id,
+      };
+      socket?.emit(SocketEvents.TASK_PHASE_CHANGE.toString(), JSON.stringify(body));
       setCurrentPhase(value);
     } catch (error) {
       logger.error('Error in handlePhaseOptionSelect:', error);
@@ -47,19 +40,12 @@ const PhaseDropdown = ({ task }: PhaseDropdownProps) => {
   const handlePhaseOptionClear = () => {
     if (!connected || !task.id) return;
     try {
-      socket?.emit(
-        SocketEvents.TASK_PHASE_CHANGE.toString(),
-        {
-          task_id: task.id,
-          phase_id: null,
-          parent_task: task.parent_task_id,
-        },
-        (error: Error | null) => {
-          if (error) {
-            logger.error('Phase clear failed:', error);
-          }
-        }
-      );
+      const body = {
+        task_id: task.id,
+        phase_id: null,
+        parent_task: task.parent_task_id,
+      };
+      socket?.emit(SocketEvents.TASK_PHASE_CHANGE.toString(), JSON.stringify(body));
       setCurrentPhase(null);
     } catch (error) {
       logger.error('Error in handlePhaseOptionClear:', error);

@@ -7,6 +7,7 @@ import { SocketEvents } from '@/shared/socket-events';
 import { ITaskViewModel } from '@/types/tasks/task.types';
 
 import { useAppDispatch } from '@/hooks/useAppDispatch';
+import { useAppSelector } from '@/hooks/useAppSelector';
 import { setTaskPhase } from '@/features/task-drawer/task-drawer.slice';
 import { useEffect } from 'react';
 
@@ -15,9 +16,11 @@ interface TaskDrawerPhaseSelectorProps {
   task: ITaskViewModel;
 }
 
-const TaskDrawerPhaseSelector = ({ phases, task }: TaskDrawerPhaseSelectorProps) => {
+const TaskDrawerPhaseSelector = ({ phases: propsPhases, task }: TaskDrawerPhaseSelectorProps) => {
   const { socket } = useSocket();
   const dispatch = useAppDispatch();
+  const { phaseList: globalPhases } = useAppSelector(state => state.phaseReducer);
+  const phases = globalPhases.length > 0 ? globalPhases : propsPhases;
 
   useEffect(() => {
     if (!socket) return;

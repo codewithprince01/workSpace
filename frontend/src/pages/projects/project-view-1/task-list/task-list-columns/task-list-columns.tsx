@@ -11,12 +11,18 @@ import TaskRowDescription from '@/components/task-list-common/task-row/task-row-
 import TaskRowProgress from '@/components/task-list-common/task-row/task-row-progress/task-row-progress';
 import TaskRowDueTime from '@/components/task-list-common/task-row/task-list-due-time-cell/task-row-due-time';
 import { COLUMN_KEYS } from '@/features/tasks/tasks.slice';
+import PhaseDropdown from '@/components/taskListCommon/phase-dropdown/phase-dropdown';
+
+import { SettingOutlined } from '@/shared/antd-imports';
+import { toggleDrawer } from '@/features/projects/singleProject/phase/phase.slice';
+import { AppDispatch } from '@/app/store';
 
 interface CreateColumnsProps {
   expandedRows: Record<string, boolean>;
   statuses: any[];
   handleTaskSelect: (taskId: string) => void;
   getCurrentSession: () => any;
+  dispatch: AppDispatch;
 }
 
 export const createColumns = ({
@@ -24,6 +30,7 @@ export const createColumns = ({
   statuses,
   handleTaskSelect,
   getCurrentSession,
+  dispatch,
 }: CreateColumnsProps): ColumnDef<IProjectTask, any>[] => {
   const columnHelper = createColumnHelper<IProjectTask>();
 
@@ -179,6 +186,24 @@ export const createColumns = ({
       size: 120,
       enablePinning: false,
       cell: ({ row }) => <TaskRowDueTime dueTime={row.original.due_time || ''} />,
+    }),
+    
+    columnHelper.accessor('phase_id', {
+      header: () => (
+        <Flex align="center" justify="space-between" style={{ width: '100%' }}>
+          <span>Phase</span>
+          <div 
+            onClick={() => dispatch(toggleDrawer())} 
+            style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+          >
+            <SettingOutlined style={{ fontSize: '14px', color: '#fff' }} />
+          </div>
+        </Flex>
+      ),
+      id: COLUMN_KEYS.PHASES,
+      size: 150,
+      enablePinning: false,
+      cell: ({ row }) => <PhaseDropdown task={row.original} />,
     }),
 
     columnHelper.accessor('labels', {
