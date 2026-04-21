@@ -700,7 +700,7 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
             />
           </Form.Item>
 
-          <Divider orientation="left">{t('progressSettings')}</Divider>
+          {/* <Divider orientation="left">{t('progressSettings')}</Divider>
 
           <Form.Item
             name="use_manual_progress"
@@ -754,7 +754,7 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
               onChange={handleTimeProgressChange}
               disabled={!isProjectManager && !isOwnerorAdmin}
             />
-          </Form.Item>
+          </Form.Item> */}
 
           {editMode && (
             <Flex vertical gap={4}>
