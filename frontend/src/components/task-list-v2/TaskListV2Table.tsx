@@ -230,10 +230,10 @@ const HeaderDragHandle: React.FC<{
     ref={setActivatorNodeRef}
     type="button"
     aria-label="Reorder column"
-    className={`absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full border transition-all duration-150 opacity-0 group-hover:opacity-100 hover:opacity-100 cursor-grab active:cursor-grabbing z-20 shadow-sm ${
+    className={`absolute right-2 inset-y-0 my-auto h-5 w-5 rounded-full border transition-all duration-150 opacity-0 group-hover:opacity-100 hover:opacity-100 cursor-grab active:cursor-grabbing z-20 ${
       isDarkMode
-        ? 'border-emerald-400/60 bg-[#0b2b27] hover:bg-[#12413b]'
-        : 'border-emerald-500/50 bg-emerald-50 hover:bg-emerald-100'
+        ? 'border-emerald-500/60 bg-[#11332d] hover:bg-[#16423a]'
+        : 'border-emerald-400/70 bg-emerald-50 hover:bg-emerald-100'
     }`}
     onClick={e => e.stopPropagation()}
     onMouseEnter={() => onHoverChange?.(true)}
@@ -241,11 +241,11 @@ const HeaderDragHandle: React.FC<{
     {...attributes}
     {...listeners}
   >
-    <span className="grid grid-cols-2 gap-[2px] place-content-center">
+    <span className="grid grid-cols-2 gap-[1.5px] place-content-center">
       {Array.from({ length: 6 }).map((_, idx) => (
         <span
           key={idx}
-          className={`h-[2px] w-[2px] rounded-full ${isDarkMode ? 'bg-emerald-300' : 'bg-emerald-600'}`}
+          className={`h-[1.8px] w-[1.8px] rounded-full ${isDarkMode ? 'bg-emerald-200' : 'bg-emerald-700'}`}
         />
       ))}
     </span>
@@ -321,8 +321,8 @@ const SortableColumnHeaderCell: React.FC<{
                     ? 'flex items-center gap-0.5 flex-wrap min-w-0 px-2'
                     : column.id === 'assignees'
                       ? 'flex items-center px-2'
-                      : 'flex items-center justify-center px-2'
-      }`}
+                      : 'flex items-center px-2'
+      } ${canReorder ? 'pr-8' : ''}`}
       style={columnStyle}
     >
       {column.id === 'dragHandle' || column.id === 'checkbox' ? (
@@ -337,7 +337,7 @@ const SortableColumnHeaderCell: React.FC<{
             onClick={() => onCustomSettings(column.key || column.id)}
             title={column.name || column.label || 'Custom column'}
           >
-            <span className="truncate block">{column.name || column.label || 'Text'}</span>
+            <span className="block whitespace-nowrap">{column.name || column.label || 'Text'}</span>
             <SettingOutlined
               className={`ml-2 text-xs transition-all duration-150 flex-shrink-0 ${
                 showSettingsIcon ? 'opacity-100 scale-100 text-blue-500' : 'opacity-0 scale-95 pointer-events-none'
@@ -346,7 +346,9 @@ const SortableColumnHeaderCell: React.FC<{
           </button>
         </div>
       ) : (
-        t(column.label || '')
+        <span className="block whitespace-nowrap">
+          {t(column.label || '')}
+        </span>
       )}
 
       {canReorder && (
@@ -479,6 +481,15 @@ const TaskListV2Section: React.FC = () => {
             defaultWidth = 170; // Extra width for people with avatars
           }
 
+          const displayLabel =
+            column.name ||
+            column.custom_column_obj?.fieldTitle ||
+            (column as any)?.configuration?.field_title ||
+            'Text';
+          // Keep enough space for full header text + settings icon + drag handle.
+          const autoHeaderWidth = Math.min(Math.max(String(displayLabel).length * 9 + 70, defaultWidth), 380);
+          const resolvedWidth = Number((column as any).width || 0) || autoHeaderWidth;
+
           // Map the configuration data structure to the expected format
           const customColumnObj = column.custom_column_obj || (column as any).configuration;
 
@@ -501,12 +512,9 @@ const TaskListV2Section: React.FC = () => {
 
           return {
             id: column.key || column.id || 'unknown',
-            label:
-              column.name ||
-              column.custom_column_obj?.fieldTitle ||
-              (column as any)?.configuration?.field_title ||
-              'Text',
-            width: `${(column as any).width || defaultWidth}px`,
+            label: displayLabel,
+            width: `${resolvedWidth}px`,
+            minWidth: `${resolvedWidth}px`,
             key: column.key || column.id || 'unknown',
             custom_column: true,
             custom_column_obj: transformedColumnObj,

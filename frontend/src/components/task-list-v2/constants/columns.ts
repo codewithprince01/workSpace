@@ -24,7 +24,7 @@ export const BASE_COLUMNS = [
   { id: 'labels', label: 'labelsColumn', width: '250px', key: COLUMN_KEYS.LABELS },
   { id: 'phase', label: 'phaseColumn', width: '120px', key: COLUMN_KEYS.PHASE },
   { id: 'priority', label: 'priorityColumn', width: '120px', key: COLUMN_KEYS.PRIORITY },
-  { id: 'timeTracking', label: 'timeTrackingColumn', width: '120px', key: COLUMN_KEYS.TIME_TRACKING },
+  { id: 'timeTracking', label: 'timeTrackingColumn', width: '180px', minWidth: '180px', key: COLUMN_KEYS.TIME_TRACKING },
   { id: 'estimation', label: 'estimationColumn', width: '120px', key: COLUMN_KEYS.ESTIMATION },
   { id: 'startDate', label: 'startDateColumn', width: '140px', key: COLUMN_KEYS.START_DATE },
   { id: 'dueDate', label: 'dueDateColumn', width: '140px', key: COLUMN_KEYS.DUE_DATE },
