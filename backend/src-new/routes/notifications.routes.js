@@ -45,13 +45,40 @@ router.get('/', async (req, res) => {
         .skip(skip)
         .limit(limit)
         .populate('team_id', 'name')
-        .populate('project_id', 'name')
+        .populate('project_id', 'name color_code team_id')
         .populate('user_id', 'name avatar_url');
+
+    const mappedNotifications = notifications.map(n => {
+      const id = n._id?.toString?.() || n.id;
+      const projectId = n.project_id?._id?.toString?.() || n.project_id?.toString?.();
+      const taskId = n.task_id?._id?.toString?.() || n.task_id?.toString?.();
+      const teamIdFromTeam = n.team_id?._id?.toString?.() || n.team_id?.toString?.();
+      const teamIdFromProject = n.project_id?.team_id?.toString?.();
+      const teamId = teamIdFromTeam || teamIdFromProject || '';
+
+      return {
+        id,
+        team: n.team_id?.name || n.meta?.team_name || 'Worklenz',
+        team_id: teamId,
+        message: n.message,
+        project: n.project_id?.name || n.meta?.project_name || '',
+        color: n.project_id?.color_code || '#1890ff',
+        url: projectId ? `/worklenz/projects/${projectId}` : '',
+        task_id: taskId || '',
+        params: {
+          tab: 'tasks-list',
+          pinned_tab: 'tasks-list',
+          ...(taskId ? { task: taskId } : {}),
+        },
+        created_at: n.created_at,
+        type: n.type,
+      };
+    });
     
     res.json({
       done: true,
       body: {
-          data: notifications,
+          data: mappedNotifications,
           total: total
       }
     });

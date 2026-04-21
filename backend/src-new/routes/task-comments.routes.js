@@ -4,6 +4,7 @@ const { protect } = require('../middlewares/auth.middleware');
 const { TaskComment, Task, ActivityLog, User, TeamMember, TaskAttachment } = require('../models');
 const emailService = require('../services/email.service');
 const storageService = require('../services/storage.service');
+const notificationService = require('../services/notification.service');
 const mongoose = require('mongoose');
 
 // Apply protection
@@ -90,7 +91,7 @@ router.post('/', async (req, res) => {
         });
 
         // Create Activity Log
-        const task = await Task.findById(task_id).populate('project_id', 'name');
+        const task = await Task.findById(task_id).populate('project_id', 'name team_id');
         if (!task) {
             return res.status(404).json({ done: false, message: 'Task not found' });
         }
@@ -182,10 +183,30 @@ router.post('/', async (req, res) => {
                         _id: { $in: filteredUserIds },
                         email_notifications_enabled: { $ne: false },
                     });
+
+                    const senderName = req.user.name || 'A team member';
+                    const notificationMessage = `**${senderName}** added a comment on **${task.name}**`;
+                    const projectIdForNotification = task.project_id?._id || task.project_id || null;
+                    const teamIdForNotification = task.project_id?.team_id || null;
+
+                    for (const recipientId of filteredUserIds) {
+                        if (String(recipientId) === String(req.user._id)) continue;
+                        await notificationService.createNotification({
+                            user_id: recipientId,
+                            type: 'comment_added',
+                            message: notificationMessage,
+                            project_id: projectIdForNotification,
+                            task_id: task._id,
+                            team_id: teamIdForNotification,
+                            meta: {
+                                sender_name: senderName,
+                                project_name: task.project_id?.name || '',
+                            },
+                        });
+                    }
                     
                     for (const recipient of recipients) {
                         if (recipient.email) {
-                            const senderName = req.user.name || 'A team member';
                             const subject = `${senderName} added a comment on ${task.name} (${senderName})`;
                             const appBaseUrl = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '');
                             const logoUrl = `${appBaseUrl}/worklenz-logo.png`;
