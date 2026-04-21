@@ -1,7 +1,6 @@
 import { IWorklenzNotification } from '@/types/notifications/notifications.types';
 import { BankOutlined } from '@/shared/antd-imports';
-import { Button, Tag, Typography, theme } from '@/shared/antd-imports';
-import DOMPurify from 'dompurify';
+import { Button, Typography, theme } from '@/shared/antd-imports';
 import React, { useState } from 'react';
 import { fromNow } from '@/utils/dateUtils';
 import './notification-item.css';
@@ -23,102 +22,89 @@ const NotificationItem = ({
 }: NotificationItemProps) => {
   const { token } = theme.useToken();
   const [loading, setLoading] = useState(false);
-  const isDarkMode =
-    token.colorBgContainer === '#141414' ||
-    token.colorBgContainer.includes('dark') ||
-    document.documentElement.getAttribute('data-theme') === 'dark';
 
   const handleNotificationClick = async (e: React.MouseEvent) => {
-    await goToUrl?.(e, notification);
-    await markNotificationAsRead?.(notification.id);
+    const id = notification.id || (notification as any)._id;
+    if (id) {
+      await goToUrl?.(e, notification);
+      await markNotificationAsRead?.(id);
+    }
   };
 
   const handleMarkAsRead = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!notification.id) return;
+    const id = notification.id || (notification as any)._id;
+    if (!id) return;
 
     setLoading(true);
     try {
-      await markNotificationAsRead?.(notification.id);
+      await markNotificationAsRead?.(id);
     } finally {
       setLoading(false);
     }
   };
 
-  const createSafeHtml = (html: string) => {
-    return { __html: DOMPurify.sanitize(html) };
-  };
-
-  const getTagBackground = (color?: string) => {
-    if (!color) return {};
-
-    // Create a more transparent version of the color for the background
-    // This is equivalent to the color + '4d' in the Angular template
-    const bgColor = `${color}4d`;
-
-    // For dark mode, we might need to adjust the text color for better contrast
-    if (isDarkMode) {
-      return {
-        backgroundColor: bgColor,
-        color: '#ffffff',
-        borderColor: 'transparent',
-      };
-    }
-
-    return {
-      backgroundColor: bgColor,
-      borderColor: 'transparent',
-    };
-  };
-
   return (
     <div
       style={{
-        width: 'auto',
-        border: notification.color ? `2px solid ${notification.color}4d` : undefined,
+        backgroundColor: '#1f1f1f',
+        border: '1px solid #4a1a4a',
+        borderRadius: '8px',
+        padding: '16px',
+        marginBottom: '12px',
         cursor: notification.url ? 'pointer' : 'default',
+        color: '#fff'
       }}
       onClick={handleNotificationClick}
-      className="ant-notification-notice worklenz-notification rounded-4"
     >
-      <div className="ant-notification-notice-content">
-        <div className="ant-notification-notice-description">
-          {/* Team name */}
-          <div className="mb-1">
-            <Text type="secondary">
-              <BankOutlined /> {notification.team}
-            </Text>
-          </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', color: '#8c8c8c', fontSize: '14px' }}>
+        <BankOutlined style={{ fontSize: '16px' }} />
+        <span>{notification.team || 'Riyansh'}</span>
+      </div>
 
-          {/* Message with HTML content */}
-          <div className="mb-1" dangerouslySetInnerHTML={createSafeHtml(notification.message)} />
+      <div 
+        style={{ 
+          marginBottom: '12px', 
+          fontSize: '15px', 
+          lineHeight: '1.5',
+          color: '#e8e8e8'
+        }} 
+        dangerouslySetInnerHTML={{ 
+          __html: (notification.message || '')
+            .replace(/\*\*(.*?)\*\*/g, '<strong style="color: #fff">$1</strong>')
+        }} 
+      />
 
-          {/* Project tag */}
-          {notification.project && (
-            <div>
-              <Tag style={getTagBackground(notification.color)}>{notification.project}</Tag>
-            </div>
-          )}
+      {(notification.project || (notification as any).meta?.project_name) && (
+        <div style={{ 
+          display: 'inline-block',
+          backgroundColor: '#2b213a',
+          color: '#d3adf7',
+          padding: '2px 8px',
+          borderRadius: '4px',
+          fontSize: '12px',
+          marginBottom: '16px'
+        }}>
+          {notification.project || (notification as any).meta?.project_name}
         </div>
+      )}
 
-        {/* Footer with mark as read button and timestamp */}
-        <div className="d-flex align-items-baseline justify-content-between mt-1">
-          {isUnreadNotifications && markNotificationAsRead && (
-            <Button
-              loading={loading}
-              type="link"
-              size="small"
-              shape="round"
-              className="p-0"
-              onClick={e => handleMarkAsRead(e)}
-            >
-              <u>Mark as read</u>
-            </Button>
-          )}
-          <Text type="secondary" className="small">
-            {notification.created_at ? fromNow(notification.created_at) : ''}
-          </Text>
-        </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+        {isUnreadNotifications && markNotificationAsRead && (
+          <Button
+            loading={loading}
+            type="link"
+            size="small"
+            className="p-0"
+            style={{ color: '#177ddc', fontSize: '14px', textDecoration: 'underline' }}
+            onClick={e => handleMarkAsRead(e)}
+          >
+            Mark as read
+          </Button>
+        )}
+        <Text style={{ color: '#595959', fontSize: '12px', marginLeft: 'auto' }}>
+          {notification.created_at ? fromNow(notification.created_at) : 'a few seconds ago'}
+        </Text>
       </div>
     </div>
   );

@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 
 import { SOCKET_CONFIG } from './config';
 import logger from '@/utils/errorLogger';
-import { Modal, message } from '@/shared/antd-imports';
+import { Modal, message, notification } from '@/shared/antd-imports';
 import { SocketEvents } from '@/shared/socket-events';
 import { getUserSession } from '@/utils/session-helper';
 
@@ -153,6 +153,84 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
       }
     );
+
+    // Real-time task notifications
+    socket.on(SocketEvents.NOTIFICATIONS_UPDATE.toString(), (data: any) => {
+      if (data && data.message) {
+        const senderName = data.meta?.sender_name || 'System';
+        const messageText = data.message;
+        const key = `notification_${Date.now()}`;
+
+        notification.open({
+          key,
+          message: null,
+          description: (
+            <div style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '12px',
+              padding: '4px 0',
+              position: 'relative'
+            }}>
+              {/* Close Button */}
+              <div 
+                onClick={() => notification.destroy(key)}
+                style={{ 
+                  position: 'absolute', 
+                  right: '-12px', 
+                  top: '-10px', 
+                  cursor: 'pointer', 
+                  color: '#bfbfbf',
+                  fontSize: '18px',
+                  fontWeight: 'light',
+                  padding: '4px'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.color = '#595959'}
+                onMouseLeave={(e) => e.currentTarget.style.color = '#bfbfbf'}
+              >
+                ✕
+              </div>
+
+              <div style={{ 
+                backgroundColor: '#1890ff', 
+                borderRadius: '50%', 
+                width: '32px', 
+                height: '32px', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                flexShrink: 0,
+                marginTop: '2px'
+              }}>
+                <span style={{ color: '#fff', fontSize: '18px', fontWeight: 'bold' }}>i</span>
+              </div>
+              
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px', color: '#000', fontSize: '16px', fontWeight: 500 }}>
+                  <span style={{ fontSize: '16px', color: '#1890ff' }}>🏛️</span>
+                  <span>{senderName}</span>
+                </div>
+                
+                <div style={{ color: '#595959', fontSize: '15px' }}>
+                  <div dangerouslySetInnerHTML={{ 
+                    __html: messageText
+                      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                  }} />
+                </div>
+              </div>
+            </div>
+          ),
+          placement: 'topRight',
+          duration: 10, // Increased duration to allow time to click
+          style: {
+            borderRadius: '12px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            padding: '16px 24px',
+            width: '400px'
+          }
+        });
+      }
+    });
 
     // Connect after setting up listeners
     socket.connect();

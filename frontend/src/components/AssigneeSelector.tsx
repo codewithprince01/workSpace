@@ -14,6 +14,7 @@ import { useAppDispatch } from '@/hooks/useAppDispatch';
 import { setIsFromAssigner, toggleProjectMemberDrawer } from '@/features/projects/singleProject/members/projectMembersSlice';
 import { updateEnhancedKanbanTaskAssignees } from '@/features/enhanced-kanban/enhanced-kanban.slice';
 import { updateTask } from '@/features/task-management/task-management.slice';
+import { getTeamMembers } from '@/features/team-members/team-members.slice';
 import useIsProjectManager from '@/hooks/useIsProjectManager';
 import { useAuthStatus } from '@/hooks/useAuthStatus';
 import apiClient from '@/api/api-client';
@@ -199,6 +200,22 @@ const AssigneeSelector: React.FC<AssigneeSelectorProps> = ({
     }
   }, [isOpen, updateDropdownPosition]);
 
+  useEffect(() => {
+    if (members?.data) {
+      const assignees = pendingChanges.size
+        ? (selectedRef.current.length
+            ? selectedRef.current
+            : getTaskSelectionKeys(task))
+        : getTaskSelectionKeys(task);
+      
+      const membersData = members.data.map(member => ({
+        ...member,
+        selected: isMemberSelected(getMemberKey(member), assignees),
+      }));
+      setTeamMembers({ data: sortTeamMembers(membersData) });
+    }
+  }, [members, task?.assignees]);
+
   const handleDropdownToggle = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -206,25 +223,18 @@ const AssigneeSelector: React.FC<AssigneeSelectorProps> = ({
     if (!isOpen) {
       updateDropdownPosition();
 
-      // Prepare team members data when opening
-      // Always use the latest row task assignees unless there are in-flight local toggles.
-      const assignees = pendingChanges.size
-        ? (selectedRef.current.length
-            ? selectedRef.current
-            : getTaskSelectionKeys(task))
-        : getTaskSelectionKeys(task);
-
-      if (!pendingChanges.size) {
-        selectedRef.current = assignees;
-        setOptimisticAssignees(assignees);
+      if (!members || !members.data || members.data.length === 0) {
+        dispatch(
+          getTeamMembers({
+            index: 1,
+            size: 1000,
+            field: null,
+            order: null,
+            search: null,
+            all: true,
+          })
+        );
       }
-
-      const membersData = (members?.data || []).map(member => ({
-        ...member,
-        selected: isMemberSelected(getMemberKey(member), assignees),
-      }));
-      const sortedMembers = sortTeamMembers(membersData);
-      setTeamMembers({ data: sortedMembers });
 
       setIsOpen(true);
       // Focus search input after opening

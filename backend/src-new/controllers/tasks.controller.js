@@ -1,5 +1,6 @@
 const { Task, TaskStatus, TaskComment, TaskAttachment, Project, ProjectMember, TeamMember, TaskPhase, TaskLabel, ActivityLog, TimeLog, RunningTimer, TaskDependency } = require('../models');
 const taskService = require('../services/task.service');
+const notificationService = require('../services/notification.service');
 const logger = require('../utils/logger');
 const calendarSyncService = require('../services/calendar-sync.service');
 
@@ -196,6 +197,8 @@ exports.update = async (req, res, next) => {
       'progress', 'sort_order', 'labels', 'phase_id'
     ];
     
+    const oldAssignees = (task.assignees || []).map(a => a.toString());
+    
     allowedFields.forEach(field => {
       if (updates[field] !== undefined) {
         if (field === 'name') {
@@ -207,6 +210,9 @@ exports.update = async (req, res, next) => {
         }
       }
     });
+
+    // Capture new assignees for comparison
+    const newAssignees = (task.assignees || []).map(a => a.toString());
     
     // Check if task is completed
     if (updates.status_id) {
@@ -239,6 +245,19 @@ exports.update = async (req, res, next) => {
       }
     }
     await task.save();
+
+    // Trigger Notifications for Assignee Changes
+    const added = newAssignees.filter(a => !oldAssignees.includes(a));
+    const removed = oldAssignees.filter(a => !newAssignees.includes(a));
+
+    const projects_id = task.project_id;
+    
+    for (const userId of added) {
+      notificationService.notifyTaskAssignment(task._id, userId, req.user._id, 'add', projects_id);
+    }
+    for (const userId of removed) {
+      notificationService.notifyTaskAssignment(task._id, userId, req.user._id, 'remove', projects_id);
+    }
 
     await calendarSyncService.syncTaskToCalendar(task);
     
@@ -489,9 +508,17 @@ exports.bulkUpdate = async (req, res, next) => {
         return res.json({ done: true, body: { matched: 0, modified: 0 } });
       }
 
+      const tasksToUpdate = await Task.find(taskFilter).select('name _id project_id');
       const result = await Task.updateMany(taskFilter, {
         $addToSet: { assignees: { $each: userIds } }
       });
+
+      // Trigger Notifications
+      for (const t of tasksToUpdate) {
+        for (const userId of userIds) {
+          notificationService.notifyTaskAssignment(t._id, userId, req.user._id, 'add', t.project_id);
+        }
+      }
 
       return res.json({
         done: true,

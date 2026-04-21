@@ -26,7 +26,16 @@ router.get('/', async (req, res) => {
     const limit = currentPageSize;
 
     // 1. Identify current team ID
-    const currentTeamId = req.user.last_team_id;
+    let currentTeamId = req.user.last_team_id;
+
+    if (!currentTeamId) {
+      // Fallback: Find the first team membership for this user
+      const membership = await TeamMember.findOne({ user_id: req.user._id, is_active: true });
+      if (membership) {
+        currentTeamId = membership.team_id;
+      }
+    }
+
     if (!currentTeamId) {
       return res.json({ done: true, body: { data: [], total: 0 } });
     }

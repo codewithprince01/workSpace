@@ -4,6 +4,7 @@ const constants = require('../config/constants');
 const { User, Task, Project, TaskStatus, TeamMember, ProjectMember, TimeLog, RunningTimer, ActivityLog, TaskLabel, TaskPhase } = require('../models');
 const SocketEvents = require('../config/socket-events');
 const { generateTaskKeyForProject } = require('../utils/task-key');
+const notificationService = require('../services/notification.service');
 
 let io;
 
@@ -340,6 +341,15 @@ const initializeSocket = (server) => {
          socket.emit(SocketEvents.QUICK_ASSIGNEES_UPDATE.toString(), response);
          io.to(`project:${project_id}`).emit(SocketEvents.QUICK_ASSIGNEES_UPDATE.toString(), response);
          io.to(`project:${project_id}`).emit(SocketEvents.TASK_ASSIGNEES_CHANGE.toString(), response);
+
+         // Trigger Notification
+         await notificationService.notifyTaskAssignment(
+           task_id, 
+           userId, 
+           socket.user._id, 
+           mode === 1 ? 'remove' : 'add', 
+           project_id
+         );
        } catch (error) {
          console.error('❌ Socket QUICK_ASSIGNEES_UPDATE error:', error);
        }

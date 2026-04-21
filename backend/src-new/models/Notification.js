@@ -31,6 +31,10 @@ const notificationSchema = new Schema({
   is_read: {
     type: Boolean,
     default: false
+  },
+  meta: {
+    type: Schema.Types.Mixed,
+    default: {}
   }
 }, {
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }

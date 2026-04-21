@@ -93,7 +93,7 @@ const NotificationDrawer = () => {
     }
 
     // Show notification using the template
-    showNotification(notification);
+    // showNotification(notification);
   };
 
   const handleTeamInvitationsUpdate = async (data: ITeamInvitationViewModel) => {
@@ -113,7 +113,7 @@ const NotificationDrawer = () => {
     }
 
     // Show notification using the template
-    showNotification(notification);
+    // showNotification(notification);
     dispatch(fetchInvitations());
   };
 
@@ -233,21 +233,27 @@ const NotificationDrawer = () => {
   return (
     <Drawer
       title={
-        <Typography.Text style={{ fontWeight: 500, fontSize: 16 }}>
+        <Typography.Text style={{ fontWeight: 500, fontSize: 16, color: '#fff' }}>
           {notificationType === NOTIFICATION_OPTION_READ
-            ? t('notificationsDrawer.read')
-            : t('notificationsDrawer.unread')}{' '}
+            ? 'Read notifications'
+            : 'Unread notifications'}{' '}
           ({notificationCount})
         </Typography.Text>
       }
       open={isDrawerOpen}
       onClose={() => dispatch(toggleDrawer())}
       width={400}
+      styles={{
+        body: { backgroundColor: '#141414', padding: '16px' },
+        header: { backgroundColor: '#141414', borderBottom: '1px solid #303030' }
+      }}
+      closeIcon={<span style={{ color: '#fff' }}>✕</span>}
     >
-      <Flex justify="space-between" align="center">
+      <Flex justify="space-between" align="center" style={{ marginBottom: '24px' }}>
         <Segmented<string>
           options={['Unread', 'Read']}
           defaultValue={NOTIFICATION_OPTION_UNREAD}
+          style={{ backgroundColor: '#1f1f1f', color: '#fff' }}
           onChange={(value: string) => {
             if (value === NOTIFICATION_OPTION_UNREAD)
               dispatch(setNotificationType(NOTIFICATION_OPTION_UNREAD));
@@ -256,8 +262,8 @@ const NotificationDrawer = () => {
           }}
         />
 
-        <Button type="link" onClick={handleMarkAllAsRead}>
-          {t('notificationsDrawer.markAsRead')}
+        <Button type="link" onClick={handleMarkAllAsRead} style={{ color: '#faad14' }}>
+          Mark as read
         </Button>
       </Flex>
 

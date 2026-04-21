@@ -116,22 +116,35 @@ const AssigneeSelector = ({ task, groupId = null }: AssigneeSelectorProps) => {
     dispatch(toggleProjectMemberDrawer());
   };
 
-  const handleMembersDropdownOpen = (open: boolean) => {
-    if (open) {
+  useEffect(() => {
+    if (members?.data) {
       const assignees = toUserAssigneeIds(getTaskAssigneeIds());
-      const membersData = (members?.data || []).map(member => ({
+      const membersData = members.data.map(member => ({
         ...member,
         selected: isMemberSelected(getMemberKey(member), assignees),
       }));
-      let sortedMembers = sortTeamMembers(membersData);
+      setTeamMembers({ data: sortTeamMembers(membersData) });
+    }
+  }, [members]);
 
-      setTeamMembers({ data: sortedMembers });
+  const handleMembersDropdownOpen = (open: boolean) => {
+    if (open) {
+      if (!members?.data?.length) {
+        dispatch(
+          getTeamMembers({
+            index: 1,
+            size: 1000,
+            field: null,
+            order: null,
+            search: null,
+            all: true,
+          })
+        );
+      }
 
       setTimeout(() => {
         membersInputRef.current?.focus();
       }, 0);
-    } else {
-      setTeamMembers(members || { data: [] });
     }
   };
 

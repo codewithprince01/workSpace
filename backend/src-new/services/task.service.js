@@ -1,4 +1,5 @@
 const { Task, TaskStatus, Project, ProjectMember, TaskComment, TaskAttachment } = require('../models');
+const notificationService = require('./notification.service');
 const { generateTaskKeyForProject } = require('../utils/task-key');
 const { sanitizeText, sanitizeRich } = require('../utils/sanitize');
 const logger = require('../utils/logger');
@@ -55,6 +56,13 @@ exports.createTask = async (data, reporterId) => {
   
   if (task.due_date) {
     await calendarSyncService.syncTaskToCalendar(task);
+  }
+
+  // Notify Assignees
+  if (assignees && Array.isArray(assignees)) {
+    for (const userId of assignees) {
+      notificationService.notifyTaskAssignment(task._id, userId, reporterId, 'add', project_id);
+    }
   }
 
   return task;
