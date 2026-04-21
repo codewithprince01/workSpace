@@ -56,6 +56,7 @@ const AddSubtaskRow: React.FC<AddSubtaskRowProps> = memo(({
   depth = 0
 }) => {
   const { t } = useTranslation('task-list-table');
+  const isDarkMode = useAppSelector(state => state.themeReducer.mode === 'dark');
   const [isAdding, setIsAdding] = useState(false);
   const [subtaskName, setSubtaskName] = useState('');
   const inputRef = useRef<any>(null);
@@ -196,11 +197,31 @@ const AddSubtaskRow: React.FC<AddSubtaskRowProps> = memo(({
 
   return (
     <div className="flex items-center min-w-max px-1 py-0.5 hover:bg-gray-50 dark:hover:bg-gray-800 min-h-[36px] border-b border-gray-200 dark:border-gray-700">
-      {visibleColumns.map((column, index) => (
-        <React.Fragment key={column.id}>
-          {renderColumn(column.id, column.width)}
-        </React.Fragment>
-      ))}
+      {visibleColumns.map((column, index) => {
+        const stickyStyle = column.isSticky
+          ? {
+              position: 'sticky' as const,
+              left: visibleColumns
+                .slice(0, index)
+                .filter(c => c.isSticky)
+                .reduce((acc, c) => acc + parseInt(c.width.replace('px', ''), 10), 0),
+              zIndex: 5,
+              backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
+              overflow: 'hidden',
+              width: column.width,
+            }
+          : undefined;
+
+        return (
+          <div
+            key={column.id}
+            style={stickyStyle}
+            className={column.isSticky ? 'sticky-column-hover hover:bg-[var(--hover-bg)]' : ''}
+          >
+            {renderColumn(column.id, column.width)}
+          </div>
+        );
+      })}
     </div>
   );
 });

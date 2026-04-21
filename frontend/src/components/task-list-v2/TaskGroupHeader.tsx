@@ -411,6 +411,7 @@ const TaskGroupHeader: React.FC<TaskGroupHeaderProps> = ({
           backgroundColor: headerBackgroundColor,
           color: headerTextColor,
           position: 'sticky',
+          left: 0,
           top: 0,
           zIndex: 25, // Higher than task rows but lower than column headers (z-30)
           height: '36px',
