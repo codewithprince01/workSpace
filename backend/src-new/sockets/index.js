@@ -896,6 +896,7 @@ const initializeSocket = (server) => {
 
             const subscribers = (task.subscribers || []).map(s => ({
               team_member_id: userToTeamMap[s._id.toString()] || s._id.toString(),
+              user_id: s._id.toString(),
               name: s.name || '',
               email: s.email || '',
               avatar_url: s.avatar_url || ''

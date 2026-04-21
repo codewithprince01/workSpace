@@ -5,6 +5,7 @@ export interface ITaskCommentsCreateRequest {
   content?: string;
   mentions?: any[];
   attachments?: ITaskAttachment[];
+  notify_users?: string[];
 }
 
 export interface ITaskAttachmentCreateRequest {

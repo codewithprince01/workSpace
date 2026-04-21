@@ -192,12 +192,13 @@ exports.update = async (req, res, next) => {
     
     // Update allowed fields
     const allowedFields = [
-      'name', 'description', 'status_id', 'priority', 'assignees',
+      'name', 'description', 'status_id', 'priority', 'assignees', 'subscribers',
       'start_date', 'end_date', 'due_date', 'estimated_hours', 'actual_hours',
       'progress', 'sort_order', 'labels', 'phase_id'
     ];
     
     const oldAssignees = (task.assignees || []).map(a => a.toString());
+    const oldSubscribers = (task.subscribers || []).map(s => s.toString());
     
     allowedFields.forEach(field => {
       if (updates[field] !== undefined) {
@@ -210,6 +211,41 @@ exports.update = async (req, res, next) => {
         }
       }
     });
+
+    const newSubscribers = (task.subscribers || []).map(s => s.toString());
+    
+    // Send notifications to NEW subscribers
+    const newlyAddedSubscribers = newSubscribers.filter(id => !oldSubscribers.includes(id));
+    if (newlyAddedSubscribers.length > 0) {
+        const { User } = require('../models');
+        const emailService = require('../services/email.service');
+        
+        const subscribersToNotify = await User.find({ _id: { $in: newlyAddedSubscribers } });
+        for (const recipient of subscribersToNotify) {
+            if (recipient.email) {
+                const subject = `You are now watching task: ${task.name}`;
+                const html = `
+                    <div style="font-family: sans-serif; padding: 25px; color: #333; max-width: 600px; margin: auto; border: 1px solid #e1e4e8; border-radius: 12px;">
+                        <h2 style="color: #1890ff;">New Task Watcher</h2>
+                        <p>Hi <strong>${recipient.name || 'there'}</strong>,</p>
+                        <p>You have been added to the <strong>Notify</strong> list for the task: <strong>${task.name}</strong>.</p>
+                        <div style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                            <p><strong>Task Key:</strong> ${task.task_key || 'N/A'}</p>
+                            <p><strong>Priority:</strong> ${task.priority || 'medium'}</p>
+                        </div>
+                        <p>You will now receive email notifications whenever someone comments on this task.</p>
+                        <div style="text-align: center; margin-top: 30px;">
+                            <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/projects/${task.project_id}/tasks/${task._id}" 
+                               style="background-color: #1890ff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">
+                               View Task Details
+                            </a>
+                        </div>
+                    </div>
+                `;
+                emailService.sendEmail({ to: recipient.email, subject, html }).catch(console.error);
+            }
+        }
+    }
 
     // Capture new assignees for comparison
     const newAssignees = (task.assignees || []).map(a => a.toString());
@@ -1647,7 +1683,8 @@ exports.getSubscribers = async (req, res, next) => {
     });
 
     const subscribers = (fullTask?.subscribers || []).map(u => ({
-      team_member_id: userToTeamMemberMap[u?._id?.toString()] || u?._id?.toString(),
+      team_member_id: userToTeamMemberMap[u?._id?.toString()] || '',
+      user_id: u?._id?.toString() || '',
       name: u?.name || '',
       email: u?.email || '',
       avatar_url: u?.avatar_url || ''

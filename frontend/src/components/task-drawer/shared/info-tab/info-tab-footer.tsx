@@ -48,6 +48,7 @@ const InfoTabFooter = () => {
   const [selectedFiles, setSelectedFiles] = useState<ITaskAttachment[]>([]);
 
   const { taskFormViewModel, selectedTaskId } = useAppSelector(state => state.taskDrawerReducer);
+  const subscribers = useAppSelector(state => state.taskDrawerReducer.subscribers);
   const { projectId } = useAppSelector(state => state.projectReducer);
   const listTask = useAppSelector(state =>
     selectedTaskId ? state.taskManagement.entities[selectedTaskId] : undefined
@@ -120,8 +121,8 @@ const InfoTabFooter = () => {
 
   // Check if comment is valid (either has text or files)
   const isCommentValid = useCallback(() => {
-    return characterLength > 0 || selectedFiles.length > 0;
-  }, [characterLength, selectedFiles.length]);
+    return commentValue.trim().length > 0 || selectedFiles.length > 0;
+  }, [commentValue, selectedFiles.length]);
 
   const getMembers = useCallback(async () => {
     if (!projectId) return;
@@ -182,11 +183,18 @@ const InfoTabFooter = () => {
       setUploading(true);
       const body: ITaskCommentsCreateRequest = {
         task_id: selectedTaskId,
-        content: commentValue || '',
+        content: commentValue.trim(),
         mentions: Array.from(new Set(selectedMembers.map(member => JSON.stringify(member)))).map(
           str => JSON.parse(str)
         ),
         attachments: selectedFiles,
+        notify_users: Array.from(
+          new Set(
+            (subscribers || [])
+              .map((s: any) => String(s?.user_id || '').trim())
+              .filter(Boolean)
+          )
+        ),
       };
 
       const res = await taskCommentsApiService.create(body);
@@ -234,6 +242,7 @@ const InfoTabFooter = () => {
     commentValue,
     selectedMembers,
     selectedFiles,
+    subscribers,
     selectedTaskId,
     projectId,
     listTask?.comments_count,
@@ -348,8 +357,9 @@ const InfoTabFooter = () => {
             options={mentionsOptions}
             autoSize
             maxLength={5000}
+            value={commentValue}
             onClick={() => setIsCommentBoxExpand(true)}
-            onChange={e => setCharacterLength(e.length)}
+            onChange={handleCommentChange}
             prefix="@"
             filterOption={(input, option) => {
               if (!input) return true;

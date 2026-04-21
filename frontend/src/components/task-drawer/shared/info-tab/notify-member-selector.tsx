@@ -171,7 +171,10 @@ const NotifyMemberSelector = ({ task, t }: NotifyMemberSelectorProps) => {
       const body = {
         team_member_id: memberId,
         task_id: effectiveTaskId,
-        user_id: member.user_id || null,
+        user_id:
+          typeof member.user_id === 'string'
+            ? member.user_id
+            : (member.user_id as any)?._id || null,
         mode: checked ? 0 : 1,
       };
       socket?.emit(SocketEvents.TASK_SUBSCRIBERS_CHANGE.toString(), body);

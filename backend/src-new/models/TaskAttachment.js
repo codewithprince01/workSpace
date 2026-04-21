@@ -8,6 +8,12 @@ const taskAttachmentSchema = new Schema({
     required: false,
     default: null
   },
+  comment_id: {
+    type: Schema.Types.ObjectId,
+    ref: 'TaskComment',
+    required: false,
+    default: null
+  },
   project_id: {
     type: Schema.Types.ObjectId,
     ref: 'Project',
@@ -40,6 +46,7 @@ const taskAttachmentSchema = new Schema({
 });
 
 taskAttachmentSchema.index({ task_id: 1 });
+taskAttachmentSchema.index({ comment_id: 1 });
 taskAttachmentSchema.index({ project_id: 1 });
 taskAttachmentSchema.index({ created_at: -1 });
 taskAttachmentSchema.index({ project_id: 1, task_id: 1 });

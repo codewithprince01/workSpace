@@ -5,4 +5,6 @@ export interface InlineMember {
   color_code?: string;
   avatar_url?: string;
   team_member_id?: string;
+  user_id?: string;
+  email?: string;
 }
