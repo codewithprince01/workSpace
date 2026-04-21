@@ -131,7 +131,7 @@ const TaskListTaskCell = ({
   };
 
   const renderSubtasksCountLabel = (taskId: string, isSubTask: boolean, subTasksCount: number) => {
-    if (!taskId || subTasksCount <= 1) return null;
+    if (!taskId || subTasksCount === 0) return null;
     return (
       <Button
         onClick={() => handleToggleExpansion(taskId)}
@@ -220,17 +220,27 @@ const TaskListTaskCell = ({
           renderSubtasksCountLabel(task.id || '', isSubTask, task.sub_tasks_count || 0)}
 
         {commentsCount > 0 ? (
-          <CommentOutlined type="secondary" style={{ fontSize: 14 }} />
+          <Tooltip title={`${commentsCount} comments`}>
+            <CommentOutlined style={{ fontSize: 14, color: colors.lightGray }} />
+          </Tooltip>
         ) : null}
 
-        {hasSubscribers ? <EyeOutlined type="secondary" style={{ fontSize: 14 }} /> : null}
+        {hasSubscribers ? (
+          <Tooltip title="Has subscribers">
+            <EyeOutlined style={{ fontSize: 14, color: colors.lightGray }} />
+          </Tooltip>
+        ) : null}
 
         {attachmentsCount > 0 ? (
-          <PaperClipOutlined type="secondary" style={{ fontSize: 14 }} />
+          <Tooltip title={`${attachmentsCount} attachments`}>
+            <PaperClipOutlined style={{ fontSize: 14, color: colors.lightGray }} />
+          </Tooltip>
         ) : null}
 
         {hasDependencies ? (
-          <MinusCircleOutlined type="secondary" style={{ fontSize: 14 }} />
+          <Tooltip title="Has dependencies">
+            <MinusCircleOutlined style={{ fontSize: 14, color: colors.lightGray }} />
+          </Tooltip>
         ) : null}
 
         {scheduleId ? (

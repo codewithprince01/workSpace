@@ -1,4 +1,4 @@
-const { Task, TaskStatus, TaskComment, TaskAttachment, Project, ProjectMember, TeamMember, TaskPhase, TaskLabel, ActivityLog, TimeLog, RunningTimer } = require('../models');
+const { Task, TaskStatus, TaskComment, TaskAttachment, Project, ProjectMember, TeamMember, TaskPhase, TaskLabel, ActivityLog, TimeLog, RunningTimer, TaskDependency } = require('../models');
 const taskService = require('../services/task.service');
 const logger = require('../utils/logger');
 const calendarSyncService = require('../services/calendar-sync.service');
@@ -913,6 +913,31 @@ exports.getTaskListV3 = async (req, res, next) => {
       }
     });
 
+    // Aggregate counts for indicators (comments, attachments, subtasks, dependencies)
+    const [commentsCounts, attachmentsCounts, subTasksCounts, dependencyCounts] = await Promise.all([
+      TaskComment.aggregate([
+        { $match: { task_id: { $in: taskIds.map(id => new mongoose.Types.ObjectId(id)) } } },
+        { $group: { _id: '$task_id', count: { $sum: 1 } } }
+      ]),
+      TaskAttachment.aggregate([
+        { $match: { task_id: { $in: taskIds.map(id => new mongoose.Types.ObjectId(id)) } } },
+        { $group: { _id: '$task_id', count: { $sum: 1 } } }
+      ]),
+      Task.aggregate([
+        { $match: { parent_task_id: { $in: taskIds.map(id => new mongoose.Types.ObjectId(id)) }, is_trashed: { $ne: true } } },
+        { $group: { _id: '$parent_task_id', count: { $sum: 1 } } }
+      ]),
+      TaskDependency.aggregate([
+        { $match: { task_id: { $in: taskIds.map(id => new mongoose.Types.ObjectId(id)) } } },
+        { $group: { _id: '$task_id', count: { $sum: 1 } } }
+      ])
+    ]);
+
+    const commentsMap = Object.fromEntries(commentsCounts.map(c => [c._id.toString(), c.count]));
+    const attachmentsMap = Object.fromEntries(attachmentsCounts.map(a => [a._id.toString(), a.count]));
+    const subTasksMap = Object.fromEntries(subTasksCounts.map(s => [s._id.toString(), s.count]));
+    const dependenciesMap = Object.fromEntries(dependencyCounts.map(d => [d._id.toString(), d.count]));
+
     const formatTask = (t) => {
       const rawTaskKey = t.task_key ? String(t.task_key).toUpperCase() : '';
       const normalizedTaskKeyMatch = rawTaskKey.match(new RegExp(`^${projectKeyPrefix}-?(\\d+)$`));
@@ -992,7 +1017,13 @@ exports.getTaskListV3 = async (req, res, next) => {
         // Progress
         progress: t.progress || 0,
         reporter: t.reporter_id?.name || null,
-        reporter_id: t.reporter_id?._id?.toString?.() || null
+        reporter_id: t.reporter_id?._id?.toString?.() || null,
+        // Indicators
+        comments_count: commentsMap[t._id.toString()] || 0,
+        attachments_count: attachmentsMap[t._id.toString()] || 0,
+        sub_tasks_count: subTasksMap[t._id.toString()] || 0,
+        has_subscribers: (t.subscribers?.length || 0) > 0,
+        has_dependencies: (dependenciesMap[t._id.toString()] || 0) > 0
       });
     };
 
