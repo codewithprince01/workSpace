@@ -7,20 +7,15 @@ exports.getTaskTemplates = async (req, res) => {
   try {
     const { Task, TeamMember } = require('../models');
     
-    // Find user's team
-    let teamId = req.query.team_id;
-    if (!teamId) {
-       const member = await TeamMember.findOne({ user_id: req.user._id, is_active: true });
-       teamId = member?.team_id;
-    }
-
-    if (!teamId) {
+    const memberships = await TeamMember.find({ user_id: req.user._id, is_active: true });
+    if (!memberships || memberships.length === 0) {
         return res.json({ done: true, body: [] });
     }
+    const teamIds = memberships.map(m => m.team_id);
 
-    // Find tasks that are marked as templates
+    // Find tasks that are marked as templates across all teams
     const templates = await Task.find({ 
-      team_id: teamId, 
+      team_id: { $in: teamIds }, 
       is_template: true,
       is_trashed: false,
       is_archived: false 
@@ -33,7 +28,8 @@ exports.getTaskTemplates = async (req, res) => {
       description: template.description || '',
       project_id: template.project_id ? String(template.project_id) : null,
       team_id: template.team_id ? String(template.team_id) : null,
-      is_template: template.is_template || false
+      is_template: template.is_template || false,
+      created_at: template.created_at || template.createdAt || new Date()
     }));
     
     res.json({

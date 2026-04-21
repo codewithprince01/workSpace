@@ -6,14 +6,17 @@ import TextArea from 'antd/es/input/TextArea';
 import { TFunction } from 'i18next';
 import { useState, useEffect } from 'react';
 
+const { Text } = Typography;
+
 interface OrganizationNameProps {
   themeMode: string;
   name: string;
   t: TFunction;
   refetch: () => void;
+  isEmbedded?: boolean;
 }
 
-const OrganizationName = ({ themeMode, name, t, refetch }: OrganizationNameProps) => {
+const OrganizationName = ({ themeMode, name, t, refetch, isEmbedded }: OrganizationNameProps) => {
   const [isEditable, setIsEditable] = useState(false);
   const [newName, setNewName] = useState(name);
 
@@ -57,63 +60,67 @@ const OrganizationName = ({ themeMode, name, t, refetch }: OrganizationNameProps
     }
   };
 
+  const content = (
+    <div style={{ paddingTop: isEmbedded ? 0 : '8px' }}>
+      <div style={{ marginBottom: '8px' }}>
+        {isEditable ? (
+          <div style={{ position: 'relative' }}>
+            <TextArea
+              style={{
+                height: '32px',
+                paddingRight: '40px',
+                resize: 'none',
+                borderRadius: '4px',
+              }}
+              onPressEnter={handleBlur}
+              value={newName}
+              onChange={handleNameChange}
+              onBlur={handleBlur}
+              onKeyDown={handleKeyDown}
+              autoFocus
+              maxLength={100}
+              placeholder={t('enterOrganizationName')}
+            />
+            <Button
+              icon={<EnterOutlined style={{ color: '#1890ff' }} />}
+              type="text"
+              style={{
+                position: 'absolute',
+                right: '4px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                padding: '4px 8px',
+                color: '#1890ff',
+              }}
+              onClick={handleBlur}
+            />
+          </div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Text style={{ fontSize: isEmbedded ? 15 : 14, color: themeMode === 'dark' ? '#ffffff' : 'inherit', fontWeight: isEmbedded ? 500 : 400 }}>{name}</Text>
+            <Tooltip title={t('edit')}>
+              <Button
+                onClick={() => setIsEditable(true)}
+                size="small"
+                type="text"
+                icon={<EditOutlined style={{ fontSize: 13 }} />}
+                style={{ padding: '0', color: '#1890ff', height: 'auto', display: 'flex', alignItems: 'center' }}
+              />
+            </Tooltip>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  if (isEmbedded) return content;
+
   return (
     <Card>
       <Typography.Title level={5} style={{ margin: 0, marginBottom: '0.5rem' }}>
         {t('name')}
       </Typography.Title>
-      <div style={{ paddingTop: '8px' }}>
-        <div style={{ marginBottom: '8px' }}>
-          {isEditable ? (
-            <div style={{ position: 'relative' }}>
-              <TextArea
-                style={{
-                  height: '32px',
-                  paddingRight: '40px',
-                  resize: 'none',
-                  borderRadius: '4px',
-                }}
-                onPressEnter={handleBlur}
-                value={newName}
-                onChange={handleNameChange}
-                onBlur={handleBlur}
-                onKeyDown={handleKeyDown}
-                autoFocus
-                maxLength={100}
-                placeholder={t('enterOrganizationName')}
-              />
-              <Button
-                icon={<EnterOutlined style={{ color: '#1890ff' }} />}
-                type="text"
-                style={{
-                  position: 'absolute',
-                  right: '4px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  padding: '4px 8px',
-                  color: '#1890ff',
-                }}
-                onClick={handleBlur}
-              />
-            </div>
-          ) : (
-            <Typography.Text>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                {name}
-                <Tooltip title={t('edit')}>
-                  <Button
-                    onClick={() => setIsEditable(true)}
-                    size="small"
-                    type="text"
-                    icon={<EditOutlined />}
-                    style={{ padding: '4px', color: '#1890ff' }}
-                  />
-                </Tooltip>
-              </div>
-            </Typography.Text>
-          )}
-        </div>
-      </div>
+      {content}
     </Card>
   );
 };

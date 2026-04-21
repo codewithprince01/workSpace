@@ -1,7 +1,7 @@
 // colors.ts
 export const colors = {
   white: '#fff',
-  darkGray: '#1E1E1E',
+  darkGray: '#000000',
   lightGray: '#707070',
   deepLightGray: '#d1d0d3',
   lightBeige: '#fde8b5',

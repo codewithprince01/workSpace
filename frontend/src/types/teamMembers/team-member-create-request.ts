@@ -4,4 +4,5 @@ export interface ITeamMemberCreateRequest extends ITeamMember {
   job_title?: string | null;
   emails?: string | string[];
   is_admin?: boolean;
+  manager_id?: string | null;
 }

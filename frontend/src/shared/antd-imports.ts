@@ -67,6 +67,7 @@ import {
   Steps,
   Slider,
   Rate,
+  Upload,
   App as AntdApp
 } from 'antd/es';
 
@@ -259,6 +260,7 @@ export {
   Steps,
   Slider,
   Rate,
+  Upload,
   AntdApp
 };
 
@@ -283,6 +285,7 @@ export type {
   PaginationProps,
   CollapseProps,
   TablePaginationConfig,
+  UploadProps,
 } from 'antd/es';
 
 // Dayjs

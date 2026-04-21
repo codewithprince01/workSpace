@@ -188,7 +188,12 @@ exports.acceptInvitation = async (req, res, next) => {
     membership.joined_at = new Date();
     await membership.save();
 
-    await User.findByIdAndUpdate(req.user._id, { last_team_id: membership.team_id });
+    // CRITICAL: Sync the is_admin flag on the User model based on the accepted role
+    const isAdmin = membership.role === 'admin' || membership.role === 'owner';
+    await User.findByIdAndUpdate(req.user._id, {
+      last_team_id: membership.team_id,
+      is_admin: isAdmin
+    });
 
     await Notification.updateMany(
       {

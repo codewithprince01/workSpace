@@ -53,7 +53,7 @@ const TeamsTable: React.FC<TeamsTableProps> = ({
       title: t('team'),
       key: 'teamName',
       render: (record: IOrganizationTeam) => (
-        <Typography.Text style={{ fontSize: `${isTablet ? '14px' : '10px'}` }}>
+        <Typography.Text style={{ fontSize: `${isTablet ? '14px' : '10px'}`, color: '#fafafa', fontWeight: 500 }}>
           <Badge
             status={currentTeam?.id === record.id ? 'success' : 'default'}
             style={{ marginRight: '8px' }}
@@ -71,9 +71,10 @@ const TeamsTable: React.FC<TeamsTableProps> = ({
             display: 'flex',
             justifyContent: 'center',
             fontSize: `${isTablet ? '14px' : '10px'}`,
+            color: '#bfbfbf'
           }}
         >
-          {record.members_count}
+          {record.members_count || 0}
         </Typography.Text>
       ),
     },
@@ -82,7 +83,7 @@ const TeamsTable: React.FC<TeamsTableProps> = ({
       key: 'members',
       render: (record: IOrganizationTeam) => (
         <span>
-          <Avatars members={record.names} />
+          <Avatars members={record.names || []} />
         </span>
       ),
     },
@@ -118,27 +119,68 @@ const TeamsTable: React.FC<TeamsTableProps> = ({
 
   return (
     <>
-      <Card>
-        <Table
-          rowClassName="team-table-row"
-          className="team-table"
-          size="small"
-          columns={columns}
-          dataSource={teams}
-          rowKey={record => record.id}
-          loading={loading}
-          pagination={{
+      <Table
+        rowClassName="team-table-row"
+        className="team-table"
+        size="large"
+        columns={columns}
+        dataSource={teams}
+        rowKey={record => record.id}
+        loading={loading}
+        pagination={{
             showSizeChanger: true,
             defaultPageSize: 20,
             pageSizeOptions: ['5', '10', '15', '20', '50', '100'],
-          }}
-        />
-      </Card>
+            size: 'small',
+            position: ['bottomRight'],
+            style: { padding: '16px 24px' }
+        }}
+        style={{ 
+            backgroundColor: 'transparent'
+        }}
+      />
       <SettingTeamDrawer
         teamId={selectedTeam}
         isSettingDrawerOpen={isSettingDrawerOpen}
         setIsSettingDrawerOpen={setIsSettingDrawerOpen}
       />
+      
+      <style>{`
+        .team-table-row:hover td {
+          background-color: rgba(255, 255, 255, 0.02) !important;
+        }
+        .ant-table {
+          background: transparent !important;
+          color: #ffffff !important;
+        }
+        .ant-table-thead > tr > th {
+          background: transparent !important;
+          color: #bfbfbf !important;
+          border-bottom: 1px solid #303030 !important;
+          font-weight: 500 !important;
+          padding: 16px 24px !important;
+        }
+        .ant-table-tbody > tr > td {
+          border-bottom: 1px solid #303030 !important;
+          padding: 16px 24px !important;
+        }
+        .ant-table-tbody > tr:last-child > td {
+          border-bottom: none !important;
+        }
+        .ant-pagination-item, .ant-pagination-prev, .ant-pagination-next, .ant-pagination-item-link {
+            background: transparent !important;
+            border-color: #303030 !important;
+        }
+        .ant-pagination-item a {
+            color: #8c8c8c !important;
+        }
+        .ant-pagination-item-active {
+            border-color: #1890ff !important;
+        }
+        .ant-pagination-item-active a {
+            color: #1890ff !important;
+        }
+      `}</style>
     </>
   );
 };

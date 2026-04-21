@@ -56,4 +56,42 @@ router.put('/notifications', async (req, res) => {
   }
 });
 
+// PUT /api/settings/team-name/:teamId - Update a team name
+router.put('/team-name/:teamId', async (req, res) => {
+  try {
+    const { teamId } = req.params;
+    const { name } = req.body;
+    const { Team, TeamMember } = require('../models');
+
+    // Security Check: Verify user belongs to the team they are trying to rename
+    const member = await TeamMember.findOne({ user_id: req.user._id, team_id: teamId, is_active: true });
+    if (!member) {
+      return res.status(403).json({ done: false, message: 'Permission denied: You are not a member of this team' });
+    }
+
+    // Role Check: Only Admins or Owners should be able to rename a team
+    if (member.role !== 'admin' && member.role !== 'owner') {
+      return res.status(403).json({ done: false, message: 'Permission denied: Only team administrators can rename the team' });
+    }
+
+    const updatedTeam = await Team.findByIdAndUpdate(teamId, { name }, { new: true });
+    
+    if (!updatedTeam) {
+      return res.status(404).json({ done: false, message: 'Team not found' });
+    }
+
+    res.json({
+      done: true,
+      message: 'Team name updated successfully',
+      body: {
+        id: updatedTeam._id,
+        name: updatedTeam.name
+      }
+    });
+  } catch (error) {
+    console.error('Update team name error:', error);
+    res.status(500).json({ done: false, message: 'Failed to update team name' });
+  }
+});
+
 module.exports = router;

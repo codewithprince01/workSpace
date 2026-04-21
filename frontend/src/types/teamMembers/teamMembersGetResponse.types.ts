@@ -24,6 +24,8 @@ export interface ITeamMemberViewModel extends ITeamMember {
   total_logged_time?: string;
   member_teams?: string[];
   is_pending?: boolean;
+  manager_id?: string;
+  manager_name?: string;
 }
 
 export interface ITeamMemberOverviewGetResponse extends ITeamMember {

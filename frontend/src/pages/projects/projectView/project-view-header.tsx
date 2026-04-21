@@ -304,10 +304,21 @@ const ProjectViewHeader = memo(() => {
     if (selectedProject.status) {
       elements.push(
         <Tooltip key="status" title={`${t('projectStatusTooltip')}: ${selectedProject.status}`}>
-          <ProjectStatusIcon
-            iconName={selectedProject.status_icon || ''}
-            color={selectedProject.status_color || ''}
-          />
+          <Tag
+            key="status-tag"
+            color={selectedProject.status_color || colors.vibrantBlue}
+            style={{ borderRadius: 24, paddingInline: 8, margin: 0 }}
+          >
+            <Flex align="center" gap={4}>
+              <ProjectStatusIcon
+                iconName={selectedProject.status_icon || ''}
+                color={selectedProject.status_color || ''}
+              />
+              <span style={{ textTransform: 'capitalize' }}>
+                {selectedProject.status.replace(/_/g, ' ')}
+              </span>
+            </Flex>
+          </Tag>
         </Tooltip>
       );
     }
@@ -335,13 +346,6 @@ const ProjectViewHeader = memo(() => {
       );
     }
 
-    if (selectedProject.notes) {
-      elements.push(
-        <Typography.Text key="notes" type="secondary">
-          {selectedProject.notes}
-        </Typography.Text>
-      );
-    }
 
     return (
       <Flex gap={4} align="center">

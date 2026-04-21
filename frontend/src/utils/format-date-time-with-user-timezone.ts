@@ -18,6 +18,7 @@ export const formatDateTimeWithUserTimezone = (
 
   try {
     const date = new Date(dateString);
+    if (isNaN(date.getTime())) return '';
     
     // If timezone is provided, use it for formatting
     if (userTimezone && userTimezone !== 'UTC') {

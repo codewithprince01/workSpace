@@ -156,46 +156,101 @@ router.get('/greeting', async (req, res) => {
 // GET /api/home/tasks - Get my tasks for dashboard
 router.get('/tasks', async (req, res) => {
   try {
-    const { Task } = require('../models');
-    // params: group_by (0 = assigned to me, 1 = assigned by me), is_calendar_view, selected_date
-    const { group_by } = req.query;
+    const { Task, TaskStatus } = require('../models');
+    // params: group_by (0 = assigned to me, 1 = assigned by me), current_tab (all, today, upcoming, overdue, no_due_date)
+    const { group_by, current_tab = 'all' } = req.query;
     
-    let query = { is_archived: false };
+    let baseQuery = { is_archived: false };
     
     // group_by: 0 = Assigned to me, 1 = Assigned by me
     if (group_by === '1') {
         // Assigned by me (I am the reporter)
-        query.reporter_id = req.user._id;
+        baseQuery.reporter_id = req.user._id;
     } else {
         // Default: Assigned to me (I am in assignees)
-        query.assignees = req.user._id;
+        baseQuery.assignees = req.user._id;
+    }
+
+    const now = new Date();
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(now);
+    todayEnd.setHours(23, 59, 59, 999);
+
+    // Get counts for all tabs using baseQuery
+    const allUserTasks = await Task.find(baseQuery).select('end_date status_id').lean();
+    
+    // Fetch all "done" statuses to filter out completed tasks from counts if necessary
+    // However, usually these filters apply to active tasks.
+    const doneStatuses = await TaskStatus.find({ category: 'done' }).select('_id').lean();
+    const doneStatusIds = doneStatuses.map(s => s._id.toString());
+
+    const counts = {
+        all: allUserTasks.length,
+        today: 0,
+        upcoming: 0,
+        overdue: 0,
+        no_due_date: 0
+    };
+
+    allUserTasks.forEach(t => {
+        const isDone = t.status_id && doneStatusIds.includes(t.status_id.toString());
+        
+        if (!t.end_date) {
+            counts.no_due_date++;
+        } else {
+            const d = new Date(t.end_date);
+            if (d >= todayStart && d <= todayEnd) {
+                counts.today++;
+            } else if (d > todayEnd) {
+                counts.upcoming++;
+            } else if (d < todayStart) {
+                // Overdue usually means past due date and NOT done
+                if (!isDone) {
+                    counts.overdue++;
+                }
+            }
+        }
+    });
+
+    // Normalize tab name for filtering logic (supporting both PascalCase and lowercase)
+    const tab = (current_tab || 'All').toLowerCase();
+    
+    // Apply specific tab filtering for the result list
+    let filterQuery = { ...baseQuery };
+    if (tab === 'today') {
+        filterQuery.end_date = { $gte: todayStart, $lte: todayEnd };
+    } else if (tab === 'upcoming') {
+        filterQuery.end_date = { $gt: todayEnd };
+    } else if (tab === 'overdue') {
+        filterQuery.end_date = { $lt: todayStart };
+        // Only show non-completed overdue tasks
+        filterQuery.status_id = { $nin: doneStatusIds };
+    } else if (tab === 'noduedate' || tab === 'no_due_date') {
+        filterQuery.$or = [
+            { end_date: { $exists: false } },
+            { end_date: null }
+        ];
     }
     
-    // Add logic for filtering completed if needed, or sorting
-    // For now return all matching
-    
-    const tasks = await Task.find(query)
+    const tasks = await Task.find(filterQuery)
       .populate('project_id', 'name key color_code team_id')
       .populate('status_id', 'name color_code category')
       .populate('assignees', 'name avatar_url')
-      .sort({ created_at: -1 })
-      .limit(50)
+      .sort({ end_date: 1, created_at: -1 })
+      .limit(100)
       .lean();
     
-    // Get all unique project IDs from tasks
+    // Get unique project IDs for secondary population
     const projectIds = [...new Set(tasks.map(t => t.project_id?._id?.toString()).filter(Boolean))];
+    const projectStatuses = await TaskStatus.find({ project_id: { $in: projectIds } }).lean();
     
-    // Fetch statuses for all projects
-    const { TaskStatus } = require('../models');
-    const allStatuses = await TaskStatus.find({ project_id: { $in: projectIds } }).lean();
-    
-    // Group statuses by project - convert ObjectIds to strings
     const statusesByProject = {};
-    allStatuses.forEach(s => {
+    projectStatuses.forEach(s => {
         const pid = s.project_id.toString();
         if (!statusesByProject[pid]) statusesByProject[pid] = [];
         statusesByProject[pid].push({
-            id: s._id.toString(),  // Convert to string
+            id: s._id.toString(),
             name: s.name,
             color_code: s.color_code,
             category: s.category
@@ -206,46 +261,23 @@ router.get('/tasks', async (req, res) => {
         const projectId = t.project_id?._id?.toString();
         return {
             ...t,
-            id: t._id?.toString(),  // Convert to string
-            project_id: t.project_id?._id?.toString(),  // Convert to string for consistency
-            team_id: t.project_id?.team_id?.toString(),  // Get team_id from project
+            id: t._id?.toString(),
+            project_id: projectId,
+            team_id: t.project_id?.team_id?.toString(),
             project_name: t.project_id ? t.project_id.name : '',
             project_color: t.project_id ? t.project_id.color_code : '',
-            status_id: t.status_id?._id?.toString(),  // Convert to string
+            status_id: t.status_id?._id?.toString(),
             status_name: t.status_id?.name,
             status_color: t.status_id?.color_code,
             project_statuses: statusesByProject[projectId] || []
         };
     });
 
-    // Calculate counts for tabs
-    const today = new Date();
-    today.setHours(0,0,0,0);
-    
-    const counts = {
-        today: 0,
-        upcoming: 0,
-        overdue: 0,
-        no_due_date: 0
-    };
-    
-    mappedTasks.forEach(t => {
-        if (!t.end_date) {
-            counts.no_due_date++;
-        } else {
-            const d = new Date(t.end_date);
-            d.setHours(0,0,0,0);
-            if (d.getTime() === today.getTime()) counts.today++;
-            else if (d.getTime() < today.getTime()) counts.overdue++;
-            else if (d.getTime() > today.getTime()) counts.upcoming++;
-        }
-    });
-    
     res.json({
         done: true,
         body: {
             tasks: mappedTasks,
-            total: tasks.length,
+            total: mappedTasks.length,
             ...counts
         }
     });

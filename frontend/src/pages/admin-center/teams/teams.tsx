@@ -76,57 +76,79 @@ const Teams: React.FC = () => {
     fetchTeams();
   }, [requestParams.search]);
 
+  const cardStyle: React.CSSProperties = {
+    borderRadius: '8px',
+    backgroundColor: '#141414',
+    border: '1px solid #303030',
+    width: '100%',
+    padding: '0'
+  };
+
+  const countLabelStyle = {
+    fontSize: '20px',
+    color: '#ffffff',
+    fontWeight: 500
+  };
+
   return (
-    <div style={{ width: '100%' }}>
-      <PageHeader title={<span>{t('title')}</span>} style={{ padding: '16px 0' }} />
-      <PageHeader
-        style={{
-          paddingLeft: 0,
-          paddingTop: 0,
-          paddingRight: '24px',
-          paddingBottom: '16px',
-        }}
-        subTitle={
-          <span
-            style={{
-              color: `${themeMode === 'dark' ? '#ffffffd9' : '#000000d9'}`,
-              fontWeight: 500,
-              fontSize: '16px',
+    <div style={{ width: '100%', minHeight: '100vh', padding: '24px 32px', backgroundColor: '#000000' }}>
+      <Flex justify="space-between" align="center" style={{ marginBottom: '24px' }}>
+        <div style={countLabelStyle}>
+            {requestParams.total} {t('subtitle')}
+        </div>
+        
+        <Flex gap={12} align="center">
+          <Input
+            placeholder={t('placeholder')}
+            prefix={<SearchOutlined style={{ color: '#8c8c8c' }} />}
+            style={{ 
+              width: 300, 
+              backgroundColor: 'rgba(255,255,255,0.05)', 
+              borderColor: '#303030',
+              color: '#ffffff',
+              borderRadius: '6px',
+              height: '38px'
+            }}
+            value={requestParams.search ?? ''}
+            onChange={e => setRequestParams(prev => ({ ...prev, search: e.target.value }))}
+          />
+          <Tooltip title={t('refresh')}>
+            <Button
+              shape="circle"
+              icon={<SyncOutlined spin={isLoading} style={{ color: '#8c8c8c' }} />}
+              onClick={() => fetchTeams()}
+              style={{ 
+                backgroundColor: 'rgba(255,255,255,0.05)', 
+                border: '1px solid #303030',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            />
+          </Tooltip>
+          <Button 
+            type="primary" 
+            onClick={() => setShowAddTeamDrawer(true)}
+            style={{ 
+                height: '38px', 
+                borderRadius: '6px',
+                fontWeight: 500
             }}
           >
-            {requestParams.total} {t('subtitle')}
-          </span>
-        }
-        extra={
-          <Flex gap={8} align="center">
-            <Tooltip title={t('tooltip')}>
-              <Button
-                shape="circle"
-                icon={<SyncOutlined spin={isLoading} />}
-                onClick={() => fetchTeams()}
-              />
-            </Tooltip>
-            <Input
-              placeholder={t('placeholder')}
-              suffix={<SearchOutlined />}
-              type="text"
-              value={requestParams.search ?? ''}
-              onChange={e => setRequestParams(prev => ({ ...prev, search: e.target.value }))}
-            />
-            <Button type="primary" onClick={() => setShowAddTeamDrawer(true)}>
-              {t('addTeam')}
-            </Button>
-          </Flex>
-        }
-      />
+            {t('addTeam')}
+          </Button>
+        </Flex>
+      </Flex>
 
-      <TeamsTable
-        teams={teams}
-        currentTeam={currentTeam}
-        t={t}
-        loading={isLoading}
-        reloadTeams={fetchTeams}
-      />
+      <div style={cardStyle}>
+        <TeamsTable
+            teams={teams}
+            currentTeam={currentTeam}
+            t={t}
+            loading={isLoading}
+            reloadTeams={fetchTeams}
+        />
+      </div>
 
       <AddTeamDrawer
         isDrawerOpen={showAddTeamDrawer}

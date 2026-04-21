@@ -31,10 +31,10 @@ import { setUser } from '@/features/user/userSlice';
 
 type UpdateMemberDrawerProps = {
   selectedMemberId: string | null;
-  onRoleUpdate?: (memberId: string, newRoleName: string) => void; // Add callback prop
+  onMemberUpdate?: (memberId: string, updatedData: Partial<ITeamMemberViewModel>) => void;
 };
 
-const UpdateMemberDrawer = ({ selectedMemberId, onRoleUpdate }: UpdateMemberDrawerProps) => {
+const UpdateMemberDrawer = ({ selectedMemberId, onMemberUpdate }: UpdateMemberDrawerProps) => {
   const { t } = useTranslation('settings/team-members');
   const dispatch = useAppDispatch();
   const auth = useAuthService();
@@ -80,8 +80,8 @@ const UpdateMemberDrawer = ({ selectedMemberId, onRoleUpdate }: UpdateMemberDraw
       if (res.done) {
         setTeamMember(res.body);
         form.setFieldsValue({
-          jobTitle: jobTitles.find(job => job.id === res.body?.job_title)?.id,
-          access: res.body.is_admin ? 'admin' : 'member',
+          jobTitle: jobTitles.find(job => job.id === res.body?.job_title || job.name === res.body?.job_title)?.id || res.body?.job_title,
+          access: (res.body.role === 'admin' || res.body.is_admin || res.body.role === 'owner') ? 'admin' : 'member',
         });
       }
     } catch (error) {
@@ -93,21 +93,26 @@ const UpdateMemberDrawer = ({ selectedMemberId, onRoleUpdate }: UpdateMemberDraw
     if (!selectedMemberId || !teamMember?.email) return;
 
     try {
+      const jobTitleValue = form.getFieldValue('jobTitle');
+      const resolvedJobTitle = jobTitles.find(j => j.id === jobTitleValue)?.name || jobTitleValue;
+
       const body: ITeamMemberCreateRequest = {
-        job_title: form.getFieldValue('jobTitle'),
+        job_title: resolvedJobTitle,
         emails: [teamMember.email],
         is_admin: values.access === 'admin',
+        manager_id: values.managerId || null,
       };
 
-      const res = await teamMembersApiService.update(selectedMemberId, body);
+      const res = await teamMembersApiService.update(selectedMemberId!, body);
       if (res.done) {
+        message.success(t('updateMemberSuccessMessage'));
+        onMemberUpdate?.(selectedMemberId!, { 
+          role_name: body.is_admin ? 'admin' : 'member',
+          job_title: body.job_title 
+        });
         form.resetFields();
         setSelectedJobTitle(null);
         dispatch(toggleUpdateMemberDrawer());
-
-        // Update role_name in parent component
-        const newRoleName = values.access === 'admin' ? 'admin' : 'member';
-        onRoleUpdate?.(selectedMemberId, newRoleName);
 
         const authorizeResponse = await authApiService.verify();
         if (authorizeResponse.authenticated) {
@@ -137,10 +142,50 @@ const UpdateMemberDrawer = ({ selectedMemberId, onRoleUpdate }: UpdateMemberDraw
     }
   };
 
-  const afterOpenChange = (visible: boolean) => {
+  const [potentialManagers, setPotentialManagers] = useState<ITeamMemberViewModel[]>([]);
+
+  const afterOpenChange = async (visible: boolean) => {
     if (visible) {
-      getJobTitles();
-      getTeamMember();
+      setLoading(true);
+      try {
+        // Fetch data in parallel
+        const [titlesRes, membersRes, memberRes] = await Promise.all([
+          jobTitlesApiService.getJobTitles(1, 50, null, null, null),
+          teamMembersApiService.get(1, 100, 'name', 'asc', ''), // Fetch all members for manager selection
+          teamMembersApiService.getById(selectedMemberId!)
+        ]);
+
+        let currentTitles = [];
+        if (titlesRes.done) {
+          currentTitles = titlesRes.body.data || [];
+          setJobTitles(currentTitles);
+        }
+
+        if (membersRes.done) {
+          // Filter out the current user being edited from the potential managers list
+          setPotentialManagers((membersRes.body.data || []).filter((m: any) => m.id !== selectedMemberId));
+        }
+
+        if (memberRes.done) {
+          const resMember = memberRes.body;
+          setTeamMember(resMember);
+          
+          const matchingTitle = currentTitles.find(
+            (job: IJobTitle) => job.id === resMember?.job_title || job.name === resMember?.job_title
+          );
+
+          form.setFieldsValue({
+            jobTitle: matchingTitle ? matchingTitle.id : resMember?.job_title,
+            access: (resMember.role === 'admin' || resMember.is_admin || resMember.role === 'owner') ? 'admin' : 'member',
+            managerId: resMember.manager_id,
+          });
+          setSelectedJobTitle(matchingTitle ? matchingTitle.id : resMember?.job_title);
+        }
+      } catch (error) {
+        logger.error('Error during drawer data fetch:', error);
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -190,27 +235,19 @@ const UpdateMemberDrawer = ({ selectedMemberId, onRoleUpdate }: UpdateMemberDraw
       >
         <Form.Item label={t('jobTitleLabel')} name="jobTitle">
           <Select
+            showSearch
             optionLabelProp="label"
-            defaultValue={teamMember?.job_title}
-            size="middle"
             placeholder={t('jobTitlePlaceholder')}
             options={jobTitles.map(job => ({
               label: job.name,
               value: job.id,
             }))}
-            suffixIcon={false}
-            onChange={(value, option) => {
-              if (option && 'label' in option) {
-                form.setFieldsValue({ jobTitle: option.label || value });
-              }
+            onChange={(value) => {
+              // If we pick from dropdown, we want to store the ID in form state for the Select value
+              // but we might want to store the label for submission.
+              // Let's keep ID in Select for matching, and resolve name in submit.
+              setSelectedJobTitle(value);
             }}
-            onSelect={value => setSelectedJobTitle(value)}
-            dropdownRender={menu => (
-              <div>
-                {loading && <Spin size="small" />}
-                {menu}
-              </div>
-            )}
           />
         </Form.Item>
 
@@ -222,6 +259,37 @@ const UpdateMemberDrawer = ({ selectedMemberId, onRoleUpdate }: UpdateMemberDraw
               { value: 'admin', label: t('adminText') },
             ]}
           />
+        </Form.Item>
+        
+        <Form.Item
+          noStyle
+          shouldUpdate={(prevValues, currentValues) => prevValues.access !== currentValues.access}
+        >
+          {({ getFieldValue }) =>
+            getFieldValue('access') === 'member' && (
+              <>
+                <Form.Item label={'Manager (Optional)'} name="managerId">
+                  <Select
+                    showSearch
+                    allowClear
+                    placeholder={'Select a team lead as manager'}
+                    optionLabelProp="label"
+                  >
+                    {potentialManagers.map(m => (
+                      <Select.Option key={m.id} value={m.id} label={m.name}>
+                        <Flex align="center" gap={8}>
+                          <Avatar size="small" src={m.avatar_url}>
+                            {m.name?.charAt(0).toUpperCase()}
+                          </Avatar>
+                          {m.name}
+                        </Flex>
+                      </Select.Option>
+                    ))}
+                  </Select>
+                </Form.Item>
+              </>
+            )
+          }
         </Form.Item>
 
         <Form.Item>

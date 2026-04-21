@@ -75,11 +75,11 @@ export const adminCenterApiService = {
     requestParams: IOrganizationUserRequestParams
   ): Promise<IServerResponse<IOrganizationUsersGetRequest>> {
     const params = new URLSearchParams({
-      index: requestParams.page.toString(),
+      index: (requestParams.page - 1).toString(),
       size: requestParams.pageSize.toString(),
       ...(requestParams.sort && { field: requestParams.sort }),
       ...(requestParams.order && { order: requestParams.order }),
-      ...(requestParams.searchTerm && { search: requestParams.searchTerm }),
+      ...(requestParams.searchTerm && { searchTerm: requestParams.searchTerm }),
     });
     const response = await apiClient.get<IServerResponse<IOrganizationUsersGetRequest>>(
       `${rootUrl}/organization/users?${params}`
@@ -91,7 +91,7 @@ export const adminCenterApiService = {
     requestParams: IOrganizationTeamRequestParams
   ): Promise<IServerResponse<IOrganizationTeamGetRequest>> {
     const params = new URLSearchParams({
-      index: requestParams.index.toString(),
+      index: (requestParams.index - 1).toString(),
       size: requestParams.size.toString(),
       ...(requestParams.field && { field: requestParams.field }),
       ...(requestParams.order && { order: requestParams.order }),
@@ -140,7 +140,7 @@ export const adminCenterApiService = {
     requestParams: IOrganizationTeamRequestParams
   ): Promise<IServerResponse<IOrganizationProjectsGetResponse>> {
     const params = new URLSearchParams({
-      index: requestParams.index.toString(),
+      index: (requestParams.index - 1).toString(),
       size: requestParams.size.toString(),
       ...(requestParams.field && { field: requestParams.field }),
       ...(requestParams.order && { order: requestParams.order }),

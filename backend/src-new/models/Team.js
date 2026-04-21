@@ -20,6 +20,10 @@ const teamSchema = new Schema({
   is_active: {
     type: Boolean,
     default: true
+  },
+  logo_url: {
+    type: String,
+    default: null
   }
 }, {
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }

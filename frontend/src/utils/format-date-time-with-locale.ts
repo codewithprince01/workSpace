@@ -6,6 +6,8 @@ export const formatDateTimeWithLocale = (dateString: string): string => {
   if (!dateString) return '';
 
   const date = new Date(dateString);
+  if (isNaN(date.getTime())) return '';
+  
   const localeString = getLanguageFromLocalStorage();
   const locale = localeString === 'en' ? enUS : localeString === 'es' ? es : pt;
   return format(date, 'MMM d, yyyy, h:mm:ss a', { locale });

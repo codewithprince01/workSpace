@@ -21,6 +21,11 @@ const teamMemberSchema = new Schema({
     type: String,
     default: null
   },
+  manager_id: {
+    type: Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  },
   is_active: {
     type: Boolean,
     default: true

@@ -1,6 +1,5 @@
 import { SearchOutlined, SyncOutlined } from '@/shared/antd-imports';
-import { PageHeader } from '@ant-design/pro-components';
-import { Button, Card, Flex, Input, Table, TableProps, Tooltip, Typography } from '@/shared/antd-imports';
+import { Button, Card, Divider, Flex, Input, Table, TableProps, Tooltip, Typography } from '@/shared/antd-imports';
 import React, { useEffect, useState } from 'react';
 import { RootState } from '@/app/store';
 import { useAppSelector } from '@/hooks/useAppSelector';
@@ -49,12 +48,12 @@ const Users: React.FC = () => {
   const columns: TableProps<IOrganizationUser>['columns'] = [
     {
       title: t('user'),
-      dataIndex: 'user',
-      key: 'user',
+      dataIndex: 'name',
+      key: 'name',
       render: (_, record) => (
-        <Flex gap={8} align="center">
-          <SingleAvatar avatarUrl={record.avatar_url} name={record.name} />
-          <Typography.Text>{record.name}</Typography.Text>
+        <Flex gap={12} align="center">
+          <SingleAvatar avatarUrl={record.avatar_url} name={record.name} size={32} />
+          <Typography.Text style={{ color: '#fafafa', fontSize: '14px', fontWeight: 500 }}>{record.name}</Typography.Text>
         </Flex>
       ),
     },
@@ -63,16 +62,23 @@ const Users: React.FC = () => {
       dataIndex: 'email',
       key: 'email',
       render: text => (
-        <span className="email-hover">
-          <Typography.Text copyable={{ text }}>{text}</Typography.Text>
-        </span>
+        <Typography.Text 
+            copyable={{ text }} 
+            style={{ color: '#bfbfbf', fontSize: '14px' }}
+        >
+            {text}
+        </Typography.Text>
       ),
     },
     {
       title: t('lastActivity'),
       dataIndex: 'last_logged',
       key: 'last_logged',
-      render: text => <span>{formatDateTimeWithLocale(text) || '-'}</span>,
+      render: text => (
+        <Typography.Text style={{ color: '#bfbfbf', fontSize: '14px' }}>
+            {formatDateTimeWithLocale(text) || '-'}
+        </Typography.Text>
+      ),
     },
   ];
 
@@ -84,49 +90,63 @@ const Users: React.FC = () => {
     fetchUsers();
   }, [requestParams.searchTerm, requestParams.page, requestParams.pageSize]);
 
+  const cardStyle: React.CSSProperties = {
+    borderRadius: '8px',
+    backgroundColor: '#141414',
+    border: '1px solid #303030',
+    width: '100%',
+    padding: '0'
+  };
+
+  const countLabelStyle = {
+    fontSize: '20px',
+    color: '#ffffff',
+    fontWeight: 500
+  };
+
   return (
-    <div style={{ width: '100%' }}>
-      <PageHeader title={<span>{t('title')}</span>} style={{ padding: '16px 0' }} />
-      <PageHeader
-        style={{
-          paddingLeft: 0,
-          paddingTop: 0,
-          paddingBottom: '16px',
-        }}
-        subTitle={
-          <span
-            style={{
-              color: `${themeMode === 'dark' ? '#ffffffd9' : '#000000d9'}`,
-              fontWeight: 500,
-              fontSize: '16px',
-            }}
-          >
+    <div style={{ width: '100%', minHeight: '100vh', padding: '24px 32px', backgroundColor: '#000000' }}>
+      <Flex justify="space-between" align="center" style={{ marginBottom: '24px' }}>
+        <div style={countLabelStyle}>
             {requestParams.total} {t('subTitle')}
-          </span>
-        }
-        extra={
-          <Flex gap={8} align="center">
-            <Tooltip title={t('refresh')}>
-              <Button
-                shape="circle"
-                icon={<SyncOutlined spin={isLoading} />}
-                onClick={() => fetchUsers()}
-              />
-            </Tooltip>
-            <Input
-              placeholder={t('placeholder')}
-              suffix={<SearchOutlined />}
-              type="text"
-              value={requestParams.searchTerm}
-              onChange={e => setRequestParams(prev => ({ ...prev, searchTerm: e.target.value }))}
+        </div>
+        
+        <Flex gap={12} align="center">
+          <Tooltip title={t('refresh')}>
+            <Button
+              shape="circle"
+              icon={<SyncOutlined spin={isLoading} style={{ color: '#8c8c8c' }} />}
+              onClick={() => fetchUsers()}
+              style={{ 
+                backgroundColor: 'rgba(255,255,255,0.05)', 
+                border: '1px solid #303030',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
             />
-          </Flex>
-        }
-      />
-      <Card>
+          </Tooltip>
+          <Input
+            placeholder={t('placeholder')}
+            prefix={<SearchOutlined style={{ color: '#8c8c8c' }} />}
+            style={{ 
+              width: 300, 
+              backgroundColor: 'rgba(255,255,255,0.05)', 
+              borderColor: '#303030',
+              color: '#ffffff',
+              borderRadius: '6px',
+              height: '38px'
+            }}
+            value={requestParams.searchTerm}
+            onChange={e => setRequestParams(prev => ({ ...prev, searchTerm: e.target.value }))}
+          />
+        </Flex>
+      </Flex>
+
+      <Card style={cardStyle} bodyStyle={{ padding: '0' }}>
         <Table
           rowClassName="users-table-row"
-          size="small"
+          size="large"
           columns={columns}
           dataSource={users}
           pagination={{
@@ -135,11 +155,54 @@ const Users: React.FC = () => {
             size: 'small',
             showSizeChanger: true,
             total: requestParams.total,
+            position: ['bottomRight'],
+            style: { padding: '16px 24px' },
             onChange: (page, pageSize) => setRequestParams(prev => ({ ...prev, page, pageSize })),
           }}
           loading={isLoading}
+          style={{ 
+            backgroundColor: 'transparent'
+          }}
+          scroll={{ x: 'max-content' }}
         />
       </Card>
+      
+      <style>{`
+        .users-table-row:hover td {
+          background-color: rgba(255, 255, 255, 0.02) !important;
+        }
+        .ant-table {
+          background: transparent !important;
+          color: #ffffff !important;
+        }
+        .ant-table-thead > tr > th {
+          background: transparent !important;
+          color: #bfbfbf !important;
+          border-bottom: 1px solid #303030 !important;
+          font-weight: 500 !important;
+          padding: 16px 24px !important;
+        }
+        .ant-table-tbody > tr > td {
+          border-bottom: 1px solid #303030 !important;
+          padding: 16px 24px !important;
+        }
+        .ant-table-tbody > tr:last-child > td {
+          border-bottom: none !important;
+        }
+        .ant-pagination-item, .ant-pagination-prev, .ant-pagination-next, .ant-pagination-item-link {
+            background: transparent !important;
+            border-color: #303030 !important;
+        }
+        .ant-pagination-item a {
+            color: #8c8c8c !important;
+        }
+        .ant-pagination-item-active {
+            border-color: #1890ff !important;
+        }
+        .ant-pagination-item-active a {
+            color: #1890ff !important;
+        }
+      `}</style>
     </div>
   );
 };
