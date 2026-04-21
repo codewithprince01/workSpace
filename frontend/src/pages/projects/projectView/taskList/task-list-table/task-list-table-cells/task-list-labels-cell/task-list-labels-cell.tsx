@@ -10,7 +10,7 @@ interface TaskListLabelsCellProps {
 
 const TaskListLabelsCell = ({ task }: TaskListLabelsCellProps) => {
   return (
-    <Flex>
+    <Flex gap={4} wrap="wrap">
       {task.labels?.map((label, index) =>
         label.end && label.names && label.name ? (
           <CustomNumberLabel

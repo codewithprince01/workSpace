@@ -15,7 +15,7 @@ const taskLabelSchema = new Schema({
   },
   color_code: {
     type: String,
-    default: '#1890ff'
+    default: '#6b7280'
   }
 }, {
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }
