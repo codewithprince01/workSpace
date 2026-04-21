@@ -59,6 +59,8 @@ import { removeCustomField, upsertCustomField } from '@/features/task-management
 import { useParams } from 'react-router-dom';
 import { tasksCustomColumnsService } from '@/api/tasks/tasks-custom-columns.service';
 import { ExclamationCircleFilled } from '@/shared/antd-imports';
+import { useSocket } from '@/socket/socketContext';
+import { SocketEvents } from '@/shared/socket-events';
 
 const CustomColumnModal = () => {
   const [mainForm] = Form.useForm();
@@ -69,6 +71,7 @@ const CustomColumnModal = () => {
   const themeMode = useAppSelector(state => state.themeReducer.mode);
 
   const dispatch = useAppDispatch();
+  const { socket } = useSocket();
 
   const {
     customColumnId,
@@ -138,6 +141,12 @@ const CustomColumnModal = () => {
 
       // Show success message
       message.success(t('customColumns.modal.deleteSuccessMessage'));
+
+      socket?.emit(SocketEvents.CUSTOM_COLUMN_PINNED_CHANGE.toString(), {
+        project_id: projectId,
+        action: 'delete',
+        column_id: columnUUID,
+      });
 
       // Refresh tasks and columns to reflect the deleted custom column
       if (projectId) {
@@ -273,6 +282,12 @@ const CustomColumnModal = () => {
             
             // Show success message
             message.success(t('customColumns.modal.createSuccessMessage'));
+
+            socket?.emit(SocketEvents.CUSTOM_COLUMN_PINNED_CHANGE.toString(), {
+              project_id: projectId,
+              action: 'create',
+              column_id: createdColumn.id || createdColumn.key,
+            });
             
             // Refresh tasks and columns to include the new custom column values
             if (projectId) {
@@ -367,6 +382,12 @@ const CustomColumnModal = () => {
 
             // Show success message
             message.success(t('customColumns.modal.updateSuccessMessage'));
+
+            socket?.emit(SocketEvents.CUSTOM_COLUMN_PINNED_CHANGE.toString(), {
+              project_id: projectId,
+              action: 'update',
+              column_id: updateColumnUUID,
+            });
 
             // Refresh tasks and columns to reflect the updated custom column
             if (projectId) {

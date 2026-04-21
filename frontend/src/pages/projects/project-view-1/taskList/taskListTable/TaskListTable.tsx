@@ -57,12 +57,12 @@ const TaskListTable = ({
   const visibleColumns = columnList.filter(col => {
     const columnInState = columns.find(c => c.key === col.key);
     return columnInState ? !!columnInState.pinned : false;
-  }).concat((columns || []).filter(c => c.custom_column && c.pinned).map(c => ({
+  }).concat((columns || []).filter(c => (c.custom_column || (c as any).isCustom) && c.pinned).map(c => ({
     key: c.key || '',
     name: c.name || '',
-    columnHeader: c.custom_column_obj?.fieldTitle || c.name || '',
-    width: c.width || 150,
-    isVisible: true // it's already filtered by pinned
+    columnHeader: c.custom_column_obj?.columnHeader || c.custom_column_obj?.fieldTitle || c.name || '',
+    width: (c as any).width || 150,
+    isCustomColumn: true, // flag so header renders correctly
   })));
 
   // toggle subtasks visibility
@@ -277,7 +277,7 @@ const TaskListTable = ({
                   className={`${customHeaderColumnStyles(column.key)}`}
                   style={{ width: column.width, fontWeight: 500 }}
                 >
-                  {column.key === 'phases'
+                  {(column as any).isCustomColumn || column.key === 'phases'
                     ? column.columnHeader
                     : t(`${column.columnHeader}Column`)}
                 </th>

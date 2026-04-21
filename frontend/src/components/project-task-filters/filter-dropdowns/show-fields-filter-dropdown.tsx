@@ -118,8 +118,9 @@ const ShowFieldsFilterDropdown = () => {
 
   // Filter columns based on configuration
   const visibilityChangableColumnList = columnList.filter(column => {
-    // Always exclude selector and TASK columns from dropdown
-    if (column.key === 'selector' || column.key === 'TASK') {
+    // Always exclude selector/TASK/NAME columns from dropdown
+    const key = String(column.key || '').toLowerCase();
+    if (['selector', 'task', 'name'].includes(key)) {
       return false;
     }
 
@@ -159,6 +160,18 @@ const ShowFieldsFilterDropdown = () => {
         updateCustomColumnPinned({
           columnId: col.id || col.key || '',
           isVisible: nextPinned,
+        })
+      );
+
+      await dispatch(
+        updateColumnVisibility({
+          projectId,
+          item: {
+            ...column,
+            id: col.id || col.key,
+            key: col.key || col.id,
+            custom_column: true,
+          } as ITaskListColumn,
         })
       );
 

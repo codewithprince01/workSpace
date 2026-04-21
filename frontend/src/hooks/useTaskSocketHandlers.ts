@@ -34,6 +34,7 @@ import {
   updateSubTasks,
   updateTaskProgress,
   updateTaskTimeTracking,
+  fetchTaskListColumns as fetchTaskListColumnsFromTasks,
 } from '@/features/tasks/tasks.slice';
 import {
   addTask,
@@ -43,6 +44,7 @@ import {
   moveTaskBetweenGroups,
   selectCurrentGroupingV3,
   fetchTasksV3,
+  fetchTaskListColumns as fetchTaskManagementColumns,
   addSubtaskToParent,
   removeTemporarySubtask,
 } from '@/features/task-management/task-management.slice';
@@ -984,6 +986,18 @@ export const useTaskSocketHandlers = () => {
     [dispatch]
   );
 
+  const handleCustomColumnVisibilityChange = useCallback(
+    (data: { project_id?: string }) => {
+      const targetProjectId = data?.project_id || projectId;
+      if (!targetProjectId) return;
+
+      dispatch(fetchTaskManagementColumns(targetProjectId));
+      dispatch(fetchTaskListColumnsFromTasks(targetProjectId));
+      dispatch(fetchTasksV3(targetProjectId));
+    },
+    [dispatch, projectId]
+  );
+
   // Handler for TASK_ASSIGNEES_CHANGE.
   // Backend may broadcast this event to project room with the same payload shape as QUICK_ASSIGNEES_UPDATE.
   const handleTaskAssigneesChange = useCallback((data: Partial<ITaskAssigneesUpdateResponse>) => {
@@ -1152,6 +1166,7 @@ export const useTaskSocketHandlers = () => {
       { event: SocketEvents.QUICK_TASK.toString(), handler: handleNewTaskReceived },
       { event: SocketEvents.TASK_PROGRESS_UPDATED.toString(), handler: handleTaskProgressUpdated },
       { event: SocketEvents.TASK_CUSTOM_COLUMN_UPDATE.toString(), handler: handleCustomColumnUpdate },
+      { event: SocketEvents.CUSTOM_COLUMN_PINNED_CHANGE.toString(), handler: handleCustomColumnVisibilityChange },
       { event: SocketEvents.TASK_TIMER_START.toString(), handler: handleTimerStart },
       { event: SocketEvents.TASK_TIMER_STOP.toString(), handler: handleTimerStop },
       { event: SocketEvents.TASK_SORT_ORDER_CHANGE.toString(), handler: handleTaskSortOrderChange },
@@ -1189,6 +1204,7 @@ export const useTaskSocketHandlers = () => {
     handleNewTaskReceived,
     handleTaskProgressUpdated,
     handleCustomColumnUpdate,
+    handleCustomColumnVisibilityChange,
     handleTimerStart,
     handleTimerStop,
     handleTaskSortOrderChange,

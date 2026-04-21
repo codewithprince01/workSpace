@@ -353,7 +353,8 @@ export const updateColumnVisibility = createAsyncThunk(
       } else {
         response = await tasksApiService.toggleColumnVisibility(projectId, item);
       }
-      return response.body;
+      // Return the original item (with our intent) merged with API response
+      return { ...item, ...(response.body || {}) };
     } catch (error) {
       logger.error('Update Column Visibility', error);
       if (error instanceof Error) {
@@ -1241,7 +1242,7 @@ const taskSlice = createSlice({
           index: 1,
           pinned: true,
         });
-        // Process and normalize custom columns
+        // Process and normalize custom columns — always use API as source of truth
         const rawCustomColumns = (action.payload as { custom: any[] })?.custom || [];
         const customColumns = Array.isArray(rawCustomColumns)
           ? rawCustomColumns.map((col: any) => ({
@@ -1252,26 +1253,14 @@ const taskSlice = createSlice({
                 col?.custom_column_obj?.fieldTitle ||
                 col?.configuration?.field_title ||
                 'Text',
-              pinned: col?.pinned ?? col?.is_visible ?? col?.isVisible ?? true,
+              pinned: col?.is_visible ?? col?.isVisible ?? col?.pinned ?? true,
               isCustom: true,
             }))
           : [];
 
-        // Merge fetched custom columns with existing optimistic ones
-        const mergedCustomColumnsMap = new Map<string, any>();
-        state.customColumns.forEach((col: any) => {
-          const key = String(col?.key || col?.id || '');
-          if (key) mergedCustomColumnsMap.set(key, col);
-        });
-        customColumns.forEach((col: any) => {
-          const key = String(col?.key || col?.id || '');
-          if (key) mergedCustomColumnsMap.set(key, col);
-        });
-        const mergedCustomColumns = Array.from(mergedCustomColumnsMap.values());
-
-        // Merge columns
-        state.columns = [...standardColumns, ...mergedCustomColumns];
-        state.customColumns = mergedCustomColumns;
+        // Replace, don't merge — API is always authoritative to avoid ghost columns
+        state.columns = [...standardColumns, ...customColumns];
+        state.customColumns = customColumns;
       })
       .addCase(fetchTaskListColumns.rejected, (state, action) => {
         state.loadingColumns = false;
@@ -1292,17 +1281,36 @@ const taskSlice = createSlice({
         state.error = action.payload as string;
       })
       .addCase(updateColumnVisibility.fulfilled, (state, action) => {
+        state.loadingColumns = false;
+        if (!action.payload?.key) return;
+        // Update in columns array
         const column = state.columns.find(col => col.key === action.payload.key);
         if (column) {
           column.pinned = action.payload.pinned;
         }
+        // Also update in customColumns array
+        const customCol = state.customColumns.find(col => col.key === action.payload.key);
+        if (customCol) {
+          customCol.pinned = action.payload.pinned;
+        }
       })
       .addCase(updateColumnVisibility.rejected, (state, action) => {
+        state.loadingColumns = false;
         state.error = action.payload as string;
       })
-      .addCase(updateColumnVisibility.pending, state => {
-        state.loadingColumns = true;
-        state.error = null;
+      .addCase(updateColumnVisibility.pending, (state, action) => {
+        state.loadingColumns = false; // Don't show loading spinner for quick toggles
+        // Optimistic update: apply the change immediately before API responds
+        const { item } = action.meta.arg;
+        if (!item.key) return;
+        const column = state.columns.find(col => col.key === item.key);
+        if (column) {
+          column.pinned = item.pinned;
+        }
+        const customCol = state.customColumns.find(col => col.key === item.key);
+        if (customCol) {
+          customCol.pinned = item.pinned;
+        }
       })
       .addCase(fetchCustomColumns.pending, state => {
         state.loadingColumns = true;
@@ -1318,24 +1326,17 @@ const taskSlice = createSlice({
             col?.custom_column_obj?.fieldTitle ||
             col?.configuration?.field_title ||
             'Text',
-          pinned: col?.pinned ?? col?.is_visible ?? col?.isVisible ?? true,
+          pinned: col?.is_visible ?? col?.isVisible ?? col?.pinned ?? true,
+          isCustom: true,
         }));
 
-        const mergedCustomColumnsMap = new Map<string, any>();
-        state.customColumns.forEach((col: any) => {
-          const key = String(col?.key || col?.id || '');
-          if (key) mergedCustomColumnsMap.set(key, col);
-        });
-        normalizedCustomColumns.forEach((col: any) => {
-          const key = String(col?.key || col?.id || '');
-          if (key) mergedCustomColumnsMap.set(key, col);
-        });
-        const mergedCustomColumns = Array.from(mergedCustomColumnsMap.values());
-
-        state.customColumns = mergedCustomColumns;
-        // Add custom columns to the columns array
-        const customColumnsForVisibility = mergedCustomColumns;
-        state.columns = [...state.columns, ...customColumnsForVisibility];
+        // Replace, don't merge — API is always authoritative to avoid ghost columns
+        state.customColumns = normalizedCustomColumns;
+        // Rebuild columns: keep standard columns, replace custom ones
+        const standardCols = state.columns.filter(
+          (col: any) => !col.custom_column && !col.isCustom
+        );
+        state.columns = [...standardCols, ...normalizedCustomColumns];
       })
       .addCase(fetchCustomColumns.rejected, (state, action) => {
         state.loadingColumns = false;

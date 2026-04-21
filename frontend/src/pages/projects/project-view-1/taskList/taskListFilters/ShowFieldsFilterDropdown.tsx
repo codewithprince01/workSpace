@@ -11,21 +11,27 @@ import { useTranslation } from 'react-i18next';
 import { useMixpanelTracking } from '@/hooks/useMixpanelTracking';
 import { useSelectedProject } from '@/hooks/useSelectedProject';
 import { updateColumnVisibility } from '@features/tasks/tasks.slice';
+import { useSocket } from '@/socket/socketContext';
+import { SocketEvents } from '@/shared/socket-events';
 
 const ShowFieldsFilterDropdown = () => {
   const { t } = useTranslation('task-list-filters');
   const dispatch = useAppDispatch();
+  const { socket } = useSocket();
   const { trackMixpanelEvent } = useMixpanelTracking();
   const themeMode = useAppSelector(state => state.themeReducer.mode);
 
   const customColumns = useAppSelector(state => state.taskReducer.customColumns);
 
   const changableColumnList = [
-    ...columnList.filter(column => !['selector', 'task'].includes(column.key)),
+    ...columnList.filter(column => {
+      const key = String(column.key || '').toLowerCase();
+      return !['selector', 'task', 'name'].includes(key);
+    }),
     ...(customColumns || []).map(col => ({
       key: col.key,
-      columnHeader: col.custom_column_obj.columnHeader,
-      isCustomColumn: col.custom_column,
+      columnHeader: col.custom_column_obj?.columnHeader || col.custom_column_obj?.fieldTitle || col.name || col.key,
+      isCustomColumn: !!(col.custom_column || (col as any).isCustom),
     })),
   ];
 
@@ -50,6 +56,13 @@ const ShowFieldsFilterDropdown = () => {
 
     // Use the async thunk to persist to backend
     dispatch(updateColumnVisibility({ projectId, item }));
+
+    socket?.emit(SocketEvents.CUSTOM_COLUMN_PINNED_CHANGE.toString(), {
+      project_id: projectId,
+      action: 'visibility',
+      column_id: columnKey,
+      is_visible: !isCurrentlyVisible,
+    });
     
     trackMixpanelEvent('task_list_column_visibility_changed', {
       column: columnKey,
@@ -80,7 +93,7 @@ const ShowFieldsFilterDropdown = () => {
               border: 'none',
               cursor: 'pointer',
             }}
-            onClick={() => handleColumnToggle(col.key, col.custom_column)}
+            onClick={() => handleColumnToggle(col.key, col.isCustomColumn)}
           >
             <Space>
               <Checkbox

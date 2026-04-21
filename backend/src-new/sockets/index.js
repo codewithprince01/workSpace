@@ -659,6 +659,20 @@ const initializeSocket = (server) => {
         } catch (e) { console.error(e); }
     });
 
+    // CUSTOM_COLUMN_PINNED_CHANGE / custom-column metadata change broadcast
+    // This event is used by frontend to notify all project members to refetch columns
+    // after create/update/delete/visibility changes.
+    socket.on(SocketEvents.CUSTOM_COLUMN_PINNED_CHANGE.toString(), async (payload) => {
+        try {
+            const data = typeof payload === 'string' ? JSON.parse(payload) : payload;
+            const { project_id } = data || {};
+            if (!project_id) return;
+
+            socket.emit(SocketEvents.CUSTOM_COLUMN_PINNED_CHANGE.toString(), data);
+            socket.to(`project:${project_id}`).emit(SocketEvents.CUSTOM_COLUMN_PINNED_CHANGE.toString(), data);
+        } catch (e) { console.error(e); }
+    });
+
     // TASK_TIME_ESTIMATION_CHANGE
     socket.on(SocketEvents.TASK_TIME_ESTIMATION_CHANGE.toString(), async (str) => {
         try {

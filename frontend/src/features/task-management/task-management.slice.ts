@@ -664,7 +664,17 @@ export const updateColumnVisibility = createAsyncThunk(
     { rejectWithValue }
   ) => {
     try {
-      const response = await tasksApiService.toggleColumnVisibility(projectId, item);
+      let response;
+      if ((item as any)?.custom_column || (item as any)?.isCustom) {
+        response = await tasksCustomColumnsService.updateCustomColumnVisibility(projectId, {
+          ...item,
+          id: (item as any).id || item.key,
+          key: item.key || (item as any).id,
+          pinned: (item as any).pinned,
+        } as ITaskListColumn);
+      } else {
+        response = await tasksApiService.toggleColumnVisibility(projectId, item);
+      }
       return response.body;
     } catch (error) {
       logger.error('Update Column Visibility', error);
@@ -1334,37 +1344,21 @@ const taskManagementSlice = createSlice({
           index: 1,
           pinned: true,
         });
-        // Process custom columns with safety check
+        // Process custom columns — always use API as source of truth
         const rawCustomColumns = (action.payload as { custom: any[] })?.custom || [];
         const customColumns = Array.isArray(rawCustomColumns)
           ? rawCustomColumns.map((col: any) => ({
               ...col,
               key: col?.key || col?.id,
               name: col?.name || col?.custom_column_obj?.fieldTitle || col?.configuration?.field_title || 'Text',
-              pinned: col?.pinned ?? col?.is_visible ?? col?.isVisible ?? true,
+              pinned: col?.is_visible ?? col?.isVisible ?? col?.pinned ?? true,
               isCustom: true,
             }))
           : [];
 
-        // Merge fetched custom columns with existing optimistic ones.
-        // This avoids newly-created columns disappearing before backend read catches up.
-        const mergedCustomColumnsMap = new Map<string, any>();
-
-        state.customColumns.forEach((col: any) => {
-          const key = String(col?.key || col?.id || '');
-          if (key) mergedCustomColumnsMap.set(key, col);
-        });
-
-        customColumns.forEach((col: any) => {
-          const key = String(col?.key || col?.id || '');
-          if (key) mergedCustomColumnsMap.set(key, col);
-        });
-
-        const mergedCustomColumns = Array.from(mergedCustomColumnsMap.values());
-
-        // Merge columns
-        state.columns = [...standardColumns, ...mergedCustomColumns];
-        state.customColumns = mergedCustomColumns;
+        // Replace, don't merge — API is authoritative to avoid ghost columns
+        state.columns = [...standardColumns, ...customColumns];
+        state.customColumns = customColumns;
       })
       .addCase(fetchTaskListColumns.rejected, (state, action) => {
         state.loadingColumns = false;
@@ -1380,24 +1374,17 @@ const taskManagementSlice = createSlice({
           ...col,
           key: col?.key || col?.id,
           name: col?.name || col?.custom_column_obj?.fieldTitle || col?.configuration?.field_title || 'Text',
-          pinned: col?.pinned ?? col?.is_visible ?? col?.isVisible ?? true,
+          pinned: col?.is_visible ?? col?.isVisible ?? col?.pinned ?? true,
+          isCustom: true,
         }));
 
-        const mergedCustomColumnsMap = new Map<string, any>();
-        state.customColumns.forEach((col: any) => {
-          const key = String(col?.key || col?.id || '');
-          if (key) mergedCustomColumnsMap.set(key, col);
-        });
-        normalizedCustomColumns.forEach((col: any) => {
-          const key = String(col?.key || col?.id || '');
-          if (key) mergedCustomColumnsMap.set(key, col);
-        });
-
-        const mergedCustomColumns = Array.from(mergedCustomColumnsMap.values());
-        state.customColumns = mergedCustomColumns;
-        // Add custom columns to the columns array
-        const customColumnsForVisibility = mergedCustomColumns;
-        state.columns = [...state.columns, ...customColumnsForVisibility];
+        // Replace, don't merge — API is authoritative to avoid ghost columns
+        state.customColumns = normalizedCustomColumns;
+        // Rebuild columns: keep standard columns, replace custom ones
+        const standardCols = state.columns.filter(
+          (col: any) => !col.custom_column && !col.isCustom
+        );
+        state.columns = [...standardCols, ...normalizedCustomColumns];
       })
       .addCase(fetchCustomColumns.rejected, (state, action) => {
         state.loadingColumns = false;

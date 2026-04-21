@@ -442,42 +442,111 @@ const TaskListV2Section: React.FC = () => {
     }
   }, []);
 
-  // Initialize field visibility from database when columns are loaded (only once)
+  // Keep local Fields list in sync with backend columns:
+  // - add newly created custom columns for all users
+  // - remove deleted custom columns
+  // - preserve user visibility preferences unless there's no stored prefs
   useEffect(() => {
-    // If user already has local saved field prefs, never override them from DB on refresh.
-    if (hasStoredFieldPrefs) {
-      if (!initializedFromDatabase) setInitializedFromDatabase(true);
-      return;
-    }
+    if (!columns.length || !fields.length) return;
 
-    if (columns.length > 0 && fields.length > 0 && !initializedFromDatabase) {
-      // Update local fields to match database state only on initial load
-      import('@/features/task-management/taskListFields.slice').then(({ setFields }) => {
-        // Create updated fields based on database column state
-        const updatedFields = fields.map(field => {
-          const backendColumn = columns.find(c => c.key === field.key);
-          if (backendColumn) {
-            return {
-              ...field,
-              visible: backendColumn.pinned ?? field.visible,
-            };
-          }
-          return field;
-        });
+    const STANDARD_FIELD_KEYS = new Set([
+      'KEY',
+      'DESCRIPTION',
+      'PROGRESS',
+      'STATUS',
+      'ASSIGNEES',
+      'LABELS',
+      'PHASE',
+      'PRIORITY',
+      'TIME_TRACKING',
+      'ESTIMATION',
+      'START_DATE',
+      'DUE_DATE',
+      'DUE_TIME',
+      'COMPLETED_DATE',
+      'CREATED_DATE',
+      'LAST_UPDATED',
+      'REPORTER',
+    ]);
 
-        // Only update if there are actual changes
-        const hasChanges = updatedFields.some(
-          (field, index) => field.visible !== fields[index].visible
-        );
+    import('@/features/task-management/taskListFields.slice').then(({ setFields }) => {
+      const backendByKey = new Map<string, any>();
+      columns.forEach((c: any) => {
+        const key = String(c?.key || c?.id || '');
+        if (key) backendByKey.set(key, c);
+      });
 
-        if (hasChanges) {
-          dispatch(setFields(updatedFields));
+      const backendCustomColumns = columns.filter((c: any) => c?.custom_column || c?.isCustom);
+      const backendCustomKeys = new Set(
+        backendCustomColumns
+          .map((c: any) => String(c?.key || c?.id || ''))
+          .filter(Boolean)
+      );
+
+      let maxOrder = fields.reduce((m, f: any) => Math.max(m, Number(f?.order || 0)), 0);
+      const nextFields: any[] = [];
+
+      fields.forEach((field: any) => {
+        const key = String(field?.key || '');
+        const upperKey = key.toUpperCase();
+        const isStandard = STANDARD_FIELD_KEYS.has(upperKey);
+        const isExistingCustom = backendCustomKeys.has(key);
+
+        // Drop stale custom fields that no longer exist in backend.
+        if (!isStandard && !isExistingCustom) return;
+
+        const backendColumn = backendByKey.get(key);
+        let visible = Boolean(field.visible);
+
+        // For first-time users (no stored prefs), initialize standard field visibility from backend.
+        if (!hasStoredFieldPrefs && isStandard && backendColumn) {
+          visible = Boolean(backendColumn.pinned ?? field.visible);
         }
 
-        setInitializedFromDatabase(true);
+        const updatedField = {
+          ...field,
+          visible,
+          label:
+            !isStandard && backendColumn
+              ? String(
+                  backendColumn?.name ||
+                    backendColumn?.custom_column_obj?.fieldTitle ||
+                    backendColumn?.configuration?.field_title ||
+                    field.label ||
+                    'Text'
+                )
+              : field.label,
+        };
+        nextFields.push(updatedField);
+        maxOrder = Math.max(maxOrder, Number(updatedField.order || 0));
       });
-    }
-  }, [columns, fields, dispatch, initializedFromDatabase, hasStoredFieldPrefs]);
+
+      // Add missing custom fields so they appear for all users (admin/member).
+      backendCustomColumns.forEach((col: any) => {
+        const key = String(col?.key || col?.id || '');
+        if (!key) return;
+        if (nextFields.some((f: any) => String(f.key) === key)) return;
+
+        maxOrder += 1;
+        nextFields.push({
+          key,
+          label: String(
+            col?.name || col?.custom_column_obj?.fieldTitle || col?.configuration?.field_title || 'Text'
+          ),
+          visible: Boolean(col?.pinned ?? col?.is_visible ?? col?.isVisible ?? true),
+          order: maxOrder,
+        });
+      });
+
+      nextFields.sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
+
+      if (JSON.stringify(nextFields) !== JSON.stringify(fields)) {
+        dispatch(setFields(nextFields));
+      }
+
+      if (!initializedFromDatabase) setInitializedFromDatabase(true);
+    });
+  }, [columns, fields, dispatch, hasStoredFieldPrefs, initializedFromDatabase]);
 
   // Event handlers
   const handleTaskSelect = useCallback(

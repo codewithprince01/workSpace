@@ -16,6 +16,7 @@ exports.getProjectColumns = async (req, res) => {
 exports.create = async (req, res) => {
     try {
         const { project_id, name, key, field_type, width, is_visible, configuration } = req.body;
+        const visible = typeof is_visible === 'boolean' ? is_visible : true;
         
         const column = await CustomColumn.create({
             project_id,
@@ -23,7 +24,8 @@ exports.create = async (req, res) => {
             key,
             field_type,
             width,
-            is_visible,
+            is_visible: visible,
+            pinned: visible,
             configuration
         });
 
@@ -47,11 +49,12 @@ exports.update = async (req, res) => {
             ? { _id: id } 
             : { key: id };
 
-        const column = await CustomColumn.findOneAndUpdate(
-            query,
-            { name, field_type, width, is_visible, configuration },
-            { new: true }
-        );
+        const update = { name, field_type, width, is_visible, configuration };
+        if (typeof is_visible === 'boolean') {
+            update.pinned = is_visible;
+        }
+
+        const column = await CustomColumn.findOneAndUpdate(query, update, { new: true });
 
         if (!column) {
             console.log('>>> COLUMN NOT FOUND FOR QUERY:', query);

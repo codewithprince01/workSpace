@@ -23,9 +23,14 @@ import { useAppSelector } from '@/hooks/useAppSelector';
 import { useAppDispatch } from '@/hooks/useAppDispatch';
 import useTabSearchParam from '@/hooks/useTabSearchParam';
 import { useFilterDataLoader } from '@/hooks/useFilterDataLoader';
-import { toggleField, syncFieldWithDatabase } from '@/features/task-management/taskListFields.slice';
+import {
+  setFields as setTaskListFields,
+  toggleField,
+  syncFieldWithDatabase,
+} from '@/features/task-management/taskListFields.slice';
 import {
   selectColumns,
+  updateColumnVisibility,
   updateCustomColumnPinned,
 } from '@/features/task-management/task-management.slice';
 
@@ -96,6 +101,8 @@ import ManageStatusModal from '@/components/task-management/ManageStatusModal';
 import ManagePhaseModal from '@/components/task-management/ManagePhaseModal';
 import { useAuthService } from '@/hooks/useAuth';
 import useIsProjectManager from '@/hooks/useIsProjectManager';
+import { useSocket } from '@/socket/socketContext';
+import { SocketEvents } from '@/shared/socket-events';
 
 // Performance constants
 const FILTER_DEBOUNCE_DELAY = 300; // ms
@@ -651,10 +658,62 @@ const SortDropdown: React.FC<{ themeClasses: any; isDarkMode: boolean }> = ({ th
 const FieldsDropdown: React.FC<{ themeClasses: any; isDarkMode: boolean }> = ({ themeClasses, isDarkMode }) => {
   const { t } = useTranslation('task-list-filters');
   const dispatch = useAppDispatch();
+  const { socket } = useSocket();
   const fieldsRaw = useSelector((state: RootState) => state.taskManagementFields);
   const columns = useSelector(selectColumns);
   const { projectId } = useAppSelector(state => state.projectReducer);
   const fields = Array.isArray(fieldsRaw) ? fieldsRaw : [];
+  const STANDARD_FIELD_KEYS = useMemo(
+    () =>
+      new Set([
+        'KEY',
+        'DESCRIPTION',
+        'PROGRESS',
+        'STATUS',
+        'ASSIGNEES',
+        'LABELS',
+        'PHASE',
+        'PRIORITY',
+        'TIME_TRACKING',
+        'ESTIMATION',
+        'START_DATE',
+        'DUE_DATE',
+        'DUE_TIME',
+        'COMPLETED_DATE',
+        'CREATED_DATE',
+        'LAST_UPDATED',
+        'REPORTER',
+      ]),
+    []
+  );
+  const ALWAYS_HIDDEN_FIELD_KEYS = useMemo(() => new Set(['TASK', 'NAME']), []);
+
+  const displayFields = useMemo(() => {
+    // Until backend columns are loaded, keep current list as-is.
+    if (!Array.isArray(columns) || columns.length === 0) {
+      return fields;
+    }
+
+    const backendKeys = new Set(
+      columns
+        .map((c: any) => String(c?.key || c?.id || ''))
+        .filter(Boolean)
+    );
+
+    return fields.filter(f => {
+      const key = String(f.key || '').toUpperCase();
+      if (ALWAYS_HIDDEN_FIELD_KEYS.has(key)) return false;
+      return STANDARD_FIELD_KEYS.has(key) || backendKeys.has(String(f.key));
+    });
+  }, [fields, columns, STANDARD_FIELD_KEYS, ALWAYS_HIDDEN_FIELD_KEYS]);
+
+  useEffect(() => {
+    // Prune ghost custom fields from Redux + localStorage once columns are loaded.
+    if (!Array.isArray(columns) || columns.length === 0) return;
+    if (displayFields.length === fields.length) return;
+    dispatch(setTaskListFields(displayFields));
+  }, [columns, displayFields, fields.length, dispatch]);
+
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -666,7 +725,7 @@ const FieldsDropdown: React.FC<{ themeClasses: any; isDarkMode: boolean }> = ({ 
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const visibleCount = fields.filter(f => f.visible).length;
+  const visibleCount = displayFields.filter(f => f.visible).length;
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -693,12 +752,36 @@ const FieldsDropdown: React.FC<{ themeClasses: any; isDarkMode: boolean }> = ({ 
       {open && (
         <div className={`absolute top-full right-0 z-50 mt-1 w-64 ${themeClasses.dropdownBg} rounded-md shadow-lg border ${themeClasses.dropdownBorder}`}>
           <div className="max-h-60 overflow-y-auto p-1">
-            {fields.map(f => (
+            {displayFields.map(f => (
               <button key={f.key} onClick={() => {
                 dispatch(toggleField(f.key));
                 const col = columns.find(c => c.key === f.key || (c as any).id === f.key);
-                if (col?.custom_column) dispatch(updateCustomColumnPinned({ columnKey: col.key || (col as any).id || f.key, isVisible: !f.visible }));
-                else if (projectId) dispatch(syncFieldWithDatabase({ projectId, fieldKey: f.key, visible: !f.visible, columns }));
+                const nextVisible = !f.visible;
+                if (col?.custom_column) {
+                  dispatch(updateCustomColumnPinned({ columnKey: col.key || (col as any).id || f.key, isVisible: nextVisible }));
+                  if (projectId) {
+                    dispatch(
+                      updateColumnVisibility({
+                        projectId,
+                        item: {
+                          ...col,
+                          key: col.key || (col as any).id || f.key,
+                          id: (col as any).id || col.key || f.key,
+                          pinned: nextVisible,
+                          custom_column: true,
+                        } as any,
+                      })
+                    );
+                    socket?.emit(SocketEvents.CUSTOM_COLUMN_PINNED_CHANGE.toString(), {
+                      project_id: projectId,
+                      action: 'visibility',
+                      column_id: (col as any).id || col.key || f.key,
+                      is_visible: nextVisible,
+                    });
+                  }
+                } else if (projectId) {
+                  dispatch(syncFieldWithDatabase({ projectId, fieldKey: f.key, visible: nextVisible, columns }));
+                }
               }} className={`w-full flex items-center gap-2 px-2 py-2 text-xs rounded transition-all ${f.visible ? 'font-semibold text-blue-600' : themeClasses.optionText + ' ' + themeClasses.optionHover}`}>
                 <div className={`w-3.5 h-3.5 border rounded shrink-0 flex items-center justify-center ${f.visible ? 'bg-blue-500 border-blue-400 text-white' : 'border-gray-300'}`}>
                   {f.visible && <CheckOutlined className="text-[8px]" />}
