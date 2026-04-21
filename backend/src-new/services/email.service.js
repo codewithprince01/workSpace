@@ -88,23 +88,39 @@ exports.sendEmail = async ({ to, subject, html, text }) => {
  * Send project invitation email
  */
 exports.sendProjectInviteEmail = async (toEmail, inviterName, projectName, inviteLink, role) => {
-  const subject = `${inviterName} invited you to join ${projectName} on Worklenz`;
+  const safeInviter = inviterName || 'A teammate';
+  const safeProjectName = projectName || 'a project';
+  const subject = `${safeInviter} has invited you to work with ${safeInviter} in Worklenz`;
   
   const html = `
-    <div style="font-family: sans-serif; padding: 20px; color: #333; max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 8px;">
-      <h2 style="color: #1890ff;">You've been invited!</h2>
-      <p>Hello,</p>
-      <p><strong>${inviterName}</strong> has invited you to join the project <strong>${projectName}</strong> as a <strong>${role}</strong> on Worklenz.</p>
-      
-      <div style="margin: 40px 0; text-align: center;">
-        <a href="${inviteLink}" style="background-color: #1890ff; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Accept Invitation</a>
+    <div style="font-family: Arial, Helvetica, sans-serif; background:#ffffff; color:#111827; max-width:620px; margin:0 auto; border:1px solid #e5e7eb; border-radius:12px; overflow:hidden;">
+      <div style="padding:24px;">
+        <h2 style="margin:0 0 10px 0; font-size:22px; color:#111827;">Join your team on Worklenz</h2>
+        <p style="margin:0 0 14px 0; font-size:14px; color:#4b5563;">Hi,</p>
+        <p style="margin:0 0 12px 0; font-size:15px; line-height:1.5;">
+          <strong>${safeInviter}</strong> has invited you to work with <strong>${safeInviter}</strong> in Worklenz.
+        </p>
+        <p style="margin:0 0 6px 0; font-size:14px; color:#374151;">
+          Project: <strong>${safeProjectName}</strong>
+        </p>
+        <p style="margin:0 0 18px 0; font-size:14px; color:#374151;">
+          Role: <strong style="text-transform:capitalize;">${role || 'member'}</strong>
+        </p>
+
+        <div style="margin: 24px 0; text-align: left;">
+          <a href="${inviteLink}" style="background-color:#1890ff; color:#ffffff; padding:12px 22px; text-decoration:none; border-radius:8px; font-weight:700; display:inline-block;">
+            Join Worklenz
+          </a>
+        </div>
+
+        <p style="margin:0 0 8px 0; font-size:13px; color:#6b7280;">If the button doesn't work, copy and paste this link into your browser:</p>
+        <p style="margin:0; word-break:break-all; font-size:13px;">
+          <a href="${inviteLink}" style="color:#1890ff;">${inviteLink}</a>
+        </p>
       </div>
-      
-      <p>If the button doesn't work, copy and paste this link into your browser:</p>
-      <p style="word-break: break-all;"><a href="${inviteLink}" style="color: #1890ff;">${inviteLink}</a></p>
-      
-      <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;" />
-      <p style="color: #9eadb6; font-size: 12px;">This invitation was sent by Worklenz. If you weren't expecting this, you can safely ignore this email.</p>
+      <div style="border-top:1px solid #e5e7eb; padding:14px 24px; font-size:12px; color:#6b7280;">
+        If you have any questions, contact us at support@worklenz.com.
+      </div>
     </div>
   `;
 

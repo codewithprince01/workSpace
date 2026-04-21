@@ -1,11 +1,15 @@
 {
   "title": "Share Project",
-  "searchLabel": "Add members by adding their name or email",
-  "searchPlaceholder": "Type name or email",
+  "searchLabel": "Invite with email",
+  "searchPlaceholder": "Add people or Email",
   "inviteAsAMember": "Invite as a member",
   "inviteNewMemberByEmail": "Invite new member by email",
   "members": "Members",
   "copyProjectLink": "Copy project link",
   "inviteMember": "Invite Member",
-  "alsoInviteToProject": "Also invite to project"
+  "alsoInviteToProject": "Also invite to project",
+  "enterValidMemberOrEmail": "Please select a member or enter a valid email",
+  "inviteSuccess": "Invitations sent successfully",
+  "projectLinkCopied": "Project link copied",
+  "copyProjectLinkFailed": "Failed to copy project link"
 }

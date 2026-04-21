@@ -406,7 +406,7 @@ const ProjectViewHeader = memo(() => {
       actions.push(
         <Tooltip key="invite-tooltip" title={t('inviteTooltip')}>
           <Button key="invite" type="primary" icon={<ShareAltOutlined />} onClick={handleInvite}>
-            {t('share')}
+            {t('invite')}
           </Button>
         </Tooltip>
       );
