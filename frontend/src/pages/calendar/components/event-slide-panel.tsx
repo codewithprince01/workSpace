@@ -22,6 +22,7 @@ import MemberMultiSelect from './member-multi-select';
 const { TextArea } = Input;
 const { Text } = Typography;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const TIME_PICKER_FORMAT = 'MMM DD, YYYY h:mm A';
 
 // ── Constants ────────────────────────────────────────────────
 
@@ -254,8 +255,8 @@ const TaskDeadlineForm: React.FC<{ isEdit: boolean; selectedEvent: any }> = ({ i
 
     <Form.Item name="start_time" label="Deadline Date" rules={[{ required: true, message: 'Select deadline date' }]}>
       <DatePicker
-        showTime={{ format: 'HH:mm' }}
-        format="MMM DD, YYYY HH:mm"
+        showTime={{ format: 'h:mm A', use12Hours: true }}
+        format={TIME_PICKER_FORMAT}
         style={{ width: '100%' }}
         placeholder="Select deadline date & time"
         suffixIcon={<ClockCircleOutlined />}
@@ -385,8 +386,12 @@ const EventSlidePanel: React.FC = () => {
         title,
         description: values.description || '',
         type: values.type,
-        start_time: values.start_time?.toISOString() || new Date().toISOString(),
-        end_time: values.end_time?.toISOString() || null,
+        start_time: values.all_day
+          ? values.start_time?.startOf('day')?.toISOString() || new Date().toISOString()
+          : values.start_time?.toISOString() || new Date().toISOString(),
+        end_time: values.all_day
+          ? values.start_time?.endOf('day')?.toISOString() || null
+          : values.end_time?.toISOString() || null,
         all_day: values.all_day || false,
         priority: values.priority || 'medium',
         mood: values.type === 'mood_entry' ? values.mood : null,
@@ -535,16 +540,16 @@ const EventSlidePanel: React.FC = () => {
             <Space style={{ width: '100%' }} size={12}>
               <Form.Item name="start_time" label="Start" rules={[{ required: true }]} style={{ flex: 1 }}>
                 <DatePicker
-                  showTime={!allDay}
-                  format={allDay ? 'MMM DD, YYYY' : 'MMM DD, YYYY HH:mm'}
+                  showTime={allDay ? false : { format: 'h:mm A', use12Hours: true }}
+                  format={allDay ? 'MMM DD, YYYY' : TIME_PICKER_FORMAT}
                   style={{ width: '100%' }}
                   suffixIcon={<ClockCircleOutlined />}
                 />
               </Form.Item>
               <Form.Item name="end_time" label="End" style={{ flex: 1 }}>
                 <DatePicker
-                  showTime={!allDay}
-                  format={allDay ? 'MMM DD, YYYY' : 'MMM DD, YYYY HH:mm'}
+                  showTime={allDay ? false : { format: 'h:mm A', use12Hours: true }}
+                  format={allDay ? 'MMM DD, YYYY' : TIME_PICKER_FORMAT}
                   style={{ width: '100%' }}
                 />
               </Form.Item>
@@ -587,7 +592,11 @@ const EventSlidePanel: React.FC = () => {
         {eventType === 'reminder' && (
           <>
             <Form.Item name="start_time" label="When" rules={[{ required: true }]}>
-              <DatePicker showTime format="MMM DD, YYYY HH:mm" style={{ width: '100%' }} />
+              <DatePicker
+                showTime={{ format: 'h:mm A', use12Hours: true }}
+                format={TIME_PICKER_FORMAT}
+                style={{ width: '100%' }}
+              />
             </Form.Item>
             <Form.Item name="description" label="Note">
               <Input placeholder="What should you remember?" />
@@ -607,7 +616,11 @@ const EventSlidePanel: React.FC = () => {
         {eventType === 'custom' && (
           <>
             <Form.Item name="start_time" label="Date & Time" rules={[{ required: true }]}>
-              <DatePicker showTime format="MMM DD, YYYY HH:mm" style={{ width: '100%' }} />
+              <DatePicker
+                showTime={{ format: 'h:mm A', use12Hours: true }}
+                format={TIME_PICKER_FORMAT}
+                style={{ width: '100%' }}
+              />
             </Form.Item>
             <Form.Item name="description" label="Description">
               <TextArea rows={3} placeholder="Describe your event..." style={{ resize: 'none' }} />

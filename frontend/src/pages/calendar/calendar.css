@@ -94,7 +94,7 @@
 
 .month-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   border-top: 1px solid rgba(0, 0, 0, 0.06);
 }
 
@@ -120,13 +120,18 @@
 }
 
 .day-cell {
-  min-height: 110px;
+  height: 138px;
   padding: 5px 6px;
   border-right: 1px solid rgba(0, 0, 0, 0.06);
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
   cursor: pointer;
   transition: background 0.15s ease;
   position: relative;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
 }
 
 .theme-dark .day-cell,
@@ -213,6 +218,10 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  max-height: calc(100% - 30px);
 }
 
 .event-chip {
@@ -228,7 +237,12 @@
   font-weight: 500;
   line-height: 1.4;
   overflow: hidden;
+  width: 100%;
   max-width: 100%;
+  min-width: 0;
+  min-height: 24px;
+  flex-shrink: 0;
+  box-sizing: border-box;
 }
 
 .event-chip:hover {
@@ -247,6 +261,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   flex: 1;
+  min-width: 0;
 }
 
 /* Type colors — work in both light and dark modes */
@@ -297,6 +312,11 @@
   border-radius: 4px;
   text-align: left;
   transition: background 0.15s;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .more-events-btn:hover {

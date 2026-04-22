@@ -156,11 +156,12 @@ const MonthGrid: React.FC = () => {
         const moodEvents = dayEvents.filter(e => e.type === 'mood_entry');
         const regularEvents = dayEvents.filter(e => e.type !== 'mood_entry');
         // Show mood first, then other events
-        const allVisibleEvents = [
+        const totalDisplayableEvents = [
           ...moodEvents.slice(0, 1), // max 1 mood chip
           ...regularEvents,
-        ].slice(0, MAX_EVENTS_SHOWN + 1);
-        const hiddenCount = Math.max(0, regularEvents.length + Math.min(1, moodEvents.length) - allVisibleEvents.length);
+        ];
+        const allVisibleEvents = totalDisplayableEvents.slice(0, MAX_EVENTS_SHOWN);
+        const hiddenCount = Math.max(0, totalDisplayableEvents.length - allVisibleEvents.length);
 
         return (
           <div
@@ -195,6 +196,7 @@ const MonthGrid: React.FC = () => {
                       <div
                         className="event-chip type-mood_entry mood-chip-card"
                         style={{ background: cfg.bg, color: cfg.text, borderLeftColor: cfg.border }}
+                        title={notePreview ? `${event.title} - ${notePreview}` : event.title}
                         onClick={e => handleEventClick(e, event)}
                       >
                         <span className="mood-chip-emoji">{emoji}</span>
@@ -213,6 +215,7 @@ const MonthGrid: React.FC = () => {
                     <div
                       className={`event-chip type-${event.type}`}
                       style={{ background: cfg.bg, color: cfg.text, borderLeftColor: cfg.border }}
+                      title={event.all_day ? event.title : `${dayjs(event.start_time).format('HH:mm')} ${event.title}`}
                       onClick={e => handleEventClick(e, event)}
                     >
                       {!event.all_day && (
