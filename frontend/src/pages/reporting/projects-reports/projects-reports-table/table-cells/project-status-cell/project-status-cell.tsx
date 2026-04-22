@@ -9,6 +9,7 @@ import { SocketEvents } from '@/shared/socket-events';
 import { useAppDispatch } from '@/hooks/useAppDispatch';
 import { setProjectStatus } from '@/features/reporting/projectReports/project-reports-slice';
 import logger from '@/utils/errorLogger';
+import { themeWiseColor } from '@/utils/themeWiseColor';
 
 interface ProjectStatusCellProps {
   currentStatus: string;
@@ -22,13 +23,19 @@ const ProjectStatusCell = ({ currentStatus, projectId }: ProjectStatusCellProps)
   
   // Use centralized project reporting statuses
   const { allStatuses } = useAppSelector(state => state.projectReportsReducer);
+  const themeMode = useAppSelector(state => state.themeReducer.mode);
   const [selectedStatus, setSelectedStatus] = useState(currentStatus);
 
   const statusOptions = allStatuses.map(status => ({
     value: status.id,
     label: (
       <Typography.Text
-        style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+        style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 6,
+            color: themeWiseColor('#262626', '#fff', themeMode)
+        }}
       >
         {getStatusIcon(status.id || '', status.color_code || '')}
         {status.name}
@@ -77,8 +84,10 @@ const ProjectStatusCell = ({ currentStatus, projectId }: ProjectStatusCellProps)
         components: {
           Select: {
             selectorBg: colors.transparent,
-            colorText: '#fff',
-            colorIcon: 'rgba(255, 255, 255, 0.45)',
+            colorText: themeWiseColor('#262626', '#fff', themeMode),
+            colorIcon: themeWiseColor('rgba(0, 0, 0, 0.45)', 'rgba(255, 255, 255, 0.45)', themeMode),
+            colorTextPlaceholder: themeWiseColor('rgba(0, 0, 0, 0.25)', 'rgba(255, 255, 255, 0.25)', themeMode),
+            colorBgElevated: themeWiseColor('#ffffff', '#1f1f1f', themeMode),
           },
         },
       }}
@@ -88,8 +97,12 @@ const ProjectStatusCell = ({ currentStatus, projectId }: ProjectStatusCellProps)
         options={statusOptions}
         value={selectedStatus}
         onChange={handleStatusChange}
-        style={{ width: '100%', color: '#fff' }}
-        dropdownStyle={{ backgroundColor: '#262626' }}
+        style={{ width: '100%', color: themeWiseColor('#262626', '#fff', themeMode) }}
+        dropdownStyle={{ 
+            backgroundColor: themeWiseColor('#ffffff', '#262626', themeMode),
+            borderRadius: '8px',
+            boxShadow: themeWiseColor('0 4px 12px rgba(0,0,0,0.1)', '0 4px 12px rgba(0,0,0,0.5)', themeMode)
+        }}
       />
     </ConfigProvider>
   );

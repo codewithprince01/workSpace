@@ -9,6 +9,7 @@ import { IProjectStatus } from '@/types/project/projectStatus.types';
 import { CaretDownFilled } from '@/shared/antd-imports';
 import { Button, Card, Checkbox, Dropdown, Flex, List, Badge } from '@/shared/antd-imports';
 import { useTranslation } from 'react-i18next';
+import { themeWiseColor } from '@/utils/themeWiseColor';
 
 const ProjectStatusFilterDropdown = () => {
   const dispatch = useAppDispatch();
@@ -21,7 +22,7 @@ const ProjectStatusFilterDropdown = () => {
     isFilterLoading: projectStatusesLoading,
     selectedProjectStatuses,
   } = useAppSelector(state => state.projectReportsReducer);
-  const { mode: themeMode } = useAppSelector(state => state.themeReducer);
+  const themeMode = useAppSelector(state => state.themeReducer.mode);
 
   // Sync internal state with Redux
   useEffect(() => {
@@ -56,10 +57,10 @@ const ProjectStatusFilterDropdown = () => {
   const dropdownContent = (
     <Card 
         style={{ 
-            backgroundColor: '#1d1d1d', 
-            border: '1px solid #333', 
+            backgroundColor: themeWiseColor('#ffffff', '#1d1d1d', themeMode), 
+            border: `1px solid ${themeWiseColor('#d9d9d9', '#333', themeMode)}`, 
             borderRadius: '8px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+            boxShadow: themeWiseColor('0 4px 12px rgba(0,0,0,0.1)', '0 4px 12px rgba(0,0,0,0.5)', themeMode),
             minWidth: '200px'
         }} 
         styles={{ body: { padding: '4px 0' } }}
@@ -77,7 +78,7 @@ const ProjectStatusFilterDropdown = () => {
                     background: isChecked(status) ? 'rgba(24, 144, 255, 0.1)' : 'transparent',
                     transition: 'background 0.2s'
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#262626'}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = themeWiseColor('#f5f5f5', '#262626', themeMode)}
                 onMouseLeave={(e) => e.currentTarget.style.backgroundColor = isChecked(status) ? 'rgba(24, 144, 255, 0.1)' : 'transparent'}
             >
                 <Checkbox
@@ -96,14 +97,14 @@ const ProjectStatusFilterDropdown = () => {
                             }}
                         />
                     )}
-                    <span style={{ color: '#fff', fontSize: '13px', fontWeight: isChecked(status) ? 600 : 400 }}>{status.name}</span>
+                    <span style={{ color: themeWiseColor('#262626', '#fff', themeMode), fontSize: '13px', fontWeight: isChecked(status) ? 600 : 400 }}>{status.name}</span>
                 </Flex>
             </div>
         ))}
       </List>
       {selectedCount > 0 && (
           <div 
-            style={{ padding: '8px 16px', borderTop: '1px solid #333', textAlign: 'center' }}
+            style={{ padding: '8px 16px', borderTop: `1px solid ${themeWiseColor('#f0f0f0', '#333', themeMode)}`, textAlign: 'center' }}
             onClick={(e) => {
                 e.stopPropagation();
                 setLocalSelected([]);
@@ -129,9 +130,9 @@ const ProjectStatusFilterDropdown = () => {
         iconPosition="end"
         loading={projectStatusesLoading}
         style={{
-            backgroundColor: isDropdownOpen ? '#262626' : '#1d1d1d',
-            borderColor: selectedCount > 0 || isDropdownOpen ? '#1890ff' : '#333',
-            color: selectedCount > 0 || isDropdownOpen ? '#1890ff' : '#bfbfbf',
+            backgroundColor: isDropdownOpen ? themeWiseColor('#e6f7ff', '#262626', themeMode) : themeWiseColor('#f5f5f5', '#1d1d1d', themeMode),
+            borderColor: selectedCount > 0 || isDropdownOpen ? '#1890ff' : themeWiseColor('#d9d9d9', '#333', themeMode),
+            color: selectedCount > 0 || isDropdownOpen ? '#1890ff' : themeWiseColor('#595959', '#bfbfbf', themeMode),
             borderRadius: '6px',
             height: '32px',
             fontSize: '13px',

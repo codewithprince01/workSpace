@@ -33,6 +33,7 @@ import logger from '@/utils/errorLogger';
 import { evt_project_files_visit } from '@/shared/worklenz-analytics-events';
 import { useMixpanelTracking } from '@/hooks/useMixpanelTracking';
 import { getBase64 } from '@/utils/file-utils';
+import { themeWiseColor } from '@/utils/themeWiseColor';
 
 const formatFileSize = (bytes: number | undefined) => {
   if (!bytes) return '0 B';
@@ -47,6 +48,7 @@ const ProjectViewFiles = () => {
   useTranslation('project-view-files');
   const { trackMixpanelEvent } = useMixpanelTracking();
   const { projectId, refreshTimestamp } = useAppSelector(state => state.projectReducer);
+  const themeMode = useAppSelector(state => state.themeReducer.mode);
   
   const [attachments, setAttachments] = useState<IProjectAttachmentsViewModel>({ data: [], total: 0 });
   const [loading, setLoading] = useState(false);
@@ -212,7 +214,7 @@ const ProjectViewFiles = () => {
             <div style={{ fontSize: '20px' }}>
               {getFileIcon(record.name)}
             </div>
-            <Typography.Text className="file-name-text" style={{ color: '#177ddc', fontWeight: 500 }}>
+            <Typography.Text className="file-name-text" style={{ color: '#1890ff', fontWeight: 500 }}>
               {record.name}
             </Typography.Text>
           </Flex>
@@ -226,7 +228,7 @@ const ProjectViewFiles = () => {
         title: 'Task',
         width: 250,
         render: (record: ITaskAttachmentViewModel) => (
-          <Typography.Text style={{ color: '#d0d0d0' }}>
+          <Typography.Text style={{ color: themeWiseColor('#595959', '#d0d0d0', themeMode) }}>
             {record.task_key ? `${record.task_key} - ${record.task_name || 'No Name'}` : '-'}
           </Typography.Text>
         ),
@@ -240,7 +242,7 @@ const ProjectViewFiles = () => {
         width: 120,
         sorter: (a, b) => (Number(a.size) || 0) - (Number(b.size) || 0),
         render: (record: ITaskAttachmentViewModel) => (
-          <Typography.Text style={{ color: '#a0a0a0' }}>
+          <Typography.Text style={{ color: themeWiseColor('#8c8c8c', '#a0a0a0', themeMode) }}>
             {formatFileSize(Number(record.size))}
           </Typography.Text>
         ),
@@ -251,7 +253,7 @@ const ProjectViewFiles = () => {
         width: 200,
         sorter: (a, b) => (a.uploader_name || '').localeCompare(b.uploader_name || ''),
         render: (record: ITaskAttachmentViewModel) => (
-          <Typography.Text style={{ color: '#d0d0d0' }}>
+          <Typography.Text style={{ color: themeWiseColor('#262626', '#d0d0d0', themeMode) }}>
             {record.uploader_name || 'N/A'}
           </Typography.Text>
         ),
@@ -262,7 +264,7 @@ const ProjectViewFiles = () => {
         width: 150,
         sorter: (a, b) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime(),
         render: (record: ITaskAttachmentViewModel) => (
-          <Typography.Text style={{ color: '#a0a0a0' }}>
+          <Typography.Text style={{ color: themeWiseColor('#8c8c8c', '#a0a0a0', themeMode) }}>
             {durationDateFormat(record.created_at)}
           </Typography.Text>
         ),
@@ -277,7 +279,7 @@ const ProjectViewFiles = () => {
             <Tooltip title="Download">
               <Button 
                   className="action-btn download-btn"
-                  icon={<CloudDownloadOutlined style={{ color: '#fff' }} />} 
+                  icon={<CloudDownloadOutlined style={{ color: themeWiseColor('#595959', '#fff', themeMode) }} />} 
                    onClick={async () => {
                      try {
                        const res = await attachmentsApiService.downloadAttachment(record.id!, record.name!);
@@ -310,14 +312,17 @@ const ProjectViewFiles = () => {
     );
 
     return baseColumns;
-  }, [viewType, attachments.data]);
+  }, [viewType, attachments.data, themeMode]);
 
   return (
     <div style={{ padding: '0px' }}>
       <Card
         styles={{ 
-            body: { padding: '24px', backgroundColor: '#1f1f1f' },
-            header: { backgroundColor: '#262626', borderBottom: '1px solid #333' }
+            body: { padding: '24px', backgroundColor: themeWiseColor('#ffffff', '#1f1f1f', themeMode) },
+            header: { 
+                backgroundColor: themeWiseColor('#fafafa', '#262626', themeMode), 
+                borderBottom: `1px solid ${themeWiseColor('#f0f0f0', '#333', themeMode)}` 
+            }
         }}
         title={
           <Flex justify="space-between" align="center" style={{ width: '100%' }}>
@@ -334,19 +339,22 @@ const ProjectViewFiles = () => {
                 setLoading(true);
                 setPaginationConfig(prev => ({ ...prev, pageIndex: 1, total: 0 }));
               }}
-              style={{ backgroundColor: '#262626', color: '#fff' }}
+              style={{ 
+                  backgroundColor: themeWiseColor('#f5f5f5', '#262626', themeMode), 
+                  color: themeWiseColor('#262626', '#fff', themeMode) 
+              }}
             />
             
             <Flex gap={12} align="center">
               <Input
                 placeholder="Search files..."
-                prefix={<SearchOutlined style={{ color: '#595959' }} />}
+                prefix={<SearchOutlined style={{ color: themeWiseColor('#bfbfbf', '#595959', themeMode) }} />}
                 style={{ 
                   width: 250, 
-                  backgroundColor: '#141414', 
-                  border: '1px solid #333', 
+                  backgroundColor: themeWiseColor('#fff', '#141414', themeMode), 
+                  border: `1px solid ${themeWiseColor('#d9d9d9', '#333', themeMode)}`, 
                   borderRadius: '4px', 
-                  color: '#fff' 
+                  color: themeWiseColor('#262626', '#fff', themeMode) 
                 }}
                 onChange={(e) => setSearchText(e.target.value)}
                 value={searchText}
@@ -371,7 +379,7 @@ const ProjectViewFiles = () => {
           </Flex>
         }
       >
-        <Typography.Text style={{ color: '#8c8c8c', fontSize: '13px', marginBottom: '16px', display: 'block' }}>
+        <Typography.Text style={{ color: themeWiseColor('#8c8c8c', '#8c8c8c', themeMode), fontSize: '13px', marginBottom: '16px', display: 'block' }}>
           Total Storage: {formatFileSize(totalBytes)} ({attachments.total} files)
         </Typography.Text>
 
@@ -386,7 +394,7 @@ const ProjectViewFiles = () => {
             onChange: (page, pageSize) =>
               setPaginationConfig(prev => ({ ...prev, pageIndex: page, defaultPageSize: pageSize })),
           }}
-          className="custom-dark-table"
+          className={themeMode === 'dark' ? 'custom-dark-table' : 'custom-light-table'}
         />
       </Card>
 
@@ -399,8 +407,12 @@ const ProjectViewFiles = () => {
         okText="Upload"
         cancelText="Cancel"
         styles={{ 
-            body: { backgroundColor: '#141414' },
-            header: { backgroundColor: '#1d1d1d', borderBottom: '1px solid #303030', color: '#fff' }
+            body: { backgroundColor: themeWiseColor('#fff', '#141414', themeMode) },
+            header: { 
+                backgroundColor: themeWiseColor('#fafafa', '#1d1d1d', themeMode), 
+                borderBottom: `1px solid ${themeWiseColor('#f0f0f0', '#303030', themeMode)}`,
+                color: themeWiseColor('#262626', '#fff', themeMode) 
+            }
         }}
         width={600}
       >
@@ -415,18 +427,18 @@ const ProjectViewFiles = () => {
             beforeUpload={() => false} // Prevent automatic upload
             onChange={({ fileList }) => setFileList(fileList)}
             style={{ 
-                backgroundColor: '#1d1d1d', 
-                border: '2px dashed #434343',
+                backgroundColor: themeWiseColor('#fafafa', '#1d1d1d', themeMode), 
+                border: `2px dashed ${themeWiseColor('#d9d9d9', '#434343', themeMode)}`,
                 padding: '40px'
             }}
           >
             <p className="ant-upload-drag-icon">
-              <InboxOutlined style={{ color: '#177ddc', fontSize: '48px' }} />
+              <InboxOutlined style={{ color: '#1890ff', fontSize: '48px' }} />
             </p>
-            <p className="ant-upload-text" style={{ color: '#d0d0d0', fontSize: '16px', fontWeight: 500 }}>
+            <p className="ant-upload-text" style={{ color: themeWiseColor('#262626', '#d0d0d0', themeMode), fontSize: '16px', fontWeight: 500 }}>
               Drag & Drop files or click to browse
             </p>
-            <p className="ant-upload-hint" style={{ color: '#595959' }}>
+            <p className="ant-upload-hint" style={{ color: '#8c8c8c' }}>
                 PDF, images, documents, archives. Max 100 MB per file.
             </p>
           </Dragger>
@@ -435,137 +447,80 @@ const ProjectViewFiles = () => {
 
       <style>{`
         .ant-modal-content, .ant-modal-header {
-            background-color: #1d1d1d !important;
-            color: #fff !important;
+            background-color: ${themeWiseColor('#fff', '#1d1d1d', themeMode)} !important;
+            color: ${themeWiseColor('#262626', '#fff', themeMode)} !important;
         }
         .ant-modal-title {
-            color: #fff !important;
+            color: ${themeWiseColor('#262626', '#fff', themeMode)} !important;
         }
         .ant-upload-list-item-name {
-            color: #d0d0d0 !important;
+            color: ${themeWiseColor('#595959', '#d0d0d0', themeMode)} !important;
         }
         .ant-upload-list-item-action .ant-btn {
             color: #8c8c8c !important;
         }
         
         /* Table Styles */
-        .custom-dark-table .ant-table {
+        .custom-dark-table .ant-table, .custom-light-table .ant-table {
           background: transparent !important;
-          color: #fff !important;
+          color: ${themeWiseColor('#262626', '#fff', themeMode)} !important;
         }
-        .custom-dark-table .ant-table-thead > tr > th {
-          background: #1d1d1d !important;
-          color: #ffffff !important;
-          border-bottom: 1px solid #333333 !important;
+        .custom-dark-table .ant-table-thead > tr > th, .custom-light-table .ant-table-thead > tr > th {
+          background: ${themeWiseColor('#fafafa', '#1d1d1d', themeMode)} !important;
+          color: ${themeWiseColor('#262626', '#ffffff', themeMode)} !important;
+          border-bottom: 1px solid ${themeWiseColor('#f0f0f0', '#333333', themeMode)} !important;
           font-weight: 500 !important;
           padding: 12px 16px !important;
         }
-        .custom-dark-table .ant-table-tbody > tr > td {
-          border-bottom: 1px solid #262626 !important;
+        .custom-dark-table .ant-table-tbody > tr > td, .custom-light-table .ant-table-tbody > tr > td {
+          border-bottom: 1px solid ${themeWiseColor('#f0f0f0', '#262626', themeMode)} !important;
           padding: 12px 16px !important;
         }
-        .custom-dark-table .ant-table-tbody > tr:hover > td {
-          background: #1f1f1f !important;
+        .custom-dark-table .ant-table-tbody > tr:hover > td, .custom-light-table .ant-table-tbody > tr:hover > td {
+          background: ${themeWiseColor('#f5f5f5', '#1f1f1f', themeMode)} !important;
         }
 
-        /* Pagination HIGH CONTRAST SQUARE DESIGN */
-        .custom-dark-table .ant-pagination-item {
+        /* Pagination */
+        .custom-dark-table .ant-pagination-item, .custom-light-table .ant-pagination-item {
           background: transparent !important;
-          border-color: #333333 !important;
+          border-color: ${themeWiseColor('#d9d9d9', '#333333', themeMode)} !important;
           border-radius: 8px !important;
-          width: 40px !important;
-          height: 40px !important;
+          width: 32px !important;
+          height: 32px !important;
           display: inline-flex !important;
           align-items: center !important;
           justify-content: center !important;
-          transition: all 0.3s !important;
         }
-        .custom-dark-table .ant-pagination-item a {
-          color: #bfbfbf !important;
+        .custom-dark-table .ant-pagination-item a, .custom-light-table .ant-pagination-item a {
+          color: ${themeWiseColor('#8c8c8c', '#bfbfbf', themeMode)} !important;
           font-weight: 500 !important;
-          font-size: 16px !important;
         }
-        .custom-dark-table .ant-pagination-item-active {
-          background: transparent !important;
-          border-color: #3a86ff !important;
-          border-width: 2px !important;
+        .custom-dark-table .ant-pagination-item-active, .custom-light-table .ant-pagination-item-active {
+          border-color: #1890ff !important;
         }
-        .custom-dark-table .ant-pagination-item-active a {
-          color: #3a86ff !important;
-        }
-        .custom-dark-table .ant-pagination-item:hover {
-          border-color: #3a86ff !important;
-        }
-        .custom-dark-table .ant-pagination-prev .ant-pagination-item-link,
-        .custom-dark-table .ant-pagination-next .ant-pagination-item-link {
-          background: transparent !important;
-          border-color: transparent !important;
-          font-size: 16px !important;
-          color: #595959 !important;
-        }
-        
-        /* Table Loading Spinner Color */
-        .ant-spin-dot-item {
-          background-color: #1890ff !important;
+        .custom-dark-table .ant-pagination-item-active a, .custom-light-table .ant-pagination-item-active a {
+          color: #1890ff !important;
         }
         
         .ant-segmented {
-            background: #1d1d1d !important;
-            padding: 4px !important;
-            border-radius: 8px !important;
-        }
-        .ant-segmented-item {
-            color: #8c8c8c !important;
-            font-weight: 500 !important;
-            transition: all 0.3s !important;
+            background: ${themeWiseColor('#f0f0f0', '#1d1d1d', themeMode)} !important;
         }
         .ant-segmented-item-selected {
-            background-color: #333333 !important;
-            color: #fff !important;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.4) !important;
-        }
-        .ant-segmented-item:hover:not(.ant-segmented-item-selected) {
-            color: #fff !important;
-        }
-
-        .file-name-text {
-            color: #3a86ff !important;
-            font-weight: 500;
-            transition: all 0.2s;
-        }
-        .file-name-text:hover {
-            color: #55aaff !important;
-            text-decoration: underline;
+            background-color: ${themeWiseColor('#fff', '#333333', themeMode)} !important;
+            color: ${themeWiseColor('#1890ff', '#fff', themeMode)} !important;
         }
 
         /* Action Buttons */
         .action-btn {
-            background: #262626 !important;
-            border: 1px solid #434343 !important;
-            border-radius: 8px !important;
-            width: 32px !important;
-            height: 32px !important;
-            padding: 0 !important;
-            display: inline-flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            transition: all 0.3s !important;
-        }
-        .action-btn:hover {
-            background: #333333 !important;
-            border-color: #595959 !important;
+            background: ${themeWiseColor('#fff', '#262626', themeMode)} !important;
+            border: 1px solid ${themeWiseColor('#d9d9d9', '#434343', themeMode)} !important;
+            border-radius: 6px !important;
         }
         .delete-btn {
-            border-color: #ff4d4f33 !important;
             color: #ff4d4f !important;
-            background: transparent !important;
-        }
-        .delete-btn:hover {
-            border-color: #ff4d4f !important;
-            background: #ff4d4f11 !important;
         }
         .download-btn {
-            color: #fff !important;
+            color: ${themeWiseColor('#595959', '#fff', themeMode)} !important;
         }
       `}</style>
     </div>

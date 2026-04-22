@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   Button,
   Card,
@@ -18,6 +18,7 @@ import {
   fetchProjectData,
   setSelectedProjectTeams,
 } from '@/features/reporting/projectReports/project-reports-slice';
+import { themeWiseColor } from '@/utils/themeWiseColor';
 
 const ProjectTeamsFilterDropdown = () => {
   const dispatch = useAppDispatch();
@@ -30,6 +31,7 @@ const ProjectTeamsFilterDropdown = () => {
     isFilterLoading: teamsLoading,
     selectedProjectTeams: localSelected,
   } = useAppSelector(state => state.projectReportsReducer);
+  const themeMode = useAppSelector(state => state.themeReducer.mode);
 
   const handleOpenChange = (open: boolean) => {
     setIsDropdownOpen(open);
@@ -73,10 +75,10 @@ const ProjectTeamsFilterDropdown = () => {
   const dropdownContent = (
     <Card 
         style={{ 
-            backgroundColor: '#1d1d1d', 
-            border: '1px solid #333', 
+            backgroundColor: themeWiseColor('#ffffff', '#1d1d1d', themeMode), 
+            border: `1px solid ${themeWiseColor('#d9d9d9', '#333', themeMode)}`, 
             borderRadius: '8px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+            boxShadow: themeWiseColor('0 4px 12px rgba(0,0,0,0.1)', '0 4px 12px rgba(0,0,0,0.5)', themeMode),
             minWidth: '220px'
         }} 
         styles={{ body: { padding: '4px 0' } }}
@@ -88,7 +90,11 @@ const ProjectTeamsFilterDropdown = () => {
           onChange={e => setSearchQuery(e.currentTarget.value)}
           placeholder="Search by name"
           prefix={<SearchOutlined style={{ color: '#888' }} />}
-          style={{ backgroundColor: '#262626', border: '1px solid #333', color: '#fff' }}
+          style={{ 
+            backgroundColor: themeWiseColor('#fafafa', '#262626', themeMode), 
+            border: `1px solid ${themeWiseColor('#d9d9d9', '#333', themeMode)}`, 
+            color: themeWiseColor('#262626', '#fff', themeMode) 
+          }}
         />
       </div>
 
@@ -106,7 +112,7 @@ const ProjectTeamsFilterDropdown = () => {
                     background: isChecked(team) ? 'rgba(24, 144, 255, 0.1)' : 'transparent',
                     transition: 'background 0.2s'
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#262626'}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = themeWiseColor('#f5f5f5', '#262626', themeMode)}
                 onMouseLeave={(e) => e.currentTarget.style.backgroundColor = isChecked(team) ? 'rgba(24, 144, 255, 0.1)' : 'transparent'}
             >
                 <Checkbox
@@ -125,7 +131,7 @@ const ProjectTeamsFilterDropdown = () => {
                             }}
                         />
                     )}
-                    <span style={{ color: '#fff', fontSize: '13px', fontWeight: isChecked(team) ? 600 : 400 }}>{team.name}</span>
+                    <span style={{ color: themeWiseColor('#262626', '#fff', themeMode), fontSize: '13px', fontWeight: isChecked(team) ? 600 : 400 }}>{team.name}</span>
                 </Flex>
             </div>
           ))
@@ -136,7 +142,7 @@ const ProjectTeamsFilterDropdown = () => {
       
       {selectedCount > 0 && (
           <div 
-            style={{ padding: '8px 16px', borderTop: '1px solid #333', textAlign: 'center' }}
+            style={{ padding: '8px 16px', borderTop: `1px solid ${themeWiseColor('#f0f0f0', '#333', themeMode)}`, textAlign: 'center' }}
             onClick={(e) => {
                 e.stopPropagation();
                 dispatch(setSelectedProjectTeams([]));
@@ -161,9 +167,9 @@ const ProjectTeamsFilterDropdown = () => {
         iconPosition="end"
         loading={teamsLoading}
         style={{
-            backgroundColor: isDropdownOpen ? '#262626' : '#1d1d1d',
-            borderColor: selectedCount > 0 || isDropdownOpen ? '#1890ff' : '#333',
-            color: selectedCount > 0 || isDropdownOpen ? '#1890ff' : '#bfbfbf',
+            backgroundColor: isDropdownOpen ? themeWiseColor('#e6f7ff', '#262626', themeMode) : themeWiseColor('#f5f5f5', '#1d1d1d', themeMode),
+            borderColor: selectedCount > 0 || isDropdownOpen ? '#1890ff' : themeWiseColor('#d9d9d9', '#333', themeMode),
+            color: selectedCount > 0 || isDropdownOpen ? '#1890ff' : themeWiseColor('#595959', '#bfbfbf', themeMode),
             borderRadius: '6px',
             height: '32px',
             fontSize: '13px',

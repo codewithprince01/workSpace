@@ -8,6 +8,8 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import isToday from 'dayjs/plugin/isToday';
 import isYesterday from 'dayjs/plugin/isYesterday';
+import { themeWiseColor } from '@/utils/themeWiseColor';
+
 dayjs.extend(relativeTime);
 dayjs.extend(isToday);
 dayjs.extend(isYesterday);
@@ -60,14 +62,15 @@ const formatDate = (ts: string | Date) => {
 };
 
 // ─── Sub-component: Tick/Read indicator ───────────────────────────────────────
-const SeenStatus = ({ msg, currentUserId, memberCount }: {
+const SeenStatus = ({ msg, currentUserId, memberCount, themeMode }: {
   msg: ChatMessage;
   currentUserId: string;
   memberCount: number;
+  themeMode: any;
 }) => {
   if (msg.user_id !== currentUserId) return null;
   const seenCount = (msg.readBy || []).filter(uid => uid !== currentUserId).length;
-  const color = seenCount > 0 ? '#1890ff' : '#8c8c8c';
+  const color = seenCount > 0 ? '#1890ff' : themeWiseColor('#bfbfbf', '#8c8c8c', themeMode);
   const label = seenCount === 0
     ? 'Sent'
     : seenCount >= memberCount - 1
@@ -88,6 +91,7 @@ const SeenStatus = ({ msg, currentUserId, memberCount }: {
 const ProjectViewUpdates = () => {
   const { socket, connected } = useSocket();
   const { projectId } = useAppSelector(state => state.projectReducer);
+  const themeMode = useAppSelector(state => state.themeReducer.mode);
   const profile = getUserSession();
   const currentUserId = profile?.id as string;
 
@@ -157,6 +161,8 @@ const ProjectViewUpdates = () => {
         }, 4000);
         clearTimeout(typingTimeouts.current.get(user_id));
         typingTimeouts.current.set(user_id, timeout);
+        // Ensure scrolling if near bottom
+        setTimeout(() => scrollToBottom(), 10);
       } else {
         clearTimeout(typingTimeouts.current.get(user_id));
         typingTimeouts.current.delete(user_id);
@@ -279,16 +285,16 @@ const ProjectViewUpdates = () => {
       flexDirection: 'column',
       height: 'calc(100vh - 200px)',
       minHeight: 500,
-      background: '#141414',
+      background: themeWiseColor('#ffffff', '#141414', themeMode),
       borderRadius: 12,
       overflow: 'hidden',
-      border: '1px solid #1f1f1f',
+      border: `1px solid ${themeWiseColor('#f0f0f0', '#1f1f1f', themeMode)}`,
     }}>
       {/* Header */}
       <div style={{
         padding: '12px 16px',
-        borderBottom: '1px solid #1f1f1f',
-        background: '#1a1a1a',
+        borderBottom: `1px solid ${themeWiseColor('#f0f0f0', '#1f1f1f', themeMode)}`,
+        background: themeWiseColor('#fafafa', '#1a1a1a', themeMode),
         display: 'flex',
         alignItems: 'center',
         gap: 8,
@@ -298,10 +304,10 @@ const ProjectViewUpdates = () => {
           background: connected ? '#52c41a' : '#8c8c8c',
           boxShadow: connected ? '0 0 6px #52c41a' : 'none',
         }} />
-        <Typography.Text style={{ color: '#e8e8e8', fontWeight: 600, fontSize: 14 }}>
+        <Typography.Text style={{ color: themeWiseColor('#262626', '#e8e8e8', themeMode), fontWeight: 600, fontSize: 14 }}>
           Project Chat
         </Typography.Text>
-        <Typography.Text style={{ color: '#595959', fontSize: 12, marginLeft: 'auto' }}>
+        <Typography.Text style={{ color: themeWiseColor('#8c8c8c', '#595959', themeMode), fontSize: 12, marginLeft: 'auto' }}>
           {connected ? 'Live' : 'Connecting...'}
         </Typography.Text>
       </div>
@@ -318,7 +324,7 @@ const ProjectViewUpdates = () => {
           flexDirection: 'column',
           gap: 0,
           scrollbarWidth: 'thin',
-          scrollbarColor: '#2a2a2a #141414',
+          scrollbarColor: themeWiseColor('#d9d9d9 #f5f5f5', '#2a2a2a #141414', themeMode),
         }}
       >
         {loading ? (
@@ -332,7 +338,7 @@ const ProjectViewUpdates = () => {
             flex: 1, gap: 12,
           }}>
             <div style={{ fontSize: 40 }}>💬</div>
-            <Typography.Text style={{ color: '#595959', fontSize: 14 }}>
+            <Typography.Text style={{ color: themeWiseColor('#8c8c8c', '#595959', themeMode), fontSize: 14 }}>
               No messages yet. Start the conversation!
             </Typography.Text>
           </div>
@@ -348,15 +354,15 @@ const ProjectViewUpdates = () => {
                     display: 'flex', alignItems: 'center', gap: 12,
                     margin: '16px 0 8px',
                   }}>
-                    <div style={{ flex: 1, height: '1px', background: '#1f1f1f' }} />
+                    <div style={{ flex: 1, height: '1px', background: themeWiseColor('#f0f0f0', '#1f1f1f', themeMode) }} />
                     <Typography.Text style={{
-                      color: '#434343', fontSize: 11, whiteSpace: 'nowrap',
-                      padding: '2px 10px', background: '#1a1a1a',
-                      borderRadius: 99, border: '1px solid #1f1f1f',
+                      color: themeWiseColor('#8c8c8c', '#434343', themeMode), fontSize: 11, whiteSpace: 'nowrap',
+                      padding: '2px 10px', background: themeWiseColor('#fafafa', '#1a1a1a', themeMode),
+                      borderRadius: 99, border: `1px solid ${themeWiseColor('#f0f0f0', '#1f1f1f', themeMode)}`,
                     }}>
                       {dateLabel}
                     </Typography.Text>
-                    <div style={{ flex: 1, height: '1px', background: '#1f1f1f' }} />
+                    <div style={{ flex: 1, height: '1px', background: themeWiseColor('#f0f0f0', '#1f1f1f', themeMode) }} />
                   </div>
                 )}
 
@@ -407,7 +413,7 @@ const ProjectViewUpdates = () => {
                             {msg.username}
                           </Typography.Text>
                         )}
-                        <Typography.Text style={{ color: '#434343', fontSize: 11 }}>
+                        <Typography.Text style={{ color: themeWiseColor('#bfbfbf', '#434343', themeMode), fontSize: 11 }}>
                           {formatTime(msg.timestamp)}
                         </Typography.Text>
                       </div>
@@ -423,15 +429,15 @@ const ProjectViewUpdates = () => {
                         borderRadius: isOwn ? '16px 4px 16px 16px' : '4px 16px 16px 16px',
                         background: isOwn
                           ? 'linear-gradient(135deg, #1677ff 0%, #0958d9 100%)'
-                          : '#1f1f1f',
-                        color: isOwn ? '#fff' : '#d9d9d9',
+                          : themeWiseColor('#f0f0f0', '#1f1f1f', themeMode),
+                        color: isOwn ? '#fff' : themeWiseColor('#262626', '#d9d9d9', themeMode),
                         fontSize: 14,
                         lineHeight: 1.5,
                         wordBreak: 'break-word',
                         whiteSpace: 'pre-wrap',
                         boxShadow: isOwn
                           ? '0 2px 8px rgba(22, 119, 255, 0.25)'
-                          : '0 1px 4px rgba(0,0,0,0.2)',
+                          : themeWiseColor('0 1px 4px rgba(0,0,0,0.05)', '0 1px 4px rgba(0,0,0,0.2)', themeMode),
                         opacity: msg.pending ? 0.6 : 1,
                       }}>
                         {msg.message}
@@ -447,13 +453,14 @@ const ProjectViewUpdates = () => {
                             position: 'absolute',
                             top: '50%', left: -34,
                             transform: 'translateY(-50%)',
-                            background: '#2a2a2a',
-                            border: '1px solid #333',
+                            background: themeWiseColor('#fff', '#2a2a2a', themeMode),
+                            border: `1px solid ${themeWiseColor('#d9d9d9', '#333', themeMode)}`,
                             borderRadius: 6,
                             padding: '3px 6px',
                             cursor: 'pointer',
                             color: '#ff4d4f',
                             display: 'none',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
                           }}
                         >
                           <DeleteOutlined style={{ fontSize: 11 }} />
@@ -464,15 +471,15 @@ const ProjectViewUpdates = () => {
                     {/* Timestamp (non-header) + seen status */}
                     {!showHeader && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
-                        <Typography.Text style={{ color: '#3a3a3a', fontSize: 10 }}>
+                        <Typography.Text style={{ color: themeWiseColor('#bfbfbf', '#3a3a3a', themeMode), fontSize: 10 }}>
                           {formatTime(msg.timestamp)}
                         </Typography.Text>
-                        <SeenStatus msg={msg} currentUserId={currentUserId} memberCount={memberCount} />
+                        <SeenStatus msg={msg} currentUserId={currentUserId} memberCount={memberCount} themeMode={themeMode} />
                       </div>
                     )}
                     {showHeader && (
                       <div style={{ marginTop: 2 }}>
-                        <SeenStatus msg={msg} currentUserId={currentUserId} memberCount={memberCount} />
+                        <SeenStatus msg={msg} currentUserId={currentUserId} memberCount={memberCount} themeMode={themeMode} />
                       </div>
                     )}
                   </div>
@@ -500,7 +507,7 @@ const ProjectViewUpdates = () => {
                 }} />
               ))}
             </div>
-            <Typography.Text style={{ color: '#595959', fontSize: 12, fontStyle: 'italic' }}>
+            <Typography.Text style={{ color: themeWiseColor('#8c8c8c', '#595959', themeMode), fontSize: 12, fontStyle: 'italic' }}>
               {typingText}
             </Typography.Text>
           </div>
@@ -512,8 +519,8 @@ const ProjectViewUpdates = () => {
       {/* Input Area */}
       <div style={{
         padding: '12px 16px',
-        borderTop: '1px solid #1f1f1f',
-        background: '#1a1a1a',
+        borderTop: `1px solid ${themeWiseColor('#f0f0f0', '#1f1f1f', themeMode)}`,
+        background: themeWiseColor('#fafafa', '#1a1a1a', themeMode),
         display: 'flex', gap: 10, alignItems: 'flex-end',
       }}>
         <div style={{ position: 'relative', flex: 1 }}>
@@ -526,10 +533,10 @@ const ProjectViewUpdates = () => {
             maxLength={2000}
             disabled={!connected}
             style={{
-              background: '#141414',
-              border: '1px solid #2a2a2a',
+              background: themeWiseColor('#fff', '#141414', themeMode),
+              border: `1px solid ${themeWiseColor('#d9d9d9', '#2a2a2a', themeMode)}`,
               borderRadius: 12,
-              color: '#e8e8e8',
+              color: themeWiseColor('#262626', '#e8e8e8', themeMode),
               resize: 'none',
               paddingRight: 48,
               fontSize: 14,
@@ -537,7 +544,7 @@ const ProjectViewUpdates = () => {
           />
           <span style={{
             position: 'absolute', bottom: 6, right: 12,
-            color: '#434343', fontSize: 11, pointerEvents: 'none',
+            color: themeWiseColor('#bfbfbf', '#434343', themeMode), fontSize: 11, pointerEvents: 'none',
           }}>
             {input.length > 0 && `${input.length}/2000`}
           </span>
@@ -548,7 +555,7 @@ const ProjectViewUpdates = () => {
           style={{
             background: input.trim() && connected
               ? 'linear-gradient(135deg, #1677ff 0%, #0958d9 100%)'
-              : '#1f1f1f',
+              : themeWiseColor('#f0f0f0', '#1f1f1f', themeMode),
             border: 'none',
             borderRadius: 12,
             width: 40, height: 40,
@@ -556,7 +563,7 @@ const ProjectViewUpdates = () => {
             cursor: input.trim() && connected ? 'pointer' : 'not-allowed',
             flexShrink: 0,
             transition: 'all 0.2s ease',
-            color: input.trim() && connected ? '#fff' : '#434343',
+            color: input.trim() && connected ? '#fff' : themeWiseColor('#bfbfbf', '#434343', themeMode),
           }}
         >
           <SendOutlined style={{ fontSize: 16 }} />
@@ -573,7 +580,13 @@ const ProjectViewUpdates = () => {
         .chat-msg-row { transition: opacity 0.15s; }
         ::-webkit-scrollbar { width: 5px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 99px; }
+        ::-webkit-scrollbar-thumb { 
+            background: ${themeWiseColor('#d9d9d9', '#2a2a2a', themeMode)}; 
+            border-radius: 99px; 
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: ${themeWiseColor('#bfbfbf', '#333', themeMode)};
+        }
       `}</style>
     </div>
   );

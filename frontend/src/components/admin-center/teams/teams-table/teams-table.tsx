@@ -6,10 +6,12 @@ import { useAppDispatch } from '@/hooks/useAppDispatch';
 import { IOrganizationTeam } from '@/types/admin-center/admin-center.types';
 import logger from '@/utils/errorLogger';
 import { SettingOutlined, DeleteOutlined } from '@/shared/antd-imports';
-import { Badge, Button, Card, Popconfirm, Table, TableProps, Tooltip, Typography } from '@/shared/antd-imports';
+import { Badge, Button, Card, Popconfirm, Table, TableProps, Tooltip, Typography, Flex } from '@/shared/antd-imports';
 import { TFunction } from 'i18next';
 import { useState } from 'react';
 import { useMediaQuery } from 'react-responsive';
+import { useAppSelector } from '@/hooks/useAppSelector';
+import { themeWiseColor } from '@/utils/themeWiseColor';
 
 interface TeamsTableProps {
   teams: IOrganizationTeam[];
@@ -31,6 +33,7 @@ const TeamsTable: React.FC<TeamsTableProps> = ({
   const [deleting, setDeleting] = useState(false);
   const [isSettingDrawerOpen, setIsSettingDrawerOpen] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState<string>('');
+  const themeMode = useAppSelector(state => state.themeReducer.mode);
 
   const handleTeamDelete = async (teamId: string) => {
     if (!teamId) return;
@@ -48,12 +51,12 @@ const TeamsTable: React.FC<TeamsTableProps> = ({
     }
   };
 
-  const columns: TableProps['columns'] = [
+  const columns: TableProps<IOrganizationTeam>['columns'] = [
     {
       title: t('team'),
       key: 'teamName',
       render: (record: IOrganizationTeam) => (
-        <Typography.Text style={{ fontSize: `${isTablet ? '14px' : '10px'}`, color: '#fafafa', fontWeight: 500 }}>
+        <Typography.Text style={{ fontSize: `${isTablet ? '14px' : '12px'}`, color: themeWiseColor('#262626', '#fafafa', themeMode), fontWeight: 500 }}>
           <Badge
             status={currentTeam?.id === record.id ? 'success' : 'default'}
             style={{ marginRight: '8px' }}
@@ -70,8 +73,8 @@ const TeamsTable: React.FC<TeamsTableProps> = ({
           style={{
             display: 'flex',
             justifyContent: 'center',
-            fontSize: `${isTablet ? '14px' : '10px'}`,
-            color: '#bfbfbf'
+            fontSize: `${isTablet ? '14px' : '12px'}`,
+            color: themeWiseColor('#595959', '#bfbfbf', themeMode)
           }}
         >
           {record.members_count || 0}
@@ -91,25 +94,23 @@ const TeamsTable: React.FC<TeamsTableProps> = ({
       title: '',
       key: 'button',
       render: (record: IOrganizationTeam) => (
-        <div className="row-buttons">
+        <div className="row-buttons" style={{ display: 'flex', justifyContent: 'right' }}>
           <Tooltip title={t('settings')}>
             <Button
               style={{ marginRight: '8px' }}
               size="small"
+              type="text"
               onClick={() => {
                 setSelectedTeam(record.id || '');
                 setIsSettingDrawerOpen(true);
               }}
-            >
-              <SettingOutlined />
-            </Button>
+              icon={<SettingOutlined style={{ color: themeWiseColor('#8c8c8c', '#8c8c8c', themeMode) }} />}
+            />
           </Tooltip>
 
           <Tooltip title={t('delete')}>
             <Popconfirm title={t('popTitle')} onConfirm={() => handleTeamDelete(record.id || '')}>
-              <Button size="small">
-                <DeleteOutlined />
-              </Button>
+              <Button size="small" type="text" icon={<DeleteOutlined style={{ color: '#ff4d4f' }} />} />
             </Popconfirm>
           </Tooltip>
         </div>
@@ -119,13 +120,12 @@ const TeamsTable: React.FC<TeamsTableProps> = ({
 
   return (
     <>
-      <Table
+      <Table<IOrganizationTeam>
         rowClassName="team-table-row"
-        className="team-table"
         size="large"
         columns={columns}
         dataSource={teams}
-        rowKey={record => record.id}
+        rowKey={record => record.id || ''}
         loading={loading}
         pagination={{
             showSizeChanger: true,
@@ -147,21 +147,20 @@ const TeamsTable: React.FC<TeamsTableProps> = ({
       
       <style>{`
         .team-table-row:hover td {
-          background-color: rgba(255, 255, 255, 0.02) !important;
+          background-color: ${themeWiseColor('rgba(0, 0, 0, 0.02)', 'rgba(255, 255, 255, 0.02)', themeMode)} !important;
         }
         .ant-table {
           background: transparent !important;
-          color: #ffffff !important;
         }
         .ant-table-thead > tr > th {
           background: transparent !important;
-          color: #bfbfbf !important;
-          border-bottom: 1px solid #303030 !important;
+          color: ${themeWiseColor('#8c8c8c', '#bfbfbf', themeMode)} !important;
+          border-bottom: 1px solid ${themeWiseColor('#f0f0f0', '#303030', themeMode)} !important;
           font-weight: 500 !important;
           padding: 16px 24px !important;
         }
         .ant-table-tbody > tr > td {
-          border-bottom: 1px solid #303030 !important;
+          border-bottom: 1px solid ${themeWiseColor('#f0f0f0', '#303030', themeMode)} !important;
           padding: 16px 24px !important;
         }
         .ant-table-tbody > tr:last-child > td {
@@ -169,10 +168,10 @@ const TeamsTable: React.FC<TeamsTableProps> = ({
         }
         .ant-pagination-item, .ant-pagination-prev, .ant-pagination-next, .ant-pagination-item-link {
             background: transparent !important;
-            border-color: #303030 !important;
+            border-color: ${themeWiseColor('#d9d9d9', '#303030', themeMode)} !important;
         }
         .ant-pagination-item a {
-            color: #8c8c8c !important;
+            color: ${themeWiseColor('#8c8c8c', '#8c8c8c', themeMode)} !important;
         }
         .ant-pagination-item-active {
             border-color: #1890ff !important;

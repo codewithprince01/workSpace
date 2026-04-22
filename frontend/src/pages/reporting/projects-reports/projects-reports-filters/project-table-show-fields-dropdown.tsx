@@ -5,9 +5,11 @@ import { useAppSelector } from '@/hooks/useAppSelector';
 import { useAppDispatch } from '@/hooks/useAppDispatch';
 import { toggleColumnHidden } from '@/features/reporting/projectReports/project-reports-table-column-slice/project-reports-table-column-slice';
 import { useTranslation } from 'react-i18next';
+import { themeWiseColor } from '@/utils/themeWiseColor';
 
 const ProjectTableShowFieldsDropdown = () => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const themeMode = useAppSelector(state => state.themeReducer.mode);
   const { t } = useTranslation('reporting-projects-filters');
 
   const columnsVisibility = useAppSelector(state => state.projectReportsTableColumnsReducer);
@@ -38,11 +40,15 @@ const ProjectTableShowFieldsDropdown = () => {
     <Dropdown menu={menuItems} trigger={['click']} onOpenChange={open => setIsDropdownOpen(open)}>
       <Button
         icon={<MoreOutlined />}
-        className={`transition-colors duration-300 ${
-          isDropdownOpen
-            ? 'border-[#1890ff] text-[#1890ff]'
-            : 'hover:text-[#1890ff hover:border-[#1890ff]'
-        }`}
+        style={{
+            backgroundColor: isDropdownOpen ? themeWiseColor('#e6f7ff', '#262626', themeMode) : themeWiseColor('#f5f5f5', '#1d1d1d', themeMode),
+            borderColor: isDropdownOpen ? '#1890ff' : themeWiseColor('#d9d9d9', '#333', themeMode),
+            color: isDropdownOpen ? '#1890ff' : themeWiseColor('#595959', '#bfbfbf', themeMode),
+            borderRadius: '6px',
+            height: '32px',
+            fontSize: '13px',
+            transition: 'all 0.3s',
+        }}
       >
         {t('showFieldsText')}
       </Button>

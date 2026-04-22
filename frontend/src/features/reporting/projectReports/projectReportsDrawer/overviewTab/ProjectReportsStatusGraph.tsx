@@ -4,6 +4,8 @@ import { Chart, ArcElement, Tooltip } from 'chart.js';
 import { Badge, Card, Flex, Typography } from '@/shared/antd-imports';
 import { useTranslation } from 'react-i18next';
 import { IRPTOverviewProjectTasksByStatus } from '@/types/reporting/reporting.types';
+import { themeWiseColor } from '@/utils/themeWiseColor';
+import { useAppSelector } from '@/hooks/useAppSelector';
 
 Chart.register(ArcElement, Tooltip);
 
@@ -40,6 +42,8 @@ const ProjectReportsStatusGraph = ({
     },
   };
 
+  const themeMode = useAppSelector(state => state.themeReducer.mode);
+
   return (
     <Card
       loading={loading}
@@ -59,7 +63,7 @@ const ProjectReportsStatusGraph = ({
         <div className="flex flex-row flex-wrap gap-3 xl:flex-col">
           {/* total tasks */}
           <Flex gap={4} align="center">
-            <Badge color="#000" />
+            <Badge color={themeWiseColor('#595959', '#fff', themeMode)} />
             <Typography.Text ellipsis>
               {t('allText')} ({values.all})
             </Typography.Text>

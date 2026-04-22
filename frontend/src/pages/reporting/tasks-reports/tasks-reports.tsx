@@ -17,6 +17,8 @@ import { useTranslation } from 'react-i18next';
 import { useDocumentTitle } from '@/hooks/useDoumentTItle';
 import { reportingApiService } from '@/api/reporting/reporting.api.service';
 import dayjs from 'dayjs';
+import { themeWiseColor } from '@/utils/themeWiseColor';
+import { useAppSelector } from '@/hooks/useAppSelector';
 
 const { Text, Title } = Typography;
 const { Option } = Select;
@@ -31,6 +33,7 @@ interface FilterOption {
 const TasksReports = () => {
   const { t } = useTranslation('reporting-sidebar');
   useDocumentTitle('Reporting - Tasks');
+  const themeMode = useAppSelector(state => state.themeReducer.mode);
 
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any[]>([]);
@@ -155,14 +158,21 @@ const TasksReports = () => {
   };
 
   const exportMenu = (
-    <div style={{ backgroundColor: '#1d1d1d', border: '1px solid #333', borderRadius: '8px', padding: '4px 0', boxShadow: '0 4px 12px rgba(0,0,0,0.5)', minWidth: '180px' }}>
+    <div style={{ 
+        backgroundColor: themeWiseColor('#ffffff', '#1d1d1d', themeMode), 
+        border: `1px solid ${themeWiseColor('#d9d9d9', '#333', themeMode)}`, 
+        borderRadius: '8px', 
+        padding: '4px 0', 
+        boxShadow: themeWiseColor('0 4px 12px rgba(0,0,0,0.1)', '0 4px 12px rgba(0,0,0,0.5)', themeMode), 
+        minWidth: '180px' 
+    }}>
       <div className="custom-option-item" onClick={() => handleExport('csv')} style={{ padding: '8px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
         <FileTextOutlined style={{ marginRight: 10, color: '#1677ff' }} />
-        <span style={{ color: '#fff' }}>Export to CSV</span>
+        <span style={{ color: themeWiseColor('#262626', '#fff', themeMode) }}>Export to CSV</span>
       </div>
       <div className="custom-option-item" onClick={() => handleExport('excel')} style={{ padding: '8px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
         <FileExcelOutlined style={{ marginRight: 10, color: '#52c41a' }} />
-        <span style={{ color: '#fff' }}>Export to Excel</span>
+        <span style={{ color: themeWiseColor('#262626', '#fff', themeMode) }}>Export to Excel</span>
       </div>
     </div>
   );
@@ -264,8 +274,8 @@ const TasksReports = () => {
         const displayName = name === '-' ? 'Untitled Task' : name;
         return (
           <div style={{ paddingLeft: isSubtask ? '12px' : '8px', paddingRight: '16px', display: 'flex', alignItems: 'center' }}>
-              {isSubtask && <span style={{ color: '#8c8c8c', marginRight: '6px', fontSize: '11px', opacity: 0.8 }}>»</span>}
-              <Text style={{ color: '#fff', fontSize: '13px', fontWeight: 500 }}>{displayName}</Text>
+              {isSubtask && <span style={{ color: themeWiseColor('#8c8c8c', '#8c8c8c', themeMode), marginRight: '6px', fontSize: '11px', opacity: 0.8 }}>»</span>}
+              <Text style={{ color: themeWiseColor('#262626', '#fff', themeMode), fontSize: '13px', fontWeight: 500 }}>{displayName}</Text>
           </div>
         );
       },
@@ -276,7 +286,7 @@ const TasksReports = () => {
         key: 'key',
         width: 120,
         sorter: false,
-        render: (key: string) => <div style={{ paddingLeft: '16px' }}><Text style={{ color: '#888', fontSize: '13px' }}>{key || '-'}</Text></div>,
+        render: (key: string) => <div style={{ paddingLeft: '16px' }}><Text style={{ color: themeWiseColor('#8c8c8c', '#888', themeMode), fontSize: '13px' }}>{key || '-'}</Text></div>,
     },
     {
       title: 'Project',
@@ -287,7 +297,7 @@ const TasksReports = () => {
       render: (name: string, record: any) => (
         <Space size={8}>
           <div style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: record.project_color || '#8c8c8c' }} />
-          <Text style={{ color: '#bfbfbf', fontSize: '13px' }}>{name || '-'}</Text>
+          <Text style={{ color: themeWiseColor('#595959', '#bfbfbf', themeMode), fontSize: '13px' }}>{name || '-'}</Text>
         </Space>
       ),
     },
@@ -376,7 +386,7 @@ const TasksReports = () => {
         width: 120,
         sorter: true,
         render: (date: string) => date ? (
-          <Text style={{ color: '#bfbfbf', fontSize: '13px' }}>{dayjs(date).format('MMM DD')}</Text>
+          <Text style={{ color: themeWiseColor('#595959', '#bfbfbf', themeMode), fontSize: '13px' }}>{dayjs(date).format('MMM DD')}</Text>
         ) : '-',
       },
     {
@@ -515,7 +525,7 @@ const TasksReports = () => {
         width: 120,
         sorter: true,
         render: (p: number) => (
-          <Text style={{ color: '#bfbfbf', fontSize: '13px' }}>{p || 0}%</Text>
+          <Text style={{ color: themeWiseColor('#595959', '#bfbfbf', themeMode), fontSize: '13px' }}>{p || 0}%</Text>
         ),
     },
     {
@@ -592,32 +602,40 @@ const TasksReports = () => {
         onChange={onChange}
         placeholder={value.length > 0 ? "" : placeholder} // Hide placeholder if values selected
         style={{ width: 140 }}
-        className="dark-select premium-select"
+        className="premium-select"
         maxTagPlaceholder={() => (
-            <span style={{ color: '#fff', fontSize: '13px' }}>
+            <span style={{ color: themeWiseColor('#262626', '#fff', themeMode), fontSize: '13px' }}>
                 {placeholder} <span style={{ color: '#1890ff', marginLeft: '4px' }}>({value.length})</span>
             </span>
         )}
-        suffixIcon={<DownOutlined style={{ color: '#8c8c8c', fontSize: '10px' }} />}
+        suffixIcon={<DownOutlined style={{ color: themeWiseColor('#8c8c8c', '#8c8c8c', themeMode), fontSize: '10px' }} />}
         dropdownStyle={{ minWidth: showSearch ? 280 : 200 }}
         dropdownRender={(menu) => (
-          <div className="premium-dropdown">
+          <div 
+            className="premium-dropdown"
+            style={{
+                backgroundColor: themeWiseColor('#ffffff', '#1f1f1f', themeMode),
+                border: `1px solid ${themeWiseColor('#d9d9d9', '#333', themeMode)}`,
+                borderRadius: '8px',
+                boxShadow: themeWiseColor('0 4px 12px rgba(0,0,0,0.1)', '0 4px 12px rgba(0,0,0,0.5)', themeMode)
+            }}
+          >
             <div style={{ padding: '12px' }}>
                 {showSearch && (
                     <Input 
-                        placeholder="Search by task name, key or..." 
-                        prefix={<SearchOutlined style={{ color: '#888' }} />}
+                        placeholder="Search..." 
+                        prefix={<SearchOutlined style={{ color: themeWiseColor('#8c8c8c', '#8c8c8c', themeMode) }} />}
                         value={searchValue}
                         onChange={(e) => setSearchValue(e.target.value)}
                         style={{ 
-                            backgroundColor: '#141414', 
-                            border: '1px solid #333', 
-                            color: '#fff', 
+                            backgroundColor: themeWiseColor('#fafafa', '#141414', themeMode), 
+                            border: `1px solid ${themeWiseColor('#d9d9d9', '#333', themeMode)}`, 
+                            color: themeWiseColor('#262626', '#fff', themeMode), 
                             borderRadius: '6px',
                             height: '32px',
                             marginBottom: '12px'
                         }}
-                        className="dark-input dropdown-search"
+                        className="premium-input dropdown-search"
                     />
                 )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -632,7 +650,7 @@ const TasksReports = () => {
                             }}
                         >
                             <Checkbox checked={value.includes('unassigned')} className="premium-checkbox" />
-                            <span style={{ marginLeft: 10, fontSize: '13px', color: '#fff' }}>Unassigned</span>
+                            <span style={{ marginLeft: 10, fontSize: '13px', color: themeWiseColor('#262626', '#fff', themeMode) }}>Unassigned</span>
                         </div>
                     ) : showSelectAll ? (
                         <Checkbox 
@@ -640,17 +658,17 @@ const TasksReports = () => {
                             indeterminate={value.length > 0 && value.length < options.length}
                             onChange={(e) => onSelectAll(e.target.checked)}
                             className="premium-checkbox"
-                            style={{ fontSize: '13px' }}
+                            style={{ fontSize: '13px', color: themeWiseColor('#262626', '#fff', themeMode) }}
                         >
                             Select All
                         </Checkbox>
                     ) : (
                         <div /> // Spacer if no Select All
                     )}
-                    <Button type="text" size="small" style={{ color: '#bfbfbf', padding: 0, fontSize: '13px' }} onClick={() => onChange([])}>Clear All</Button>
+                    <Button type="text" size="small" style={{ color: themeWiseColor('#595959', '#bfbfbf', themeMode), padding: 0, fontSize: '13px' }} onClick={() => onChange([])}>Clear All</Button>
                 </div>
             </div>
-            <Divider style={{ margin: '0', borderColor: '#333' }} />
+            <Divider style={{ margin: '0', borderColor: themeWiseColor('#f0f0f0', '#333', themeMode) }} />
             <div style={{ maxHeight: 250, overflow: 'auto' }}>
                 {filteredOptions.length > 0 ? (
                     <div className="dropdown-options-list">
@@ -666,7 +684,13 @@ const TasksReports = () => {
                                             : [...value, opt.id];
                                         onChange(newValue);
                                     }}
-                                    style={{ padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                                    style={{ 
+                                        padding: '8px 12px', 
+                                        cursor: 'pointer', 
+                                        display: 'flex', 
+                                        alignItems: 'center',
+                                        backgroundColor: isSelected ? themeWiseColor('#e6f7ff', 'rgba(24, 144, 255, 0.1)', themeMode) : 'transparent'
+                                    }}
                                 >
                                     <Checkbox checked={isSelected} className="premium-checkbox" />
                                 <div style={{ marginLeft: 10, display: 'flex', alignItems: 'center' }}>
@@ -689,7 +713,7 @@ const TasksReports = () => {
                                     ) : (
                                         <>
                                             {opt.color && <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: opt.color, marginRight: 10 }} />}
-                                            <span style={{ fontSize: '13px', color: '#fff' }}>{opt.name}</span>
+                                            <span style={{ fontSize: '13px', color: themeWiseColor('#262626', '#fff', themeMode) }}>{opt.name}</span>
                                         </>
                                     )}
                                 </div>
@@ -697,7 +721,7 @@ const TasksReports = () => {
                         ); })}
                     </div>
                 ) : (
-                    <div style={{ padding: '16px', textAlign: 'center', color: '#555' }}>No options found</div>
+                    <div style={{ padding: '16px', textAlign: 'center', color: themeWiseColor('#bfbfbf', '#555', themeMode) }}>No options found</div>
                 )}
             </div>
           </div>
@@ -707,10 +731,10 @@ const TasksReports = () => {
   };
 
   return (
-    <div className="reporting-tasks-page" style={{ padding: '24px', backgroundColor: '#141414', minHeight: '100vh', color: '#fff' }}>
+    <div className="reporting-tasks-page" style={{ padding: '24px', backgroundColor: themeWiseColor('#ffffff', '#141414', themeMode), minHeight: '100vh', color: themeWiseColor('#262626', '#fff', themeMode) }}>
       {/* Header Row */}
       <Flex justify="space-between" align="center" style={{ marginBottom: '24px' }}>
-        <Title level={4} style={{ color: '#fff', margin: 0, fontWeight: 500, fontSize: '18px' }}>All Tasks ({total})</Title>
+        <Title level={4} style={{ color: themeWiseColor('#262626', '#fff', themeMode), margin: 0, fontWeight: 500, fontSize: '18px' }}>All Tasks ({total})</Title>
         <Space size={12}>
           <Checkbox 
             style={{ color: '#8c8c8c', fontSize: '13px' }}
@@ -719,8 +743,8 @@ const TasksReports = () => {
           >
             Include Archived
           </Checkbox>
-          <Button ghost icon={<ReloadOutlined />} onClick={fetchData} style={{ borderRadius: '6px', backgroundColor: '#262626', border: 'none', color: '#bfbfbf', fontSize: '13px' }}>Refresh</Button>
-          <Button ghost onClick={clearAllFilters} style={{ borderRadius: '6px', backgroundColor: '#262626', border: 'none', color: '#bfbfbf', fontSize: '13px' }}>Clear Filters</Button>
+          <Button ghost icon={<ReloadOutlined />} onClick={fetchData} style={{ borderRadius: '6px', backgroundColor: themeWiseColor('#fff', '#262626', themeMode), border: `1px solid ${themeWiseColor('#d9d9d9', 'transparent', themeMode)}`, color: themeWiseColor('#595959', '#bfbfbf', themeMode), fontSize: '13px' }}>Refresh</Button>
+          <Button ghost onClick={clearAllFilters} style={{ borderRadius: '6px', backgroundColor: themeWiseColor('#fff', '#262626', themeMode), border: `1px solid ${themeWiseColor('#d9d9d9', 'transparent', themeMode)}`, color: themeWiseColor('#595959', '#bfbfbf', themeMode), fontSize: '13px' }}>Clear Filters</Button>
           
           <Dropdown dropdownRender={() => exportMenu} trigger={['click']}>
             <Button type="primary" style={{ backgroundColor: '#1677ff', borderRadius: '6px', fontWeight: 500 }}>
@@ -740,17 +764,17 @@ const TasksReports = () => {
           <Col span={4} key={idx}>
             <Card 
               bodyStyle={{ padding: '20px' }} 
-              style={{ backgroundColor: '#1d1d1d', border: 'none', borderRadius: '8px' }}
+              style={{ backgroundColor: themeWiseColor('#fff', '#1d1d1d', themeMode), border: 'none', borderRadius: '8px' }}
             >
-              <div style={{ color: '#8c8c8c', fontSize: '12px', marginBottom: '12px', fontWeight: 500 }}>{card.title}</div>
-              <div style={{ color: '#fff', fontSize: '24px', fontWeight: 600 }}>{card.value}</div>
+              <div style={{ color: themeWiseColor('#8c8c8c', '#8c8c8c', themeMode), fontSize: '12px', marginBottom: '12px', fontWeight: 500 }}>{card.title}</div>
+              <div style={{ color: themeWiseColor('#262626', '#fff', themeMode), fontSize: '24px', fontWeight: 600 }}>{card.value}</div>
             </Card>
           </Col>
         ))}
       </Row>
 
       {/* Main Container */}
-      <div style={{ backgroundColor: '#1d1d1d', borderRadius: '8px', padding: '24px' }}>
+      <div style={{ backgroundColor: themeWiseColor('#fff', '#1d1d1d', themeMode), borderRadius: '8px', padding: '24px' }}>
         {/* Filter Bar */}
         <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Space size={10}>
@@ -834,7 +858,7 @@ const TasksReports = () => {
             >
                 <Button 
                     ghost 
-                    style={{ borderRadius: '6px', borderColor: '#333', color: '#bfbfbf', fontSize: '13px', height: '32px', padding: '0 16px' }}
+                    style={{ borderRadius: '6px', borderColor: themeWiseColor('#d9d9d9', '#333', themeMode), color: themeWiseColor('#595959', '#bfbfbf', themeMode), fontSize: '13px', height: '32px', padding: '0 16px' }}
                 >
                     Show Fields <DownOutlined style={{ fontSize: '10px' }} />
                 </Button>
@@ -843,8 +867,8 @@ const TasksReports = () => {
               placeholder="Search by task name, key..." 
               value={params.search}
               prefix={<SearchOutlined style={{ color: '#666' }} />}
-              style={{ width: 320, backgroundColor: '#141414', border: '1px solid #333', color: '#fff', borderRadius: '4px', height: '32px', fontSize: '13px' }}
-              className="dark-input premium-input"
+              style={{ width: 320, backgroundColor: themeWiseColor('#fafafa', '#141414', themeMode), border: `1px solid ${themeWiseColor('#d9d9d9', '#333', themeMode)}`, color: themeWiseColor('#262626', '#fff', themeMode), borderRadius: '4px', height: '32px', fontSize: '13px' }}
+              className="premium-input"
               onChange={(e) => setParams(p => ({ ...p, search: e.target.value, index: 1 }))}
             />
           </Space>
@@ -897,7 +921,7 @@ const TasksReports = () => {
       <style dangerouslySetInnerHTML={{ __html: `
         .dark-reporting-table .ant-table {
           background: transparent !important;
-          color: #fff !important;
+          color: ${themeWiseColor('#262626', '#fff', themeMode)} !important;
         }
         /* Ultra-Dense Row Styles */
         .dark-reporting-table .ant-table-tbody > tr > td {
@@ -910,8 +934,8 @@ const TasksReports = () => {
         /* General Table Header Styles */
         .dark-reporting-table .ant-table-thead > tr > th {
           background: transparent !important;
-          color: #8c8c8c !important;
-          border-bottom: 2px solid #262626 !important;
+          color: ${themeWiseColor('#8c8c8c', '#8c8c8c', themeMode)} !important;
+          border-bottom: 2px solid ${themeWiseColor('#f0f0f0', '#262626', themeMode)} !important;
           font-size: 13px;
           font-weight: 600;
           height: 28px !important;
@@ -921,13 +945,13 @@ const TasksReports = () => {
         /* Sticky Column Styles */
         .ant-table-cell-fix-left,
         .ant-table-cell-fix-right {
-          background: #151515 !important;
+          background: ${themeWiseColor('#ffffff', '#151515', themeMode)} !important;
           z-index: 2 !important;
           padding: 4px 16px !important;
         }
         .dark-reporting-table .ant-table-cell-fix-left-last {
-          border-right: 1px solid #333 !important;
-          box-shadow: 4px 0 8px rgba(0,0,0,0.3) !important;
+          border-right: 1px solid ${themeWiseColor('#f0f0f0', '#333', themeMode)} !important;
+          box-shadow: ${themeWiseColor('4px 0 8px rgba(0,0,0,0.05)', '4px 0 8px rgba(0,0,0,0.3)', themeMode)} !important;
         }
         
         /* Universal Padding for Data Columns */
@@ -935,15 +959,15 @@ const TasksReports = () => {
              padding-left: 16px !important;
         }
         .ant-table-cell-fix-left-last::after {
-          box-shadow: inset 10px 0 12px -8px rgba(0, 0, 0, 0.9) !important;
+          box-shadow: ${themeWiseColor('inset 10px 0 12px -8px rgba(0, 0, 0, 0.05)', 'inset 10px 0 12px -8px rgba(0, 0, 0, 0.9)', themeMode)} !important;
         }
         .dark-reporting-table .ant-table-thead > tr > th.ant-table-cell-fix-left {
-            background: #151515 !important;
-            border-bottom: 2px solid #262626 !important;
+            background: ${themeWiseColor('#ffffff', '#151515', themeMode)} !important;
+            border-bottom: 2px solid ${themeWiseColor('#f0f0f0', '#262626', themeMode)} !important;
         }
 
         .dark-reporting-table .ant-table-tbody > tr > td {
-          border-bottom: 1px solid #262626 !important;
+          border-bottom: 1px solid ${themeWiseColor('#f0f0f0', '#262626', themeMode)} !important;
           padding: 8px 24px 8px 0 !important;
           font-size: 13px;
           height: 32px !important;
@@ -951,29 +975,29 @@ const TasksReports = () => {
         
         /* Unified Hover Effect across Row */
         .dark-reporting-table .ant-table-tbody > tr:hover > td {
-          background: #262626 !important;
+          background: ${themeWiseColor('#fafafa', '#262626', themeMode)} !important;
         }
         .dark-reporting-table .ant-table-tbody > tr:hover > .ant-table-cell-fix-left,
         .dark-reporting-table .ant-table-tbody > tr:hover > .ant-table-cell-fix-right {
-          background: #262626 !important;
+          background: ${themeWiseColor('#fafafa', '#262626', themeMode)} !important;
         }
         
         .premium-select .ant-select-selector {
-          background-color: #1f1f1f !important;
-          border: 1px solid #333 !important;
-          color: #fff !important;
+          background-color: ${themeWiseColor('#ffffff', '#1f1f1f', themeMode)} !important;
+          border: 1px solid ${themeWiseColor('#d9d9d9', '#333', themeMode)} !important;
+          color: ${themeWiseColor('#262626', '#fff', themeMode)} !important;
           border-radius: 6px !important;
           font-size: 13px !important;
           height: 32px !important;
         }
         .premium-select .ant-select-selection-item {
-          color: #fff !important;
+          color: ${themeWiseColor('#262626', '#fff', themeMode)} !important;
           line-height: 30px !important;
           display: flex !important;
           align-items: center !important;
         }
         .premium-select .ant-select-selection-placeholder {
-            color: #fff !important;
+            color: ${themeWiseColor('#8c8c8c', '#fff', themeMode)} !important;
             opacity: 1 !important;
             line-height: 30px !important;
             display: flex !important;
@@ -984,8 +1008,8 @@ const TasksReports = () => {
         }
 
         .premium-dropdown {
-          background-color: #1f1f1f !important;
-          border: 1px solid #333;
+          background-color: ${themeWiseColor('#ffffff', '#1f1f1f', themeMode)} !important;
+          border: 1px solid ${themeWiseColor('#d9d9d9', '#333', themeMode)};
           border-radius: 8px;
         }
         .ant-select-dropdown {
@@ -997,11 +1021,11 @@ const TasksReports = () => {
             width: 100%;
         }
         .ant-select-item {
-          color: #fff !important;
+          color: ${themeWiseColor('#262626', '#fff', themeMode)} !important;
           padding: 8px 12px !important;
         }
         .ant-select-item-option-active {
-          background-color: #262626 !important;
+          background-color: ${themeWiseColor('#f5f5f5', '#262626', themeMode)} !important;
         }
         .ant-select-item-option-selected {
             background-color: transparent !important;
@@ -1015,12 +1039,12 @@ const TasksReports = () => {
           transition: background 0.2s;
         }
         .custom-option-item:hover {
-          background: #262626;
+          background: ${themeWiseColor('#f5f5f5', '#262626', themeMode)};
         }
         
         .premium-checkbox .ant-checkbox-inner {
           background-color: transparent !important;
-          border-color: #444 !important;
+          border-color: ${themeWiseColor('#d9d9d9', '#444', themeMode)} !important;
           width: 18px;
           height: 18px;
           border-radius: 4px;
@@ -1043,11 +1067,11 @@ const TasksReports = () => {
           background: transparent !important;
         }
         .ant-checkbox-wrapper {
-            color: #fff !important;
+            color: ${themeWiseColor('#262626', '#fff', themeMode)} !important;
         }
 
         .dark-input::placeholder {
-          color: #555;
+          color: #8c8c8c;
         }
         .premium-input:focus {
           border-color: #1677ff !important;
@@ -1058,7 +1082,7 @@ const TasksReports = () => {
           margin-top: 32px !important;
         }
         .dark-pagination .ant-pagination-item a {
-          color: #8c8c8c !important;
+          color: ${themeWiseColor('#595959', '#8c8c8c', themeMode)} !important;
         }
         .dark-pagination .ant-pagination-item-active {
           background: #1677ff !important;
@@ -1068,11 +1092,11 @@ const TasksReports = () => {
           color: #fff !important;
         }
         .ant-table-pagination-right {
-          color: #8c8c8c;
+          color: ${themeWiseColor('#8c8c8c', '#8c8c8c', themeMode)};
         }
 
         .ant-table-column-sorter {
-          color: #444 !important;
+          color: ${themeWiseColor('#d9d9d9', '#444', themeMode)} !important;
         }
         .ant-table-column-sorter-up.active, 
         .ant-table-column-sorter-down.active {
@@ -1086,17 +1110,17 @@ const TasksReports = () => {
         }
         .reporting-table-container .ant-table-body::-webkit-scrollbar-track,
         .reporting-table-container .ant-table-content::-webkit-scrollbar-track {
-          background: #141414 !important;
+          background: ${themeWiseColor('#f5f5f5', '#141414', themeMode)} !important;
           border-radius: 4px;
         }
         .reporting-table-container .ant-table-body::-webkit-scrollbar-thumb,
         .reporting-table-container .ant-table-content::-webkit-scrollbar-thumb {
-          background: #333 !important;
+          background: ${themeWiseColor('#d9d9d9', '#333', themeMode)} !important;
           border-radius: 4px;
         }
         .reporting-table-container .ant-table-body::-webkit-scrollbar-thumb:hover,
         .reporting-table-container .ant-table-content::-webkit-scrollbar-thumb:hover {
-          background: #444 !important;
+          background: ${themeWiseColor('#bfbfbf', '#444', themeMode)} !important;
         }
 
         /* Ensure horizontal scroll is enabled when many columns are visible */

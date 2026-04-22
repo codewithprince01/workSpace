@@ -1,9 +1,17 @@
-import { Navigate, RouteObject } from 'react-router-dom';
+import { lazy, Suspense } from 'react';
+import { RouteObject } from 'react-router-dom';
+import { SuspenseFallback } from '@/components/suspense-fallback/suspense-fallback';
+
+const LandingPage = lazy(() => import('@/pages/landing/LandingPage'));
 
 const rootRoutes: RouteObject[] = [
   {
     path: '/',
-    element: <Navigate to="/auth/login" replace />,
+    element: (
+      <Suspense fallback={<SuspenseFallback />}>
+        <LandingPage />
+      </Suspense>
+    ),
   },
 ];
 

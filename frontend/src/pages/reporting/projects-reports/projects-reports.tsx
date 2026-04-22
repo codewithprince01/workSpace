@@ -14,6 +14,7 @@ import { useAppDispatch } from '@/hooks/useAppDispatch';
 import { useAuthService } from '@/hooks/useAuth';
 import { reportingExportApiService } from '@/api/reporting/reporting-export.api.service';
 import { fetchProjectData, resetProjectReports } from '@/features/reporting/projectReports/project-reports-slice';
+import { themeWiseColor } from '@/utils/themeWiseColor';
 
 const ProjectsReports = () => {
   const { t } = useTranslation('reporting-projects');
@@ -51,12 +52,14 @@ const ProjectsReports = () => {
     [t, handleExcelExport]
   );
 
+  const themeMode = useAppSelector(state => state.themeReducer.mode);
+
   // Memoize the header children to prevent recreation on every render
   const headerChildren = useMemo(
     () => (
       <Space size={12}>
         <Checkbox 
-          style={{ color: '#8c8c8c', fontSize: '13px' }}
+          style={{ color: themeWiseColor('#595959', '#8c8c8c', themeMode), fontSize: '13px' }}
           checked={archived} 
           onChange={handleArchivedChange}
         >
@@ -69,9 +72,9 @@ const ProjectsReports = () => {
           onClick={() => dispatch(fetchProjectData())}
           style={{ 
             borderRadius: '6px', 
-            backgroundColor: '#262626', 
+            backgroundColor: themeWiseColor('#f5f5f5', '#262626', themeMode), 
             border: 'none', 
-            color: '#bfbfbf', 
+            color: themeWiseColor('#595959', '#bfbfbf', themeMode), 
             fontSize: '13px'
           }}
         >
@@ -86,9 +89,9 @@ const ProjectsReports = () => {
           }} 
           style={{ 
             borderRadius: '6px', 
-            backgroundColor: '#262626', 
+            backgroundColor: themeWiseColor('#f5f5f5', '#262626', themeMode), 
             border: 'none', 
-            color: '#bfbfbf', 
+            color: themeWiseColor('#595959', '#bfbfbf', themeMode), 
             fontSize: '13px'
           }}
         >
@@ -102,7 +105,7 @@ const ProjectsReports = () => {
         </Dropdown>
       </Space>
     ),
-    [archived, handleArchivedChange, t, dropdownMenuItems]
+    [archived, handleArchivedChange, t, dropdownMenuItems, themeMode]
   );
 
   // Memoize the card title to prevent recreation on every render

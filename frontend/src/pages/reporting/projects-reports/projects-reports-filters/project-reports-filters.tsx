@@ -13,6 +13,7 @@ import { useAppDispatch } from '@/hooks/useAppDispatch';
 import { setSearchQuery, setViewMode, fetchProjectReportingFilters, fetchProjectData, resetProjectReports } from '@/features/reporting/projectReports/project-reports-slice';
 import { AppstoreOutlined, UnorderedListOutlined, ReloadOutlined } from '@/shared/antd-imports';
 import { useEffect } from 'react';
+import { themeWiseColor } from '@/utils/themeWiseColor';
 
 const ProjectsReportsFilters = () => {
   const dispatch = useAppDispatch();
@@ -46,13 +47,15 @@ const ProjectsReportsFilters = () => {
     [dispatch]
   );
 
+  const themeMode = useAppSelector(state => state.themeReducer.mode);
+
   const rightControls = useMemo(
     () => (
       <Flex gap={8} align="center">
         {/* Table / Grouped toggle - styled like the screenshot */}
         <Flex
           style={{
-            border: '1px solid #d9d9d9',
+            border: `1px solid ${themeWiseColor('#d9d9d9', '#333', themeMode)}`,
             borderRadius: 6,
             overflow: 'hidden',
           }}
@@ -67,6 +70,8 @@ const ProjectsReportsFilters = () => {
                 border: 'none',
                 boxShadow: 'none',
                 paddingInline: 12,
+                backgroundColor: viewMode === 'table' ? undefined : 'transparent',
+                color: viewMode === 'table' ? '#fff' : themeWiseColor('#595959', '#bfbfbf', themeMode)
               }}
             >
               Table
@@ -80,9 +85,11 @@ const ProjectsReportsFilters = () => {
               style={{
                 borderRadius: 0,
                 border: 'none',
-                borderLeft: '1px solid #d9d9d9',
+                borderLeft: `1px solid ${themeWiseColor('#d9d9d9', '#333', themeMode)}`,
                 boxShadow: 'none',
                 paddingInline: 12,
+                backgroundColor: viewMode === 'grouped' ? undefined : 'transparent',
+                color: viewMode === 'grouped' ? '#fff' : themeWiseColor('#595959', '#bfbfbf', themeMode)
               }}
             >
               Grouped
@@ -98,7 +105,7 @@ const ProjectsReportsFilters = () => {
         />
       </Flex>
     ),
-    [t, searchQuery, handleSearchQueryChange, viewMode, handleSetTable, handleSetGrouped]
+    [t, searchQuery, handleSearchQueryChange, viewMode, handleSetTable, handleSetGrouped, themeMode]
   );
 
   return (

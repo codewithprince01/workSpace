@@ -44,11 +44,14 @@ import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from '@/shared/constants';
 import { teamMembersApiService } from '@/api/team-members/teamMembers.api.service';
 import { colors } from '@/styles/colors';
 
+import { themeWiseColor } from '@/utils/themeWiseColor';
+
 const TeamMembersSettings = () => {
   const { t } = useTranslation('settings/team-members');
   const dispatch = useAppDispatch();
   const { socket } = useSocket();
   const refreshTeamMembers = useAppSelector(state => state.memberReducer.refreshTeamMembers);
+  const themeMode = useAppSelector(state => state.themeReducer.mode);
 
   useDocumentTitle(t('title') || 'Team Members');
 
@@ -229,7 +232,7 @@ const TeamMembersSettings = () => {
             {record.name?.charAt(0)}
           </Avatar>
           <Flex align="center" gap={8}>
-            <Typography.Text style={{ color: '#d1d1d1', fontSize: 13 }}>
+            <Typography.Text style={{ color: themeWiseColor('#262626', '#d1d1d1', themeMode), fontSize: 13 }}>
               {record.name}
             </Typography.Text>
             {record.is_online && <Badge color="#52c41a" />}
@@ -247,7 +250,7 @@ const TeamMembersSettings = () => {
       dataIndex: 'projects_count',
       title: 'Projects',
       sorter: true,
-      render: (count) => <Typography.Text style={{ color: '#d1d1d1', fontSize: 13 }}>{count || 0}</Typography.Text>,
+      render: (count) => <Typography.Text style={{ color: themeWiseColor('#262626', '#d1d1d1', themeMode), fontSize: 13 }}>{count || 0}</Typography.Text>,
     },
     {
       key: 'email',
@@ -256,7 +259,7 @@ const TeamMembersSettings = () => {
       sorter: true,
       render: (email, record) => (
         <Flex align="center" gap={8}>
-          <Typography.Text style={{ color: '#d1d1d1', fontSize: 13 }}>{email}</Typography.Text>
+          <Typography.Text style={{ color: themeWiseColor('#262626', '#d1d1d1', themeMode), fontSize: 13 }}>{email}</Typography.Text>
           {record.pending_invitation && (
             <Typography.Text style={{ fontSize: 12, color: '#707070' }}>
               (Invitation pending)
@@ -317,41 +320,41 @@ const TeamMembersSettings = () => {
   };
 
   return (
-    <div style={{ padding: '24px 0', width: '100%', background: '#121212', minHeight: '100vh' }}>
+    <div style={{ padding: '24px 0', width: '100%', background: themeWiseColor('#ffffff', '#121212', themeMode), minHeight: '100vh' }}>
       <style>{`
         .ant-table {
           background: transparent !important;
         }
         .ant-table-thead > tr > th {
           background: transparent !important;
-          color: #909090 !important;
-          border-bottom: 0.5px solid #303030 !important;
+          color: ${themeWiseColor('#8c8c8c', '#909090', themeMode)} !important;
+          border-bottom: 0.5px solid ${themeWiseColor('#f0f0f0', '#303030', themeMode)} !important;
           font-weight: 500 !important;
           font-size: 13px !important;
           padding: 12px 16px !important;
         }
         .ant-table-tbody > tr > td {
-          border-bottom: 0.5px solid #202020 !important;
+          border-bottom: 0.5px solid ${themeWiseColor('#f0f0f0', '#202020', themeMode)} !important;
           padding: 12px 16px !important;
           background: transparent !important;
         }
         .ant-table-row:hover > td {
-          background: rgba(255, 255, 255, 0.02) !important;
+          background: ${themeWiseColor('rgba(0, 0, 0, 0.02)', 'rgba(255, 255, 255, 0.02)', themeMode)} !important;
         }
         .ant-card {
-          background: #1e1e1e !important;
-          border: 1px solid #303030 !important;
+          background: ${themeWiseColor('#ffffff', '#1e1e1e', themeMode)} !important;
+          border: 1px solid ${themeWiseColor('#f0f0f0', '#303030', themeMode)} !important;
           border-radius: 8px !important;
         }
         .ant-input-affix-wrapper {
-          background: #121212 !important;
-          border: 1px solid #303030 !important;
-          color: #fff !important;
+          background: ${themeWiseColor('#fafafa', '#121212', themeMode)} !important;
+          border: 1px solid ${themeWiseColor('#d9d9d9', '#303030', themeMode)} !important;
+          color: ${themeWiseColor('#262626', '#fff', themeMode)} !important;
           border-radius: 6px !important;
         }
         .ant-input {
           background: transparent !important;
-          color: #fff !important;
+          color: ${themeWiseColor('#262626', '#fff', themeMode)} !important;
           font-size: 13px !important;
         }
         .ant-btn-primary {
@@ -362,10 +365,10 @@ const TeamMembersSettings = () => {
         }
         .ant-pagination-item {
           background: transparent !important;
-          border: 1px solid #303030 !important;
+          border: 1px solid ${themeWiseColor('#d9d9d9', '#303030', themeMode)} !important;
         }
         .ant-pagination-item a {
-          color: #707070 !important;
+          color: ${themeWiseColor('#595959', '#707070', themeMode)} !important;
         }
         .ant-pagination-item-active {
           background: #0087f5 !important;
@@ -377,38 +380,39 @@ const TeamMembersSettings = () => {
         .ant-pagination-prev .ant-pagination-item-link,
         .ant-pagination-next .ant-pagination-item-link {
           background: transparent !important;
-          border-color: #303030 !important;
-          color: #707070 !important;
+          border-color: ${themeWiseColor('#d9d9d9', '#303030', themeMode)} !important;
+          color: ${themeWiseColor('#595959', '#707070', themeMode)} !important;
         }
         .ant-table-column-sorter {
-          color: #707070 !important;
+          color: ${themeWiseColor('#d9d9d9', '#707070', themeMode)} !important;
         }
         .ant-checkbox-inner {
           background-color: transparent !important;
-          border-color: #404040 !important;
+          border-color: ${themeWiseColor('#d9d9d9', '#404040', themeMode)} !important;
         }
         .ant-checkbox-checked .ant-checkbox-inner {
           background-color: #0087f5 !important;
           border-color: #0087f5 !important;
         }
         .ant-select-selector {
-          background-color: #2a2a2a !important;
-          border-color: #404040 !important;
-          color: #fff !important;
+          background-color: ${themeWiseColor('#ffffff', '#2a2a2a', themeMode)} !important;
+          border-color: ${themeWiseColor('#d9d9d9', '#404040', themeMode)} !important;
+          color: ${themeWiseColor('#262626', '#fff', themeMode)} !important;
         }
       `}</style>
 
       <Flex align="center" justify="space-between" style={{ padding: '0 8px', marginBlockEnd: 24 }}>
         <Flex align="center" gap={16}>
-          <Typography.Title level={4} style={{ margin: 0, color: '#fff', fontWeight: 600 }}>
+          <Typography.Title level={4} style={{ margin: 0, color: themeWiseColor('#262626', '#fff', themeMode), fontWeight: 600 }}>
             {model.total} {model.total !== 1 ? t('membersCountPlural') : t('memberCount')}
           </Typography.Title>
           <Button 
             type="text" 
             shape="circle" 
-            icon={<ReloadOutlined style={{ color: '#707070' }} />} 
+            icon={<ReloadOutlined style={{ color: themeWiseColor('#8c8c8c', '#8c8c8c', themeMode) }} />} 
             onClick={handleRefresh}
             loading={isLoading}
+            style={{ color: themeWiseColor('#595959', '#bfbfbf', themeMode) }}
           />
         </Flex>
 
@@ -417,8 +421,9 @@ const TeamMembersSettings = () => {
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             placeholder={t('searchPlaceholder')}
-            style={{ width: 280, borderRadius: 8 }}
-            prefix={<SearchOutlined style={{ color: '#707070' }} />}
+            style={{ width: 280, borderRadius: 8, backgroundColor: themeWiseColor('#fff', '#121212', themeMode), color: themeWiseColor('#262626', '#fff', themeMode), border: `1px solid ${themeWiseColor('#d9d9d9', '#303030', themeMode)}` }}
+            prefix={<SearchOutlined style={{ color: themeWiseColor('#8c8c8c', '#8c8c8c', themeMode) }} />}
+            className="premium-input"
           />
           <Button 
             type="primary" 
@@ -431,7 +436,7 @@ const TeamMembersSettings = () => {
           <Tooltip title={t('pinTooltip')}>
             <Button 
               type="text" 
-              icon={<PushpinOutlined style={{ color: '#707070', fontSize: 20 }} />} 
+              icon={<PushpinOutlined style={{ color: themeWiseColor('#8c8c8c', '#8c8c8c', themeMode), fontSize: 20 }} />} 
             />
           </Tooltip>
         </Flex>

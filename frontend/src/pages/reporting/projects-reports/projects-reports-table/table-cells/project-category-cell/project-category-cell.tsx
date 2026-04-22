@@ -96,13 +96,25 @@ const ProjectCategoryCell = ({ id, name, color_code, projectId }: ProjectCategor
     {
       key: '1',
       label: (
-        <Card className="project-category-dropdown-card" variant="borderless">
+        <Card 
+            className="project-category-dropdown-card" 
+            variant="borderless"
+            style={{ 
+                backgroundColor: themeWiseColor('#ffffff', '#262626', themeMode), 
+                padding: 0
+            }}
+        >
           <Flex vertical gap={4}>
             <Input
               ref={categoryInputRef}
               value={searchQuery}
               onChange={e => setSearchQuery(e.currentTarget.value)}
               placeholder={t('searchByNameInputPlaceholder')}
+              style={{
+                  backgroundColor: themeWiseColor('#fafafa', '#333', themeMode),
+                  color: themeWiseColor('#262626', '#fff', themeMode),
+                  border: `1px solid ${themeWiseColor('#d9d9d9', '#434343', themeMode)}`
+              }}
               onKeyDown={e => {
                 const isCategory = filteredCategoriesData.findIndex(
                   category => category.name?.toLowerCase() === searchQuery.toLowerCase()
@@ -114,13 +126,19 @@ const ProjectCategoryCell = ({ id, name, color_code, projectId }: ProjectCategor
               }}
             />
             {filteredCategoriesData.length === 0 && (
-              <Typography.Text style={{ color: colors.lightGray }}>
+              <Typography.Text style={{ color: themeWiseColor('#8c8c8c', '#595959', themeMode), fontSize: '12px', paddingLeft: '4px' }}>
                 Hit enter to create!
               </Typography.Text>
             )}
           </Flex>
 
-          <Menu className="project-category-menu" items={categoryOptions} onClick={onClick} />
+          <Menu 
+            theme={themeMode === 'dark' ? 'dark' : 'light'}
+            className="project-category-menu" 
+            items={categoryOptions} 
+            onClick={onClick} 
+            style={{ backgroundColor: 'transparent', border: 'none', marginTop: '8px' }}
+          />
         </Card>
       ),
     },

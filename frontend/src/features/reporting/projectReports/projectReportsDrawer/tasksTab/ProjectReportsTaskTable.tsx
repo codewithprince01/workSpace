@@ -1,5 +1,7 @@
 import { Badge, Collapse, Flex, Table, TableColumnsType, Tag, Typography } from '@/shared/antd-imports';
 import { useEffect } from 'react';
+import { useAppSelector } from '@/hooks/useAppSelector';
+import { themeWiseColor } from '@/utils/themeWiseColor';
 import CustomTableTitle from '@/components/CustomTableTitle';
 import { colors } from '@/styles/colors';
 import dayjs from 'dayjs';
@@ -168,6 +170,8 @@ const ProjectReportsTasksTable = ({
     else return columns;
   };
 
+  const themeMode = useAppSelector(state => state.themeReducer.mode);
+
   return (
     <Collapse
       bordered={false}
@@ -179,7 +183,12 @@ const ProjectReportsTasksTable = ({
           label: (
             <Flex gap={8} align="center">
               <Badge color={color} />
-              <Typography.Text strong>{`${title} (${tasksData.length})`}</Typography.Text>
+              <Typography.Text 
+                strong 
+                style={{ color: themeWiseColor('#262626', '#fff', themeMode) }}
+              >
+                {`${title} (${tasksData.length})`}
+              </Typography.Text>
             </Flex>
           ),
           children: (
@@ -191,7 +200,7 @@ const ProjectReportsTasksTable = ({
               onRow={record => {
                 return {
                   style: { height: 38, cursor: 'pointer' },
-                  className: 'group even:bg-[#4e4e4e10]',
+                  className: `group ${themeMode === 'dark' ? 'even:bg-[#4e4e4e10]' : 'even:bg-[#00000005]'}`,
                 };
               }}
             />

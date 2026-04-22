@@ -9,6 +9,7 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
+import { themeWiseColor } from '@/utils/themeWiseColor';
 
 dayjs.extend(relativeTime);
 
@@ -76,11 +77,13 @@ const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
 const ReactionDisplay = ({ 
   reactions, 
   currentUserId, 
-  onToggle 
+  onToggle,
+  themeMode
 }: { 
   reactions: ChatReaction[]; 
   currentUserId: string;
   onToggle: (emoji: string, alreadyReacted: boolean) => void;
+  themeMode: any;
 }) => {
   if (!reactions || reactions.length === 0) return null;
 
@@ -99,8 +102,8 @@ const ReactionDisplay = ({
                 alignItems: 'center',
                 gap: 4,
                 padding: '2px 6px',
-                background: isSelected ? '#1677ff20' : '#1f1f1f',
-                border: `1px solid ${isSelected ? '#1677ff' : '#303030'}`,
+                background: isSelected ? '#1677ff20' : themeWiseColor('#f5f5f5', '#1f1f1f', themeMode),
+                border: `1px solid ${isSelected ? '#1677ff' : themeWiseColor('#d9d9d9', '#303030', themeMode)}`,
                 borderRadius: 8,
                 cursor: 'pointer',
                 fontSize: 12,
@@ -108,7 +111,7 @@ const ReactionDisplay = ({
               }}
             >
               <span>{r.emoji}</span>
-              <span style={{ color: isSelected ? '#1677ff' : '#8c8c8c', fontWeight: 600 }}>{r.users.length}</span>
+              <span style={{ color: isSelected ? '#1677ff' : themeWiseColor('#8c8c8c', '#8c8c8c', themeMode), fontWeight: 600 }}>{r.users.length}</span>
             </div>
           </Tooltip>
         );
@@ -117,8 +120,16 @@ const ReactionDisplay = ({
   );
 };
 
-const ReactionActions = ({ onSelect }: { onSelect: (emoji: string) => void }) => (
-  <div style={{ display: 'flex', gap: 8, padding: '4px 8px', background: '#1a1a1a', borderRadius: 8, border: '1px solid #303030', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
+const ReactionActions = ({ onSelect, themeMode }: { onSelect: (emoji: string) => void; themeMode: any }) => (
+  <div style={{ 
+    display: 'flex', 
+    gap: 8, 
+    padding: '4px 8px', 
+    background: themeWiseColor('#ffffff', '#1a1a1a', themeMode), 
+    borderRadius: 8, 
+    border: `1px solid ${themeWiseColor('#d9d9d9', '#303030', themeMode)}`, 
+    boxShadow: themeWiseColor('0 4px 12px rgba(0,0,0,0.1)', '0 4px 12px rgba(0,0,0,0.5)', themeMode) 
+  }}>
     {QUICK_REACTIONS.map(emoji => (
       <span
         key={emoji}
@@ -180,6 +191,7 @@ const ProjectViewUpdates = () => {
 
   // Get projectId from BOTH Redux and URL params (fallback)
   const reduxProjectId = useAppSelector(state => state.projectReducer.projectId);
+  const themeMode = useAppSelector(state => state.themeReducer.mode);
   const { projectId: urlProjectId } = useParams<{ projectId: string }>();
   const projectId = reduxProjectId || urlProjectId;
 
@@ -390,24 +402,6 @@ const ProjectViewUpdates = () => {
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInput(e.target.value);
-    if (!socket || !projectId) return;
-    
-    if (!isTyping) {
-      socket.emit('typing_start', { projectId });
-      setIsTyping(true);
-    }
-    
-    // Auto-stop after 2.5s of silence
-    const timer = setTimeout(() => {
-      socket.emit('typing_stop', { projectId });
-      setIsTyping(false);
-    }, 2500);
-    
-    return () => clearTimeout(timer); // Note: this won't work in a raw handler, using ref instead
-  };
-
   // Ref-based debounce for typing_stop
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleInputWithDebounce = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -465,7 +459,6 @@ const ProjectViewUpdates = () => {
     const after = text.substring(end);
     
     setInput(before + emoji + after);
-    // setShowEmojiPicker(false); // Fix: Keep open for multi-select
 
     // Maintain focus and set cursor after the new emoji
     setTimeout(() => {
@@ -493,30 +486,30 @@ const ProjectViewUpdates = () => {
       flexDirection: 'column',
       height: 'calc(100vh - 180px)',
       minHeight: 500,
-      background: '#141414',
+      background: themeWiseColor('#ffffff', '#141414', themeMode),
       borderRadius: 12,
       overflow: 'hidden',
-      border: '1px solid #1f1f1f',
+      border: `1px solid ${themeWiseColor('#f0f0f0', '#1f1f1f', themeMode)}`,
     }}>
       {/* ── Header ── */}
       <div style={{
         padding: '10px 16px',
-        borderBottom: '1px solid #1f1f1f',
-        background: '#1a1a1a',
+        borderBottom: `1px solid ${themeWiseColor('#f0f0f0', '#1f1f1f', themeMode)}`,
+        background: themeWiseColor('#fafafa', '#1a1a1a', themeMode),
         display: 'flex',
         alignItems: 'center',
         gap: 8,
       }}>
         <div style={{
           width: 8, height: 8, borderRadius: '50%',
-          background: connected ? '#52c41a' : '#595959',
+          background: connected ? '#52c41a' : '#8c8c8c',
           boxShadow: connected ? '0 0 6px #52c41a80' : 'none',
           transition: 'all 0.3s',
         }} />
-        <Typography.Text style={{ color: '#d9d9d9', fontWeight: 600, fontSize: 14 }}>
+        <Typography.Text style={{ color: themeWiseColor('#262626', '#d9d9d9', themeMode), fontWeight: 600, fontSize: 14 }}>
           Project Chat
         </Typography.Text>
-        <Typography.Text style={{ color: '#434343', fontSize: 11, marginLeft: 'auto' }}>
+        <Typography.Text style={{ color: themeWiseColor('#8c8c8c', '#434343', themeMode), fontSize: 11, marginLeft: 'auto' }}>
           {connected ? 'Live' : 'Reconnecting...'}
         </Typography.Text>
       </div>
@@ -544,7 +537,7 @@ const ProjectViewUpdates = () => {
             flex: 1, gap: 12, opacity: 0.5,
           }}>
             <div style={{ fontSize: 36 }}>💬</div>
-            <Typography.Text style={{ color: '#595959', fontSize: 13 }}>
+            <Typography.Text style={{ color: themeWiseColor('#8c8c8c', '#595959', themeMode), fontSize: 13 }}>
               No messages yet. Be the first!
             </Typography.Text>
           </div>
@@ -560,15 +553,15 @@ const ProjectViewUpdates = () => {
                       display: 'flex', alignItems: 'center', gap: 10,
                       margin: '14px 0 8px',
                     }}>
-                      <div style={{ flex: 1, height: 1, background: '#262626' }} />
+                      <div style={{ flex: 1, height: 1, background: themeWiseColor('#f0f0f0', '#262626', themeMode) }} />
                       <span style={{
-                        color: '#434343', fontSize: 11, padding: '2px 10px',
-                        background: '#1a1a1a', borderRadius: 99, border: '1px solid #262626',
+                        color: themeWiseColor('#8c8c8c', '#434343', themeMode), fontSize: 11, padding: '2px 10px',
+                        background: themeWiseColor('#fafafa', '#1a1a1a', themeMode), borderRadius: 99, border: `1px solid ${themeWiseColor('#f0f0f0', '#262626', themeMode)}`,
                         whiteSpace: 'nowrap',
                       }}>
                         {dateLabel}
                       </span>
-                      <div style={{ flex: 1, height: 1, background: '#262626' }} />
+                      <div style={{ flex: 1, height: 1, background: themeWiseColor('#f0f0f0', '#262626', themeMode) }} />
                     </div>
                   )}
 
@@ -619,7 +612,7 @@ const ProjectViewUpdates = () => {
                               {msg.username}
                             </span>
                           )}
-                          <span style={{ color: '#434343', fontSize: 11 }}>
+                          <span style={{ color: themeWiseColor('#bfbfbf', '#434343', themeMode), fontSize: 11 }}>
                             {formatTime(msg.timestamp)}
                           </span>
                         </div>
@@ -640,9 +633,9 @@ const ProjectViewUpdates = () => {
                           padding: '7px 13px',
                           borderRadius: isOwn ? '14px 4px 14px 14px' : '4px 14px 14px 14px',
                           background: msg.isDeleted || msg.message === 'This message was deleted'
-                            ? '#262626' // Always neutral grey for deleted
-                            : (isOwn ? 'linear-gradient(135deg, #1677ff, #0958d9)' : '#1f1f1f'),
-                          color: (msg.isDeleted || msg.message === 'This message was deleted') ? '#8c8c8c' : (isOwn ? '#fff' : '#d9d9d9'),
+                            ? themeWiseColor('#f5f5f5', '#262626', themeMode) // Always neutral grey for deleted
+                            : (isOwn ? 'linear-gradient(135deg, #1677ff, #0958d9)' : themeWiseColor('#f0f0f0', '#1f1f1f', themeMode)),
+                          color: (msg.isDeleted || msg.message === 'This message was deleted') ? '#8c8c8c' : (isOwn ? '#fff' : themeWiseColor('#262626', '#d9d9d9', themeMode)),
                           fontSize: 14, lineHeight: 1.5,
                           fontStyle: (msg.isDeleted || msg.message === 'This message was deleted') ? 'italic' : 'normal',
                           wordBreak: 'break-word', whiteSpace: 'pre-wrap',
@@ -651,7 +644,7 @@ const ProjectViewUpdates = () => {
                             : (isOwn ? '0 2px 6px rgba(22,119,255,0.3)' : 'none'),
                           opacity: msg.pending ? 0.55 : 1,
                           transition: 'all 0.2s',
-                          border: msg.isDeleted ? '1px solid #303030' : 'none',
+                          border: msg.isDeleted ? `1px solid ${themeWiseColor('#d9d9d9', '#303030', themeMode)}` : 'none',
                         }}>
                           {msg.message}
                         </div>
@@ -678,7 +671,7 @@ const ProjectViewUpdates = () => {
                             {/* Reaction button (ONLY for non-deleted) */}
                             {!msg.isDeleted && (
                               <Popover
-                                content={<ReactionActions onSelect={(emoji) => handleReactionToggle(msg.id, emoji, false)} />}
+                                content={<ReactionActions themeMode={themeMode} onSelect={(emoji) => handleReactionToggle(msg.id, emoji, false)} />}
                                 trigger="click"
                                 placement="top"
                                 overlayInnerStyle={{ padding: 0 }}
@@ -688,7 +681,7 @@ const ProjectViewUpdates = () => {
                                   className="chat-action-btn"
                                   style={{
                                     background: 'transparent', border: 'none',
-                                    cursor: 'pointer', color: '#8c8c8c',
+                                    cursor: 'pointer', color: themeWiseColor('#8c8c8c', '#8c8c8c', themeMode),
                                     padding: '2px 4px', borderRadius: 4,
                                     opacity: 0, transition: 'opacity 0.15s',
                                     fontSize: 13,
@@ -708,13 +701,14 @@ const ProjectViewUpdates = () => {
                           reactions={msg.reactions} 
                           currentUserId={currentUserId} 
                           onToggle={(emoji, alreadyReacted) => handleReactionToggle(msg.id, emoji, alreadyReacted)} 
+                          themeMode={themeMode}
                         />
                       )}
 
                       {/* Timestamp for grouped messages + seen */}
                       {!showHeader && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginTop: 1 }}>
-                          <span style={{ color: '#303030', fontSize: 10 }}>
+                          <span style={{ color: themeWiseColor('#bfbfbf', '#303030', themeMode), fontSize: 10 }}>
                             {formatTime(msg.timestamp)}
                           </span>
                           <SeenStatus msg={msg} currentUserId={currentUserId} />
@@ -742,7 +736,7 @@ const ProjectViewUpdates = () => {
                 }} />
               ))}
             </div>
-            <span style={{ color: '#595959', fontSize: 12, fontStyle: 'italic' }}>{typingText}</span>
+            <span style={{ color: themeWiseColor('#8c8c8c', '#595959', themeMode), fontSize: 12, fontStyle: 'italic' }}>{typingText}</span>
           </div>
         )}
 
@@ -752,8 +746,8 @@ const ProjectViewUpdates = () => {
       {/* ── Input ── */}
       <div style={{
         padding: '10px 14px',
-        borderTop: '1px solid #1f1f1f',
-        background: '#1a1a1a',
+        borderTop: `1px solid ${themeWiseColor('#f0f0f0', '#1f1f1f', themeMode)}`,
+        background: themeWiseColor('#fafafa', '#1a1a1a', themeMode),
         display: 'flex', gap: 10, alignItems: 'flex-end',
       }}>
         <div style={{ flex: 1, position: 'relative' }}>
@@ -767,9 +761,9 @@ const ProjectViewUpdates = () => {
             maxLength={2000}
             disabled={!connected}
             style={{
-              background: '#141414',
-              border: '1px solid #262626',
-              borderRadius: 12, color: '#d9d9d9',
+              background: themeWiseColor('#ffffff', '#141414', themeMode),
+              border: `1px solid ${themeWiseColor('#d9d9d9', '#262626', themeMode)}`,
+              borderRadius: 12, color: themeWiseColor('#262626', '#d9d9d9', themeMode),
               resize: 'none', fontSize: 14,
               transition: 'border-color 0.2s',
               paddingRight: 55, // Increased padding
@@ -793,7 +787,7 @@ const ProjectViewUpdates = () => {
               content={
                 <div style={{ 
                   height: 435, 
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.5)', 
+                  boxShadow: themeWiseColor('0 8px 24px rgba(0,0,0,0.1)', '0 8px 24px rgba(0,0,0,0.5)', themeMode), 
                   borderRadius: 12, 
                   overflow: 'hidden',
                   zIndex: 9999
@@ -801,7 +795,7 @@ const ProjectViewUpdates = () => {
                   <Picker 
                     data={data} 
                     onEmojiSelect={onEmojiSelect}
-                    theme="dark"
+                    theme={themeMode === 'dark' ? 'dark' : 'light'}
                     set="native"
                   />
                 </div>
@@ -821,7 +815,7 @@ const ProjectViewUpdates = () => {
             </Popover>
 
             {input.length > 0 && (
-              <span style={{ color: '#303030', fontSize: 10, pointerEvents: 'none' }}>
+              <span style={{ color: themeWiseColor('#bfbfbf', '#303030', themeMode), fontSize: 10, pointerEvents: 'none' }}>
                 {input.length}/2000
               </span>
             )}
@@ -834,12 +828,12 @@ const ProjectViewUpdates = () => {
           style={{
             background: input.trim() && connected
               ? 'linear-gradient(135deg, #1677ff, #0958d9)'
-              : '#1f1f1f',
+              : themeWiseColor('#f5f5f5', '#1f1f1f', themeMode),
             border: 'none', borderRadius: 12,
             width: 40, height: 40, minWidth: 40,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             cursor: input.trim() && connected ? 'pointer' : 'not-allowed',
-            color: input.trim() && connected ? '#fff' : '#434343',
+            color: input.trim() && connected ? '#fff' : themeWiseColor('#bfbfbf', '#434343', themeMode),
             transition: 'all 0.2s', flexShrink: 0,
             boxShadow: input.trim() && connected ? '0 2px 8px rgba(22,119,255,0.4)' : 'none',
           }}
@@ -858,15 +852,15 @@ const ProjectViewUpdates = () => {
         footer={null}
         width={350}
         centered
-        styles={{ body: { padding: '20px 24px' } }}
+        styles={{ body: { padding: '20px 24px', backgroundColor: themeWiseColor('#fff', '#1f1f1f', themeMode) } }}
       >
-        <div style={{ marginBottom: 20, color: '#d9d9d9' }}>
+        <div style={{ marginBottom: 20, color: themeWiseColor('#262626', '#d9d9d9', themeMode) }}>
           What would you like to do with this message?
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <Button 
             onClick={() => handleDeleteFinal('me')}
-            style={{ borderRadius: 6, background: '#1f1f1f', color: '#d9d9d9', border: '1px solid #303030' }}
+            style={{ borderRadius: 6, background: themeWiseColor('#f5f5f5', '#1f1f1f', themeMode), color: themeWiseColor('#262626', '#d9d9d9', themeMode), border: `1px solid ${themeWiseColor('#d9d9d9', '#303030', themeMode)}` }}
           >
             Remove from my chat
           </Button>
@@ -907,7 +901,16 @@ const ProjectViewUpdates = () => {
         .dot-1 { animation-delay: 0.15s; }
         .dot-2 { animation-delay: 0.30s; }
         div[style*="overflow-y: auto"]::-webkit-scrollbar { width: 5px; }
-        div[style*="overflow-y: auto"]::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 99px; }
+        div[style*="overflow-y: auto"]::-webkit-scrollbar-thumb { 
+            background: ${themeWiseColor('#d9d9d9', '#2a2a2a', themeMode)}; 
+            border-radius: 99px; 
+        }
+        .ant-modal-content, .ant-modal-header {
+            background-color: ${themeWiseColor('#fff', '#1f1f1f', themeMode)} !important;
+        }
+        .ant-modal-title {
+            color: ${themeWiseColor('#262626', '#fff', themeMode)} !important;
+        }
       `}</style>
     </div>
   );

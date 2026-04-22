@@ -4,14 +4,17 @@ import { Outlet } from 'react-router-dom';
 import { useMediaQuery } from 'react-responsive';
 import AdminCenterSidebar from '@/pages/admin-center/sidebar/sidebar';
 import { useTranslation } from 'react-i18next';
+import { useAppSelector } from '@/hooks/useAppSelector';
+import { themeWiseColor } from '@/utils/themeWiseColor';
 
 const AdminCenterLayout: React.FC = () => {
   const isTablet = useMediaQuery({ query: '(min-width:768px)' });
   const { t } = useTranslation('admin-center/sidebar');
+  const themeMode = useAppSelector(state => state.themeReducer.mode);
 
   return (
-    <div className="my-6" style={{ backgroundColor: '#121417', minHeight: '100vh' }}>
-      <Typography.Title level={4}>{t('adminCenter')}</Typography.Title>
+    <div className="my-6" style={{ backgroundColor: themeWiseColor('#ffffff', '#121417', themeMode), minHeight: '100vh', padding: '0 24px' }}>
+      <Typography.Title level={4} style={{ color: themeWiseColor('#262626', '#fff', themeMode), margin: 0 }}>{t('adminCenter')}</Typography.Title>
 
       {isTablet ? (
         <Flex

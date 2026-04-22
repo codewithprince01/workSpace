@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import React, { useMemo, useRef, useState, useCallback } from 'react';
 import { 
   setSelectedProjectManagers, 
   fetchProjectData 
@@ -9,6 +9,7 @@ import { IProjectManager } from '@/types/project/projectManager.types';
 import { CaretDownFilled, SearchOutlined } from '@/shared/antd-imports';
 import { Button, Card, Checkbox, Dropdown, Empty, Flex, Input, InputRef, List, Badge, Avatar } from '@/shared/antd-imports';
 import { useTranslation } from 'react-i18next';
+import { themeWiseColor } from '@/utils/themeWiseColor';
 
 const ProjectManagersFilterDropdown = () => {
   const dispatch = useAppDispatch();
@@ -22,6 +23,7 @@ const ProjectManagersFilterDropdown = () => {
     isFilterLoading: projectManagersLoading,
     selectedProjectManagers
   } = useAppSelector(state => state.projectReportsReducer);
+  const themeMode = useAppSelector(state => state.themeReducer.mode);
 
   const filteredProjectManagerData = useMemo(() => {
     return projectManagers.filter(m =>
@@ -51,10 +53,10 @@ const ProjectManagersFilterDropdown = () => {
   const dropdownContent = (
     <Card 
         style={{ 
-            backgroundColor: '#1d1d1d', 
-            border: '1px solid #333', 
+            backgroundColor: themeWiseColor('#ffffff', '#1d1d1d', themeMode), 
+            border: `1px solid ${themeWiseColor('#d9d9d9', '#333', themeMode)}`, 
             borderRadius: '8px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+            boxShadow: themeWiseColor('0 4px 12px rgba(0,0,0,0.1)', '0 4px 12px rgba(0,0,0,0.5)', themeMode),
             minWidth: '240px'
         }} 
         styles={{ body: { padding: '4px 0' } }}
@@ -66,7 +68,11 @@ const ProjectManagersFilterDropdown = () => {
           onChange={e => setSearchQuery(e.currentTarget.value)}
           placeholder={t('searchByNamePlaceholder')}
           prefix={<SearchOutlined style={{ color: '#888' }} />}
-          style={{ backgroundColor: '#262626', border: '1px solid #333', color: '#fff' }}
+          style={{ 
+            backgroundColor: themeWiseColor('#fafafa', '#262626', themeMode), 
+            border: `1px solid ${themeWiseColor('#d9d9d9', '#333', themeMode)}`, 
+            color: themeWiseColor('#262626', '#fff', themeMode) 
+          }}
         />
       </div>
 
@@ -84,7 +90,7 @@ const ProjectManagersFilterDropdown = () => {
                     background: isChecked(manager) ? 'rgba(24, 144, 255, 0.1)' : 'transparent',
                     transition: 'background 0.2s'
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#262626'}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = themeWiseColor('#f5f5f5', '#262626', themeMode)}
                 onMouseLeave={(e) => e.currentTarget.style.backgroundColor = isChecked(manager) ? 'rgba(24, 144, 255, 0.1)' : 'transparent'}
             >
                 <Checkbox
@@ -95,7 +101,7 @@ const ProjectManagersFilterDropdown = () => {
                     <Avatar size="small" src={manager.avatar_url} style={{ backgroundColor: '#8b5cf6' }}>
                         {manager.name.charAt(0)}
                     </Avatar>
-                    <span style={{ color: '#fff', fontSize: '13px', fontWeight: isChecked(manager) ? 600 : 400 }}>{manager.name}</span>
+                    <span style={{ color: themeWiseColor('#262626', '#fff', themeMode), fontSize: '13px', fontWeight: isChecked(manager) ? 600 : 400 }}>{manager.name}</span>
                 </Flex>
             </div>
           ))
@@ -106,21 +112,12 @@ const ProjectManagersFilterDropdown = () => {
       
       {selectedCount > 0 && (
           <div 
-            style={{ padding: '8px 16px', borderTop: '1px solid #333', textAlign: 'center' }}
-            onClick={(e) => {
-                e.stopPropagation();
-                // We'd need a dedicated clear action in the slice
-                // For now, let's just toggle each one or avoid it
-            }}
+            style={{ padding: '8px 16px', borderTop: `1px solid ${themeWiseColor('#f0f0f0', '#333', themeMode)}`, textAlign: 'center' }}
           >
             <Button 
                 type="text" 
                 size="small" 
                 style={{ color: '#888', fontSize: '12px' }}
-                onClick={() => {
-                   // This is complex because setSelectedProjectManagers toggles.
-                   // Let's implement a bulk set in the slice later.
-                }}
             >
                 Selection Active
             </Button>
@@ -141,9 +138,9 @@ const ProjectManagersFilterDropdown = () => {
         iconPosition="end"
         loading={projectManagersLoading}
         style={{
-            backgroundColor: isDropdownOpen ? '#262626' : '#1d1d1d',
-            borderColor: selectedCount > 0 || isDropdownOpen ? '#1890ff' : '#333',
-            color: selectedCount > 0 || isDropdownOpen ? '#1890ff' : '#bfbfbf',
+            backgroundColor: isDropdownOpen ? themeWiseColor('#e6f7ff', '#262626', themeMode) : themeWiseColor('#f5f5f5', '#1d1d1d', themeMode),
+            borderColor: selectedCount > 0 || isDropdownOpen ? '#1890ff' : themeWiseColor('#d9d9d9', '#333', themeMode),
+            color: selectedCount > 0 || isDropdownOpen ? '#1890ff' : themeWiseColor('#595959', '#bfbfbf', themeMode),
             borderRadius: '6px',
             height: '32px',
             fontSize: '13px',

@@ -9,6 +9,8 @@ import React, { ReactNode } from 'react';
 import { colors } from '../../../../../styles/colors';
 import { useTranslation } from 'react-i18next';
 import { IRPTOverviewProjectTasksStats } from '@/types/reporting/reporting.types';
+import { themeWiseColor } from '@/utils/themeWiseColor';
+import { useAppSelector } from '@/hooks/useAppSelector';
 
 const ProjectReportsStatCard = ({
   values,
@@ -49,13 +51,15 @@ const ProjectReportsStatCard = ({
     },
   ];
 
+  const themeMode = useAppSelector(state => state.themeReducer.mode);
+
   return (
     <Card style={{ width: '100%' }} loading={loading}>
       <Flex vertical gap={16} style={{ padding: '12px 24px' }}>
         {statItems.map(item => (
           <Flex gap={12} align="center" key={item.name}>
             {item.icon}
-            <Typography.Text style={{ fontSize: '16px', color: '#fff' }}>
+            <Typography.Text style={{ fontSize: '16px', color: themeWiseColor('#262626', '#fff', themeMode) }}>
               {item.value} {t(`${item.name}Text`)}
             </Typography.Text>
           </Flex>

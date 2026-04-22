@@ -12,6 +12,7 @@ import { formatDateTimeWithLocale } from '@/utils/format-date-time-with-locale';
 import SingleAvatar from '@/components/common/single-avatar/single-avatar';
 import { useMixpanelTracking } from '@/hooks/useMixpanelTracking';
 import { evt_admin_center_users_visit } from '@/shared/worklenz-analytics-events';
+import { themeWiseColor } from '@/utils/themeWiseColor';
 
 const Users: React.FC = () => {
   const { t } = useTranslation('admin-center/users');
@@ -53,7 +54,7 @@ const Users: React.FC = () => {
       render: (_, record) => (
         <Flex gap={12} align="center">
           <SingleAvatar avatarUrl={record.avatar_url} name={record.name} size={32} />
-          <Typography.Text style={{ color: '#fafafa', fontSize: '14px', fontWeight: 500 }}>{record.name}</Typography.Text>
+          <Typography.Text style={{ color: themeWiseColor('#262626', '#fafafa', themeMode), fontSize: '14px', fontWeight: 500 }}>{record.name}</Typography.Text>
         </Flex>
       ),
     },
@@ -64,7 +65,7 @@ const Users: React.FC = () => {
       render: text => (
         <Typography.Text 
             copyable={{ text }} 
-            style={{ color: '#bfbfbf', fontSize: '14px' }}
+            style={{ color: themeWiseColor('#8c8c8c', '#bfbfbf', themeMode), fontSize: '14px' }}
         >
             {text}
         </Typography.Text>
@@ -75,7 +76,7 @@ const Users: React.FC = () => {
       dataIndex: 'last_logged',
       key: 'last_logged',
       render: text => (
-        <Typography.Text style={{ color: '#bfbfbf', fontSize: '14px' }}>
+        <Typography.Text style={{ color: themeWiseColor('#8c8c8c', '#bfbfbf', themeMode), fontSize: '14px' }}>
             {formatDateTimeWithLocale(text) || '-'}
         </Typography.Text>
       ),
@@ -92,20 +93,21 @@ const Users: React.FC = () => {
 
   const cardStyle: React.CSSProperties = {
     borderRadius: '8px',
-    backgroundColor: '#121417',
-    border: '1px solid #303030',
+    backgroundColor: themeWiseColor('#ffffff', '#1e1e1e', themeMode),
+    border: `1px solid ${themeWiseColor('#f0f0f0', '#303030', themeMode)}`,
     width: '100%',
-    padding: '0'
+    padding: '0',
+    boxShadow: themeWiseColor('0 2px 8px rgba(0,0,0,0.05)', 'none', themeMode)
   };
 
   const countLabelStyle = {
     fontSize: '20px',
-    color: '#ffffff',
+    color: themeWiseColor('#262626', '#ffffff', themeMode),
     fontWeight: 500
   };
 
   return (
-    <div style={{ width: '100%', minHeight: '100vh', padding: '24px 32px', backgroundColor: '#121417' }}>
+    <div style={{ width: '100%', minHeight: '100vh', padding: '24px 0', backgroundColor: themeWiseColor('#ffffff', '#121417', themeMode) }}>
       <Flex justify="space-between" align="center" style={{ marginBottom: '24px' }}>
         <div style={countLabelStyle}>
             {requestParams.total} {t('subTitle')}
@@ -115,11 +117,11 @@ const Users: React.FC = () => {
           <Tooltip title={t('refresh')}>
             <Button
               shape="circle"
-              icon={<SyncOutlined spin={isLoading} style={{ color: '#8c8c8c' }} />}
+              icon={<SyncOutlined spin={isLoading} style={{ color: themeWiseColor('#8c8c8c', '#8c8c8c', themeMode) }} />}
               onClick={() => fetchUsers()}
               style={{ 
-                backgroundColor: 'rgba(255,255,255,0.05)', 
-                border: '1px solid #303030',
+                backgroundColor: themeWiseColor('transparent', 'rgba(255,255,255,0.05)', themeMode), 
+                border: `1px solid ${themeWiseColor('#d9d9d9', '#303030', themeMode)}`,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center'
@@ -128,13 +130,13 @@ const Users: React.FC = () => {
           </Tooltip>
           <Input
             placeholder={t('placeholder')}
-            prefix={<SearchOutlined style={{ color: '#8c8c8c' }} />}
+            prefix={<SearchOutlined style={{ color: themeWiseColor('#8c8c8c', '#8c8c8c', themeMode) }} />}
             style={{ 
               width: 300, 
-              backgroundColor: 'rgba(255,255,255,0.05)', 
-              borderColor: '#303030',
-              color: '#ffffff',
-              borderRadius: '6px',
+              backgroundColor: themeWiseColor('#ffffff', 'rgba(255,255,255,0.05)', themeMode), 
+              borderColor: themeWiseColor('#d9d9d9', '#303030', themeMode),
+              color: themeWiseColor('#262626', '#ffffff', themeMode),
+              borderRadius: '8px',
               height: '38px'
             }}
             value={requestParams.searchTerm}
@@ -169,32 +171,33 @@ const Users: React.FC = () => {
       
       <style>{`
         .users-table-row:hover td {
-          background-color: rgba(255, 255, 255, 0.02) !important;
+          background-color: ${themeWiseColor('rgba(0, 0, 0, 0.02)', 'rgba(255, 255, 255, 0.02)', themeMode)} !important;
         }
         .ant-table {
           background: transparent !important;
-          color: #ffffff !important;
+          color: ${themeWiseColor('#262626', '#ffffff', themeMode)} !important;
         }
         .ant-table-thead > tr > th {
           background: transparent !important;
-          color: #bfbfbf !important;
-          border-bottom: 1px solid #303030 !important;
+          color: ${themeWiseColor('#8c8c8c', '#bfbfbf', themeMode)} !important;
+          border-bottom: 1px solid ${themeWiseColor('#f0f0f0', '#303030', themeMode)} !important;
           font-weight: 500 !important;
           padding: 16px 24px !important;
         }
         .ant-table-tbody > tr > td {
-          border-bottom: 1px solid #303030 !important;
+          border-bottom: 1px solid ${themeWiseColor('#f0f0f0', '#303030', themeMode)} !important;
           padding: 16px 24px !important;
+          color: ${themeWiseColor('#595959', '#d1d1d1', themeMode)} !important;
         }
         .ant-table-tbody > tr:last-child > td {
           border-bottom: none !important;
         }
         .ant-pagination-item, .ant-pagination-prev, .ant-pagination-next, .ant-pagination-item-link {
             background: transparent !important;
-            border-color: #303030 !important;
+            border-color: ${themeWiseColor('#d9d9d9', '#303030', themeMode)} !important;
         }
         .ant-pagination-item a {
-            color: #8c8c8c !important;
+            color: ${themeWiseColor('#8c8c8c', '#8c8c8c', themeMode)} !important;
         }
         .ant-pagination-item-active {
             border-color: #1890ff !important;

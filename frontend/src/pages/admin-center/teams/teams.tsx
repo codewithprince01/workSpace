@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next';
 import AddTeamDrawer from '@/components/admin-center/teams/add-team-drawer/add-team-drawer';
 import { useMixpanelTracking } from '@/hooks/useMixpanelTracking';
 import { evt_admin_center_teams_visit } from '@/shared/worklenz-analytics-events';
+import { themeWiseColor } from '@/utils/themeWiseColor';
 
 export interface IRequestParams extends IOrganizationTeamRequestParams {
   total: number;
@@ -78,20 +79,21 @@ const Teams: React.FC = () => {
 
   const cardStyle: React.CSSProperties = {
     borderRadius: '8px',
-    backgroundColor: '#121417',
-    border: '1px solid #303030',
+    backgroundColor: themeWiseColor('#ffffff', '#1e1e1e', themeMode),
+    border: `1px solid ${themeWiseColor('#f0f0f0', '#303030', themeMode)}`,
     width: '100%',
-    padding: '0'
+    padding: '0',
+    boxShadow: themeWiseColor('0 2px 8px rgba(0,0,0,0.05)', 'none', themeMode)
   };
 
   const countLabelStyle = {
     fontSize: '20px',
-    color: '#ffffff',
+    color: themeWiseColor('#262626', '#ffffff', themeMode),
     fontWeight: 500
   };
 
   return (
-    <div style={{ width: '100%', minHeight: '100vh', padding: '24px 32px', backgroundColor: '#121417' }}>
+    <div style={{ width: '100%', minHeight: '100vh', padding: '24px 0', backgroundColor: themeWiseColor('#ffffff', '#121417', themeMode) }}>
       <Flex justify="space-between" align="center" style={{ marginBottom: '24px' }}>
         <div style={countLabelStyle}>
             {requestParams.total} {t('subtitle')}
@@ -100,13 +102,13 @@ const Teams: React.FC = () => {
         <Flex gap={12} align="center">
           <Input
             placeholder={t('placeholder')}
-            prefix={<SearchOutlined style={{ color: '#8c8c8c' }} />}
+            prefix={<SearchOutlined style={{ color: themeWiseColor('#8c8c8c', '#8c8c8c', themeMode) }} />}
             style={{ 
               width: 300, 
-              backgroundColor: 'rgba(255,255,255,0.05)', 
-              borderColor: '#303030',
-              color: '#ffffff',
-              borderRadius: '6px',
+              backgroundColor: themeWiseColor('#ffffff', 'rgba(255,255,255,0.05)', themeMode), 
+              borderColor: themeWiseColor('#d9d9d9', '#303030', themeMode),
+              color: themeWiseColor('#262626', '#ffffff', themeMode),
+              borderRadius: '8px',
               height: '38px'
             }}
             value={requestParams.search ?? ''}
@@ -115,11 +117,11 @@ const Teams: React.FC = () => {
           <Tooltip title={t('refresh')}>
             <Button
               shape="circle"
-              icon={<SyncOutlined spin={isLoading} style={{ color: '#8c8c8c' }} />}
+              icon={<SyncOutlined spin={isLoading} style={{ color: themeWiseColor('#8c8c8c', '#8c8c8c', themeMode) }} />}
               onClick={() => fetchTeams()}
               style={{ 
-                backgroundColor: 'rgba(255,255,255,0.05)', 
-                border: '1px solid #303030',
+                backgroundColor: themeWiseColor('transparent', 'rgba(255,255,255,0.05)', themeMode), 
+                border: `1px solid ${themeWiseColor('#d9d9d9', '#303030', themeMode)}`,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center'
@@ -131,7 +133,7 @@ const Teams: React.FC = () => {
             onClick={() => setShowAddTeamDrawer(true)}
             style={{ 
                 height: '38px', 
-                borderRadius: '6px',
+                borderRadius: '8px',
                 fontWeight: 500
             }}
           >

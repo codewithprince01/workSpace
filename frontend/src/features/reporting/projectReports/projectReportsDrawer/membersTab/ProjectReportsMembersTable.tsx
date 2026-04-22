@@ -1,5 +1,6 @@
 import { Progress, Table, TableColumnsType } from '@/shared/antd-imports';
 import React from 'react';
+import { useAppSelector } from '@/hooks/useAppSelector';
 import CustomTableTitle from '../../../../../components/CustomTableTitle';
 import { useAppDispatch } from '@/hooks/useAppDispatch';
 import {
@@ -95,6 +96,8 @@ const ProjectReportsMembersTable = ({ membersData, loading }: ProjectReportsMemb
     },
   ];
 
+  const themeMode = useAppSelector(state => state.themeReducer.mode);
+
   return (
     <>
       <Table
@@ -106,7 +109,7 @@ const ProjectReportsMembersTable = ({ membersData, loading }: ProjectReportsMemb
         onRow={record => {
           return {
             style: { height: 38, cursor: 'pointer' },
-            className: 'group even:bg-[#4e4e4e10]',
+            className: `group ${themeMode === 'dark' ? 'even:bg-[#4e4e4e10]' : 'even:bg-[#00000005]'}`,
           };
         }}
       />

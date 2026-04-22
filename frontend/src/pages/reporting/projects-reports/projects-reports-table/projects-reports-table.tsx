@@ -35,6 +35,7 @@ import ProjectReportsDrawer from '@/features/reporting/projectReports/projectRep
 import { PAGE_SIZE_OPTIONS } from '@/shared/constants';
 import './projects-reports-table.css';
 import { fetchProjectStatuses } from '@/features/projects/lookups/projectStatuses/projectStatusesSlice';
+import { themeWiseColor } from '@/utils/themeWiseColor';
 
 const ProjectsReportsTable = () => {
   const dispatch = useAppDispatch();
@@ -277,12 +278,14 @@ const ProjectsReportsTable = () => {
     };
   }, [dispatch]);
 
+  const themeMode = useAppSelector(state => state.themeReducer.mode);
+
   const tableRowProps = useMemo(
     () => ({
       style: { height: 56, cursor: 'pointer' },
-      className: 'group even:bg-[#4e4e4e10]',
+      className: `group ${themeMode === 'dark' ? 'even:bg-[#4e4e4e10]' : 'even:bg-[#00000005]'}`,
     }),
-    []
+    [themeMode]
   );
 
   const tableConfig = useMemo(
@@ -330,9 +333,9 @@ const ProjectsReportsTable = () => {
       key: teamName,
       label: (
         <Flex align="center" gap={12}>
-          <Typography.Text style={{ color: '#fff', fontSize: '14px', fontWeight: 600 }}>{teamName}</Typography.Text>
-          <span style={{ color: 'rgba(255, 255, 255, 0.45)', fontSize: '12px' }}>•</span>
-          <Typography.Text style={{ color: 'rgba(255, 255, 255, 0.45)', fontSize: '12px' }}>
+          <Typography.Text style={{ color: themeWiseColor('#262626', '#fff', themeMode), fontSize: '14px', fontWeight: 600 }}>{teamName}</Typography.Text>
+          <span style={{ color: themeWiseColor('rgba(0, 0, 0, 0.45)', 'rgba(255, 255, 255, 0.45)', themeMode), fontSize: '12px' }}>•</span>
+          <Typography.Text style={{ color: themeWiseColor('rgba(0, 0, 0, 0.45)', 'rgba(255, 255, 255, 0.45)', themeMode), fontSize: '12px' }}>
             {projects.length} {projects.length === 1 ? 'project' : 'projects'}
           </Typography.Text>
         </Flex>
@@ -352,7 +355,7 @@ const ProjectsReportsTable = () => {
         </ConfigProvider>
       ),
     }));
-  }, [groupedByTeam, visibleColumns, scrollConfig, getRowKey, getRowProps, tableConfig]);
+  }, [groupedByTeam, visibleColumns, scrollConfig, getRowKey, getRowProps, tableConfig, themeMode]);
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
@@ -368,11 +371,11 @@ const ProjectsReportsTable = () => {
                 theme={{
                     components: {
                         Collapse: {
-                            headerBg: 'rgba(255, 255, 255, 0.05)',
+                            headerBg: themeWiseColor('rgba(0, 0, 0, 0.02)', 'rgba(255, 255, 255, 0.05)', themeMode),
                             contentBg: 'transparent',
                             headerPadding: '12px 16px',
-                            colorBorder: '#333',
-                            colorTextHeading: '#fff'
+                            colorBorder: themeWiseColor('#d9d9d9', '#333', themeMode),
+                            colorTextHeading: themeWiseColor('#262626', '#fff', themeMode)
                         }
                     }
                 }}
@@ -384,7 +387,7 @@ const ProjectsReportsTable = () => {
                 )}
                 style={{ 
                     background: 'transparent', 
-                    border: '1px solid #333', 
+                    border: `1px solid ${themeWiseColor('#d9d9d9', '#333', themeMode)}`, 
                     borderRadius: '8px',
                     overflow: 'hidden'
                 }}

@@ -12,6 +12,7 @@ import { IOrganization, IOrganizationAdmin } from '@/types/admin-center/admin-ce
 import logger from '@/utils/errorLogger';
 import { useMixpanelTracking } from '@/hooks/useMixpanelTracking';
 import { evt_admin_center_overview_visit } from '@/shared/worklenz-analytics-events';
+import { themeWiseColor } from '@/utils/themeWiseColor';
 
 const { Text } = Typography;
 
@@ -56,16 +57,17 @@ const Overview: React.FC = () => {
   }, [trackMixpanelEvent]);
 
   const cardStyle = {
-    borderRadius: '4px',
+    borderRadius: '8px',
     marginBottom: '24px',
-    backgroundColor: themeMode === 'dark' ? '#121417' : '#ffffff',
-    border: 'none',
-    width: '100%'
+    backgroundColor: themeWiseColor('#ffffff', '#1e1e1e', themeMode),
+    border: `1px solid ${themeWiseColor('#f0f0f0', '#303030', themeMode)}`,
+    width: '100%',
+    boxShadow: themeWiseColor('0 2px 8px rgba(0,0,0,0.05)', 'none', themeMode)
   };
 
   const sectionLabelStyle = {
     fontSize: '14px',
-    color: '#8c8c8c',
+    color: themeWiseColor('#8c8c8c', '#8c8c8c', themeMode),
     marginBottom: '20px',
     fontWeight: 500,
     display: 'block'
@@ -74,13 +76,13 @@ const Overview: React.FC = () => {
   const headerTitleStyle = {
     fontSize: '18px',
     fontWeight: 600,
-    color: '#ffffff',
+    color: themeWiseColor('#262626', '#fff', themeMode),
     margin: '0 0 16px 0'
   };
 
   const smallTextStyle = {
     fontSize: '12px',
-    color: '#8c8c8c',
+    color: themeWiseColor('#8c8c8c', '#8c8c8c', themeMode),
     lineHeight: '1.5'
   };
 
@@ -120,20 +122,20 @@ const Overview: React.FC = () => {
   };
 
   return (
-    <div style={{ width: '100%', minHeight: '100vh', padding: '16px 24px', backgroundColor: themeMode === 'dark' ? '#121417' : '#f0f2f5' }}>
+    <div style={{ width: '100%', minHeight: '100vh', padding: '16px 0', backgroundColor: themeWiseColor('#ffffff', '#121417', themeMode) }}>
       
       {/* Organization Profile Card */}
       <Card style={cardStyle} bodyStyle={{ padding: '32px' }}>
         <div style={headerTitleStyle}>Organization Profile</div>
-        <Divider style={{ margin: '0 0 32px 0', borderColor: '#303030', opacity: 0.5 }} />
+        <Divider style={{ margin: '0 0 32px 0', borderColor: themeWiseColor('#f0f0f0', '#303030', themeMode), opacity: 1 }} />
         
         <div style={{ display: 'flex', gap: '80px', alignItems: 'flex-start' }}>
           {/* Logo Column */}
           <div style={{ flex: '0 0 240px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 20 }}>
-              <span style={{ color: '#8c8c8c', fontSize: 14, fontWeight: 500 }}>Logo</span>
+              <span style={{ color: themeWiseColor('#595959', '#8c8c8c', themeMode), fontSize: 14, fontWeight: 500 }}>Logo</span>
               <Tooltip title="Organization logo used in navbar and billing">
-                <InfoCircleOutlined style={{ color: '#8c8c8c', fontSize: 14 }} />
+                <InfoCircleOutlined style={{ color: themeWiseColor('#8c8c8c', '#8c8c8c', themeMode), fontSize: 14 }} />
               </Tooltip>
             </div>
             
@@ -141,9 +143,9 @@ const Overview: React.FC = () => {
               style={{
                 width: '240px',
                 height: '120px',
-                borderRadius: '4px',
-                border: '1px dashed #434343',
-                background: 'transparent',
+                borderRadius: '8px',
+                border: `1px dashed ${themeWiseColor('#d9d9d9', '#434343', themeMode)}`,
+                background: themeWiseColor('#fafafa', 'transparent', themeMode),
                 overflow: 'hidden'
               }}
               showUploadList={false}
@@ -151,14 +153,14 @@ const Overview: React.FC = () => {
               accept="image/*"
             >
               {organization?.logo_url ? (
-                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000' }}>
+                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: themeWiseColor('#fff', '#000', themeMode) }}>
                   <img src={organization.logo_url} alt="Logo" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
                 </div>
               ) : (
                 <div style={{ padding: '24px 0' }}>
-                    <PlusOutlined style={{ fontSize: '28px', color: '#8c8c8c', marginBottom: 8 }} />
-                    <div style={{ color: '#8c8c8c', fontSize: '14px', fontWeight: 500 }}>Upload Logo</div>
-                    <div style={{ fontSize: '10px', color: '#595959', marginTop: 2 }}>PNG, JPG, WEBP</div>
+                    <PlusOutlined style={{ fontSize: '28px', color: themeWiseColor('#bfbfbf', '#8c8c8c', themeMode), marginBottom: 8 }} />
+                    <div style={{ color: themeWiseColor('#8c8c8c', '#8c8c8c', themeMode), fontSize: '14px', fontWeight: 500 }}>Upload Logo</div>
+                    <div style={{ fontSize: '10px', color: themeWiseColor('#bfbfbf', '#595959', themeMode), marginTop: 2 }}>PNG, JPG, WEBP</div>
                 </div>
               )}
             </Upload.Dragger>
@@ -173,7 +175,7 @@ const Overview: React.FC = () => {
 
           {/* Organization Name Column */}
           <div style={{ flex: '0 0 240px' }}>
-            <div style={{ ...sectionLabelStyle, color: '#8c8c8c', marginBottom: 20 }}>Organization Name</div>
+            <div style={{ ...sectionLabelStyle, color: themeWiseColor('#595959', '#8c8c8c', themeMode), marginBottom: 20 }}>Organization Name</div>
             <div style={{ marginTop: 8 }}>
                 <OrganizationName
                     themeMode={themeMode}
@@ -187,14 +189,14 @@ const Overview: React.FC = () => {
 
           {/* Organization Owner Column */}
           <div style={{ flex: '1' }}>
-            <div style={{ ...sectionLabelStyle, color: '#8c8c8c', marginBottom: 20 }}>Organization Owner</div>
+            <div style={{ ...sectionLabelStyle, color: themeWiseColor('#595959', '#8c8c8c', themeMode), marginBottom: 20 }}>Organization Owner</div>
             <div style={{ marginTop: 8 }}>
                 <div style={{ marginBottom: 12 }}>
-                    <Text style={{ fontSize: 16, color: '#ffffff', fontWeight: 500 }}>{organization?.owner_name || '-'}</Text>
+                    <Text style={{ fontSize: 16, color: themeWiseColor('#262626', '#fff', themeMode), fontWeight: 500 }}>{organization?.owner_name || '-'}</Text>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <MailOutlined style={{ color: '#8c8c8c', fontSize: 14 }} />
-                    <Text style={{ color: '#ffffff', fontSize: 14, opacity: 0.85 }}>{organization?.email || '-'}</Text>
+                    <MailOutlined style={{ color: themeWiseColor('#8c8c8c', '#8c8c8c', themeMode), fontSize: 14 }} />
+                    <Text style={{ color: themeWiseColor('#595959', '#fff', themeMode), fontSize: 14, opacity: 0.85 }}>{organization?.email || '-'}</Text>
                 </div>
             </div>
           </div>
@@ -206,7 +208,7 @@ const Overview: React.FC = () => {
         <div style={{ padding: '24px 24px 0 24px' }}>
             <div style={headerTitleStyle}>Organization Admins</div>
         </div>
-        <Divider style={{ margin: '20px 0 0 0', borderColor: '#303030', opacity: 0.5 }} />
+        <Divider style={{ margin: '20px 0 0 0', borderColor: themeWiseColor('#f0f0f0', '#303030', themeMode), opacity: 1 }} />
         <OrganizationAdminsTable
           organizationAdmins={organizationAdmins}
           loading={loadingAdmins}

@@ -10,6 +10,7 @@ import { useSocket } from '@/socket/socketContext';
 import { SocketEvents } from '@/shared/socket-events';
 import { setProjectHealth } from '@/features/reporting/projectReports/project-reports-slice';
 import { useAppDispatch } from '@/hooks/useAppDispatch';
+import { themeWiseColor } from '@/utils/themeWiseColor';
 
 interface HealthStatusDataType {
   value: string;
@@ -25,6 +26,7 @@ const ProjectHealthCell = ({ value, label, color, projectId }: HealthStatusDataT
   
   // Use centralized project reporting healths
   const { allHealths } = useAppSelector(state => state.projectReportsReducer);
+  const themeMode = useAppSelector(state => state.themeReducer.mode);
 
   const projectHealth = allHealths.find(status => status.id === value) || {
     color_code: color,
@@ -36,7 +38,14 @@ const ProjectHealthCell = ({ value, label, color, projectId }: HealthStatusDataT
     key: status.id,
     value: status.id,
     label: (
-      <Typography.Text style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <Typography.Text 
+        style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 8,
+            color: themeWiseColor('#262626', '#fff', themeMode)
+        }}
+      >
         <Badge color={status.color_code} /> {status.name}
       </Typography.Text>
     ),
@@ -63,9 +72,17 @@ const ProjectHealthCell = ({ value, label, color, projectId }: HealthStatusDataT
     {
       key: '1',
       label: (
-        <Card className="project-health-dropdown-card" bordered={false} style={{ backgroundColor: '#262626', border: 'none' }}>
+        <Card 
+            className="project-health-dropdown-card" 
+            variant="borderless" 
+            style={{ 
+                backgroundColor: themeWiseColor('#ffffff', '#262626', themeMode), 
+                border: 'none',
+                padding: 0
+            }}
+        >
           <Menu 
-            theme="dark"
+            theme={themeMode === 'dark' ? 'dark' : 'light'}
             className="project-health-menu" 
             items={healthOptions} 
             onClick={onClick} 
@@ -109,7 +126,7 @@ const ProjectHealthCell = ({ value, label, color, projectId }: HealthStatusDataT
           backgroundColor: projectHealth?.color_code || 'transparent',
           color: textColor,
           cursor: 'pointer',
-          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+          boxShadow: themeWiseColor('0 2px 4px rgba(0,0,0,0.1)', '0 2px 4px rgba(0,0,0,0.4)', themeMode)
         }}
       >
         <Typography.Text
@@ -123,7 +140,7 @@ const ProjectHealthCell = ({ value, label, color, projectId }: HealthStatusDataT
           {projectHealth?.name}
         </Typography.Text>
 
-        <DownOutlined style={{ fontSize: 10 }} />
+        <DownOutlined style={{ fontSize: 10, color: textColor }} />
       </Flex>
     </Dropdown>
   );

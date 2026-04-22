@@ -5,6 +5,7 @@ import { Card, Button, Tooltip, Typography } from '@/shared/antd-imports';
 import TextArea from 'antd/es/input/TextArea';
 import { TFunction } from 'i18next';
 import { useState, useEffect } from 'react';
+import { themeWiseColor } from '@/utils/themeWiseColor';
 
 const { Text } = Typography;
 
@@ -71,6 +72,9 @@ const OrganizationName = ({ themeMode, name, t, refetch, isEmbedded }: Organizat
                 paddingRight: '40px',
                 resize: 'none',
                 borderRadius: '4px',
+                backgroundColor: themeWiseColor('#ffffff', 'rgba(255,255,255,0.05)', themeMode),
+                borderColor: themeWiseColor('#d9d9d9', '#303030', themeMode),
+                color: themeWiseColor('#262626', '#ffffff', themeMode)
               }}
               onPressEnter={handleBlur}
               value={newName}
@@ -97,7 +101,7 @@ const OrganizationName = ({ themeMode, name, t, refetch, isEmbedded }: Organizat
           </div>
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Text style={{ fontSize: isEmbedded ? 15 : 14, color: themeMode === 'dark' ? '#ffffff' : 'inherit', fontWeight: isEmbedded ? 500 : 400 }}>{name}</Text>
+            <Text style={{ fontSize: isEmbedded ? 15 : 14, color: themeWiseColor('#262626', '#fafafa', themeMode), fontWeight: isEmbedded ? 500 : 400 }}>{name}</Text>
             <Tooltip title={t('edit')}>
               <Button
                 onClick={() => setIsEditable(true)}
@@ -116,8 +120,12 @@ const OrganizationName = ({ themeMode, name, t, refetch, isEmbedded }: Organizat
   if (isEmbedded) return content;
 
   return (
-    <Card>
-      <Typography.Title level={5} style={{ margin: 0, marginBottom: '0.5rem' }}>
+    <Card style={{ 
+        backgroundColor: themeWiseColor('#ffffff', '#1e1e1e', themeMode), 
+        border: `1px solid ${themeWiseColor('#f0f0f0', '#303030', themeMode)}`,
+        borderRadius: '8px'
+    }}>
+      <Typography.Title level={5} style={{ margin: 0, marginBottom: '0.5rem', color: themeWiseColor('#262626', '#fff', themeMode) }}>
         {t('name')}
       </Typography.Title>
       {content}
