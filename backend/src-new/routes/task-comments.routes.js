@@ -104,7 +104,12 @@ router.post('/', async (req, res) => {
                 if (!fileName || !fileData) continue;
 
                 const key = `task-comments/${task_id}/${newComment._id}/${Date.now()}-${fileName.replace(/\s+/g, '-')}`;
-                const fileUrl = await storageService.uploadBase64(key, fileData, fileName);
+                const fileUrl = await storageService.uploadBase64(
+                    key,
+                    fileData,
+                    fileName,
+                    req.user._id
+                );
                 const extension = (fileName.split('.').pop() || '').toLowerCase();
 
                 const createdAttachment = await TaskAttachment.create({

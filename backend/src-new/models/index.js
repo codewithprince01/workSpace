@@ -23,5 +23,6 @@ module.exports = {
   ProjectInvitation: require('./ProjectInvitation'),
   TaskDependency: require('./TaskDependency'),
   JobTitle: require('./JobTitle'),
-  CalendarEvent: require('./CalendarEvent')
+  CalendarEvent: require('./CalendarEvent'),
+  StoredFile: require('./StoredFile')
 };

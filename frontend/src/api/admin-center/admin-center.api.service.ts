@@ -61,6 +61,17 @@ export const adminCenterApiService = {
     return response.data;
   },
 
+  async updateOrganizationLogo(body: {
+    file: string;
+    file_name: string;
+  }): Promise<IServerResponse<{ logo_url: string }>> {
+    const response = await apiClient.put<IServerResponse<{ logo_url: string }>>(
+      `${rootUrl}/organization/logo`,
+      body
+    );
+    return response.data;
+  },
+
   async updateOwnerContactNumber<T>(body: {
     contact_number: string;
   }): Promise<IServerResponse<IOrganization>> {

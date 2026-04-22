@@ -122,7 +122,6 @@ app.use(passport.session());
 
 // Static files
 app.use(express.static(path.join(__dirname, 'public')));
-app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 // View engine (if needed)
 app.set('views', path.join(__dirname, 'views'));
@@ -165,12 +164,7 @@ const csrfProtection = (req, res, next) => {
     return next();
   }
 
-  // 2. Skip for local dev file routes
-  if (req.originalUrl.includes('/api/attachments/local-upload')) {
-    return next();
-  }
-
-  // 3. Skip if request uses Bearer JWT auth (SPA with localStorage token)
+  // 2. Skip if request uses Bearer JWT auth (SPA with localStorage token)
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
     return next();
   }

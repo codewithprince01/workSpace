@@ -74,7 +74,7 @@ router.put('/organization/logo', async (req, res) => {
     const extension = file_name.split('.').pop();
     const key = `logos/${membership.team_id}_${Date.now()}.${extension}`;
     
-    const logoUrl = await storageService.uploadBase64(key, file, file_name);
+    const logoUrl = await storageService.uploadBase64(key, file, file_name, req.user._id);
     
     const team = await Team.findByIdAndUpdate(membership.team_id, { logo_url: logoUrl }, { new: true });
 

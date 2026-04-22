@@ -9,25 +9,14 @@ import {
   Tooltip,
   Typography,
 } from '@/shared/antd-imports';
-import { useEffect, useState, useMemo } from 'react';
-import { colors } from '@/styles/colors';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  AppstoreOutlined,
-  BarsOutlined,
   CloudDownloadOutlined,
   DeleteOutlined,
-  ExclamationCircleFilled,
-  ExclamationCircleOutlined,
   SearchOutlined,
-  PlusOutlined,
   UploadOutlined,
   FileOutlined,
-  FilePdfOutlined,
-  FileImageOutlined,
-  FileTextOutlined,
-  FileZipOutlined,
   InboxOutlined,
-  LoadingOutlined as LoadingIcon
 } from '@/shared/antd-imports';
 import { App, Input, Modal, Upload } from 'antd';
 const { Dragger } = Upload;
@@ -40,10 +29,10 @@ import {
 } from '@/types/tasks/task-attachment-view-model';
 import { useAppSelector } from '@/hooks/useAppSelector';
 import { attachmentsApiService } from '@/api/attachments/attachments.api.service';
-import apiClient from '@/api/api-client';
 import logger from '@/utils/errorLogger';
 import { evt_project_files_visit } from '@/shared/worklenz-analytics-events';
 import { useMixpanelTracking } from '@/hooks/useMixpanelTracking';
+import { getBase64 } from '@/utils/file-utils';
 
 const formatFileSize = (bytes: number | undefined) => {
   if (!bytes) return '0 B';
@@ -55,13 +44,12 @@ const formatFileSize = (bytes: number | undefined) => {
 
 const ProjectViewFiles = () => {
   const { message } = App.useApp();
-  const { t } = useTranslation('project-view-files');
+  useTranslation('project-view-files');
   const { trackMixpanelEvent } = useMixpanelTracking();
   const { projectId, refreshTimestamp } = useAppSelector(state => state.projectReducer);
   
   const [attachments, setAttachments] = useState<IProjectAttachmentsViewModel>({ data: [], total: 0 });
   const [loading, setLoading] = useState(false);
-  const [downloading, setDownloading] = useState(false);
   const [viewType, setViewType] = useState('project'); // 'project' or 'task'
   const [searchText, setSearchText] = useState('');
   
@@ -76,15 +64,15 @@ const ProjectViewFiles = () => {
     defaultPageSize: DEFAULT_PAGE_SIZE,
   });
 
-  const fetchAttachments = async () => {
+  const fetchAttachments = useCallback(async (nextViewType = viewType, nextPage = paginationConfig.pageIndex, nextPageSize = paginationConfig.defaultPageSize) => {
     if (!projectId) return;
     try {
       setLoading(true);
       const response = await attachmentsApiService.getProjectAttachments(
         projectId,
-        paginationConfig.pageIndex,
-        paginationConfig.defaultPageSize,
-        viewType
+        nextPage,
+        nextPageSize,
+        nextViewType
       );
       if (response.done) {
         setAttachments(response.body || { data: [], total: 0 });
@@ -95,11 +83,11 @@ const ProjectViewFiles = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [projectId, viewType, paginationConfig.pageIndex, paginationConfig.defaultPageSize]);
 
   useEffect(() => {
     fetchAttachments();
-  }, [refreshTimestamp, viewType, paginationConfig.pageIndex, paginationConfig.defaultPageSize, projectId]);
+  }, [fetchAttachments, refreshTimestamp]);
 
   useEffect(() => {
     trackMixpanelEvent(evt_project_files_visit);
@@ -113,12 +101,7 @@ const ProjectViewFiles = () => {
     
     if (!matchesSearch) return false;
 
-    // Strict tab filtering
-    if (viewType === 'project') {
-      return !item.task_id; // Project files only
-    } else {
-      return !!item.task_id; // Task attachments only
-    }
+    return true;
   });
 
   const handleDelete = async (id: string) => {
@@ -157,35 +140,22 @@ const ProjectViewFiles = () => {
     try {
       for (const fileObj of fileList) {
         const file = fileObj.originFileObj;
-        // 1. Get signed URL
-        const sigRes = await attachmentsApiService.getUploadUrl(file.name, file.type);
-        if (sigRes.done && sigRes.body) {
-          const { upload_url, file_key } = sigRes.body;
-          
-          // 2. Upload to storage (PUT request)
-          await apiClient.put(upload_url, file, {
-            headers: {
-              'Content-Type': file.type || 'application/octet-stream',
-            },
-          });
-          
-          // 3. Register in backend
-          await attachmentsApiService.createAttachment({
-            project_id: projectId,
-            file_name: file.name,
-            file_key: file_key,
-            file_size: file.size,
-            file_type: file.type || 'application/octet-stream',
-            url: upload_url
-          });
-        }
+        const base64 = await getBase64(file);
+
+        // Upload through backend API only.
+        await attachmentsApiService.createAttachment({
+          project_id: projectId,
+          file_name: file.name,
+          file_size: file.size,
+          file_type: file.type || 'application/octet-stream',
+          file: String(base64 || ''),
+          size: file.size,
+        });
       }
-      message.success('Upload started. Your files will appear shortly.');
+      message.success('Files uploaded successfully.');
       setIsUploadModalOpen(false);
       setFileList([]);
-      
-      // We don't wait for all background fetches here to make it feel "instant"
-      setTimeout(fetchAttachments, 500); // Small delay to let DB catch up
+      await fetchAttachments('project', 1, paginationConfig.defaultPageSize);
     } catch (error) {
       logger.error('Upload failed', error);
       message.error('Failed to upload files');
@@ -357,7 +327,13 @@ const ProjectViewFiles = () => {
                 { label: 'Task Attachments', value: 'task' },
               ]}
               value={viewType}
-              onChange={(v) => setViewType(v as string)}
+              onChange={(v) => {
+                const nextViewType = v as string;
+                setViewType(nextViewType);
+                setAttachments({ data: [], total: 0 });
+                setLoading(true);
+                setPaginationConfig(prev => ({ ...prev, pageIndex: 1, total: 0 }));
+              }}
               style={{ backgroundColor: '#262626', color: '#fff' }}
             />
             
@@ -407,7 +383,8 @@ const ProjectViewFiles = () => {
           pagination={{
             ...paginationConfig,
             style: { marginTop: '24px' },
-            onChange: (page, pageSize) => setPaginationConfig(prev => ({ ...prev, pageIndex: page, defaultPageSize: pageSize })),
+            onChange: (page, pageSize) =>
+              setPaginationConfig(prev => ({ ...prev, pageIndex: page, defaultPageSize: pageSize })),
           }}
           className="custom-dark-table"
         />

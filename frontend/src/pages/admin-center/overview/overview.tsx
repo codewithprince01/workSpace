@@ -106,7 +106,11 @@ const Overview: React.FC = () => {
           onError(new Error(res.message));
         }
       } catch (error) {
-        message.error('An error occurred during upload');
+        const errorMessage =
+          (error as any)?.response?.data?.message ||
+          (error as any)?.message ||
+          'An error occurred during upload';
+        message.error(errorMessage);
         onError(error);
       }
     };

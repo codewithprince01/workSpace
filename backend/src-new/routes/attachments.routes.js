@@ -4,17 +4,14 @@ const { protect } = require('../middlewares/auth.middleware');
 const { TaskAttachment, Task, ProjectMember } = require('../models');
 const storageService = require('../services/storage.service');
 const logger = require('../utils/logger');
-const fs = require('fs-extra');
-const path = require('path');
-const constants = require('../config/constants');
 
-// Apply protection
+// Apply auth protection to all routes
 router.use(protect);
 
-/**
- * POST /api/attachments/avatar
- * Upload user avatar
- */
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/attachments/avatar
+// Upload user profile avatar (base64 → storage → DB)
+// ─────────────────────────────────────────────────────────────────────────────
 router.post('/avatar', async (req, res) => {
     try {
         const { file, file_name, size } = req.body;
@@ -23,87 +20,49 @@ router.post('/avatar', async (req, res) => {
             return res.status(400).json({ done: false, message: 'file and file_name are required' });
         }
 
-        // Generate a unique key for the avatar
-        const key = `avatars/${req.user._id}-${Date.now()}-${file_name}`;
+        const ext = file_name.split('.').pop() || 'png';
+        const key = `avatars/${req.user._id}-${Date.now()}.${ext}`;
 
-        // Upload the file to storage
-        const url = await storageService.uploadBase64(key, file, file_name);
+        // Upload to configured structured storage and get HTTP URL
+        const url = await storageService.uploadBase64(key, file, file_name, req.user._id);
 
-        // Update user's avatar_url
+        // Persist URL in User document
         const { User } = require('../models');
         await User.findByIdAndUpdate(req.user._id, { avatar_url: url });
 
-        res.json({
-            done: true,
-            body: { url }
-        });
+        res.json({ done: true, body: { url } });
     } catch (error) {
         logger.error('Avatar upload error: %s', error.message);
         res.status(500).json({ done: false, message: 'Failed to upload avatar' });
     }
 });
 
-/**
- * GET /api/attachments/upload-url
- * Returns a presigned URL for secure frontend upload
- */
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/attachments/upload-url
+// Returns a presigned URL for direct frontend upload (S3 flow)
+// ─────────────────────────────────────────────────────────────────────────────
 router.post('/upload-url', async (req, res) => {
-    try {
-        const { fileName, fileType } = req.body;
-        if (!fileName) return res.status(400).json({ done: false, message: 'fileName is required' });
-
-        const key = `task-attachments/${Date.now()}-${fileName}`;
-        const uploadUrl = await storageService.getUploadUrl(key, fileType || 'application/octet-stream');
-        
-        // Return both the signed URL and the final key to be saved later
-        res.json({
-            done: true,
-            body: {
-                upload_url: uploadUrl,
-                file_key: key
-            }
-        });
-    } catch (error) {
-        logger.error('Failed to generate upload URL: %s', error.message);
-        res.status(500).json({ done: false, message: 'Failed to generate upload URL' });
-    }
+    return res.status(410).json({
+        done: false,
+        message: 'Direct upload URLs are disabled. Upload files through backend attachment APIs.',
+    });
 });
 
-// PUT /api/attachments/local-upload/* - Local storage upload endpoint (used by local provider upload URLs)
+// ─────────────────────────────────────────────────────────────────────────────
+// PUT /api/attachments/local-upload/*
+// Legacy endpoint intentionally disabled (local storage is not allowed)
+// ─────────────────────────────────────────────────────────────────────────────
 router.put('/local-upload/*', express.raw({ type: '*/*', limit: '200mb' }), async (req, res) => {
-    try {
-        const fileKey = req.params[0];
-        if (!fileKey) {
-            return res.status(400).json({ done: false, message: 'file key is required' });
-        }
-
-        if (!req.body || !Buffer.isBuffer(req.body) || req.body.length === 0) {
-            return res.status(400).json({ done: false, message: 'file body is required' });
-        }
-
-        const localPath = path.join(process.cwd(), constants.LOCAL_UPLOAD_DIR || 'uploads', fileKey);
-        await fs.ensureDir(path.dirname(localPath));
-        await fs.writeFile(localPath, req.body);
-
-        let host = process.env.HOSTNAME || 'localhost:3000';
-        if (!host.startsWith('http://') && !host.startsWith('https://')) {
-            host = `http://${host}`;
-        }
-
-        return res.json({
-            done: true,
-            body: {
-                file_key: fileKey,
-                url: `${host}/${constants.LOCAL_UPLOAD_DIR || 'uploads'}/${fileKey}`
-            }
-        });
-    } catch (error) {
-        logger.error('Local upload failed: %s', error.message);
-        return res.status(500).json({ done: false, message: 'Failed to upload file' });
-    }
+    return res.status(410).json({
+        done: false,
+        message: 'Local upload endpoint is disabled. Upload files through backend attachment APIs.',
+    });
 });
 
-// GET /api/attachments/tasks/:taskId - Get attachments for a task
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/attachments/tasks/:taskId
+// List all attachments for a task
+// ─────────────────────────────────────────────────────────────────────────────
 router.get('/tasks/:taskId', async (req, res) => {
     try {
         const { taskId } = req.params;
@@ -135,10 +94,13 @@ router.get('/tasks/:taskId', async (req, res) => {
     }
 });
 
-// POST /api/attachments/tasks - Create attachment entry
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/attachments/tasks
+// Create task attachment — uploads base64 to storage, stores HTTP URL in DB
+// ─────────────────────────────────────────────────────────────────────────────
 router.post('/tasks', async (req, res) => {
     try {
-        const { task_id, project_id, file_name, file_key, file_size, file_type, url, file, size } = req.body;
+        const { task_id, project_id, file_name, file_size, file_type, file, size } = req.body;
 
         if (!file_name) {
             return res.status(400).json({ done: false, message: 'Missing file_name' });
@@ -147,6 +109,7 @@ router.post('/tasks', async (req, res) => {
         let finalTaskId = task_id || null;
         let finalProjectId = project_id || null;
 
+        // Auto-resolve project_id from task if not provided
         if (finalTaskId && !finalProjectId) {
             const task = await Task.findById(finalTaskId).select('project_id');
             if (!task) {
@@ -159,11 +122,23 @@ router.post('/tasks', async (req, res) => {
             return res.status(400).json({ done: false, message: 'Missing project_id' });
         }
 
-        // Handle case where frontend sends "file" (base64) and "size" instead of key/url
-        const finalKey = file_key || `task-files/${Date.now()}-${file_name}`;
-        const finalUrl = url || file; // In a real app, this would be an S3 URL
         const finalSize = file_size || size || 0;
         const finalType = file_type || (file_name.split('.').pop() || 'file');
+        if (!file || !String(file).trim()) {
+            return res.status(400).json({ done: false, message: 'Missing file data' });
+        }
+
+        const finalKey = `task-attachments/${finalTaskId || 'general'}/${Date.now()}-${file_name}`;
+        let finalUrl = null;
+
+        try {
+            finalUrl = await storageService.uploadBase64(finalKey, String(file), file_name, req.user._id);
+            logger.info(`✅ Task attachment stored (base64): ${finalKey}`);
+        } catch (uploadErr) {
+            logger.error('Task attachment upload failed: %s', uploadErr.message);
+            return res.status(500).json({ done: false, message: 'File upload failed: ' + uploadErr.message });
+        }
+
 
         const attachment = await TaskAttachment.create({
             task_id: finalTaskId,
@@ -173,14 +148,14 @@ router.post('/tasks', async (req, res) => {
             file_key: finalKey,
             file_size: finalSize,
             file_type: finalType,
-            url: finalUrl
+            url: finalUrl   // ← Always a proper HTTP URL, never raw base64
         });
 
         const populated = await TaskAttachment.findById(attachment._id)
             .populate('user_id', 'name email avatar_url');
 
-        res.status(201).json({ 
-            done: true, 
+        res.status(201).json({
+            done: true,
             body: {
                 id: populated._id,
                 task_id: populated.task_id,
@@ -203,7 +178,10 @@ router.post('/tasks', async (req, res) => {
     }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
 // DELETE /api/attachments/tasks/:id
+// Delete attachment record + physical file from storage
+// ─────────────────────────────────────────────────────────────────────────────
 router.delete('/tasks/:id', async (req, res) => {
     try {
         const attachment = await TaskAttachment.findById(req.params.id);
@@ -211,7 +189,7 @@ router.delete('/tasks/:id', async (req, res) => {
             return res.status(404).json({ done: false, message: 'Attachment not found' });
         }
 
-        // Check permission: uploader OR team admin/owner OR active project member
+        // Permission check: uploader OR team admin/owner OR active project member
         const isUploader = attachment.user_id.toString() === req.user._id.toString();
         const isTeamAdmin = !!(req.user?.is_admin || req.user?.is_owner);
         const isProjectMember = !!(attachment.project_id && await ProjectMember.exists({
@@ -224,14 +202,14 @@ router.delete('/tasks/:id', async (req, res) => {
             return res.status(403).json({ done: false, message: 'Not authorized' });
         }
 
-        // 1. Physically delete file from storage
+        // Delete physical file from storage
         if (attachment.file_key) {
             await storageService.deleteFile(attachment.file_key);
         }
 
-        // 2. Delete database record
+        // Delete database record
         await TaskAttachment.deleteOne({ _id: attachment._id });
-        
+
         res.json({ done: true });
     } catch (error) {
         logger.error('Delete attachment error: %s', error.message);
@@ -239,11 +217,13 @@ router.delete('/tasks/:id', async (req, res) => {
     }
 });
 
-// GET /api/attachments/download?id=<attachmentId>&file=<fileName>
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/attachments/download?id=<attachmentId>
+// Get download URL for an attachment
+// ─────────────────────────────────────────────────────────────────────────────
 router.get('/download', async (req, res) => {
     try {
         const { id } = req.query;
-
         if (!id) {
             return res.status(400).json({ done: false, message: 'id is required' });
         }
@@ -253,10 +233,12 @@ router.get('/download', async (req, res) => {
             return res.status(404).json({ done: false, message: 'Attachment not found' });
         }
 
+        // Generate a proper download URL
         let url = attachment.file_key
             ? await storageService.getDownloadUrl(attachment.file_key)
             : attachment.url;
 
+        // Ensure URL is always absolute
         if (url && !/^https?:\/\//i.test(url)) {
             url = `http://${String(url).replace(/^\/+/, '')}`;
         }
@@ -268,30 +250,44 @@ router.get('/download', async (req, res) => {
     }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
 // GET /api/attachments/project/:projectId
+// List all attachments for a project (paginated)
+// ─────────────────────────────────────────────────────────────────────────────
 router.get('/project/:projectId', async (req, res) => {
     try {
         const { projectId } = req.params;
         const { index, size, view } = req.query;
-        
+
         const page = parseInt(index) || 1;
         const limit = parseInt(size) || 20;
         const skip = (page - 1) * limit;
         const normalizedView = String(view || 'all').toLowerCase();
 
-        const query = { project_id: projectId };
+        const projectTaskIds = (await Task.find({ project_id: projectId }).select('_id'))
+            .map(task => task._id);
+
+        const query = {};
         if (normalizedView === 'project') {
-            query.task_id = null;
+            query.$or = [
+                { project_id: projectId, task_id: null },
+                { project_id: projectId, task_id: { $exists: false } }
+            ];
         } else if (normalizedView === 'task') {
-            query.task_id = { $ne: null };
+            query.$or = [
+                { project_id: projectId, task_id: { $ne: null } },
+                { task_id: { $in: projectTaskIds } }
+            ];
+        } else {
+            query.$or = [
+                { project_id: projectId },
+                { task_id: { $in: projectTaskIds } }
+            ];
         }
 
         const attachments = await TaskAttachment.find(query)
             .populate('user_id', 'name email avatar_url')
-            .populate({
-                path: 'task_id',
-                select: 'name task_key'
-            })
+            .populate({ path: 'task_id', select: 'name task_key' })
             .sort({ created_at: -1 })
             .skip(skip)
             .limit(limit);
@@ -315,12 +311,9 @@ router.get('/project/:projectId', async (req, res) => {
             uploader_name: a.user_id?.name
         }));
 
-        res.json({ 
-            done: true, 
-            body: {
-                data: formatted,
-                total
-            }
+        res.json({
+            done: true,
+            body: { data: formatted, total }
         });
     } catch (error) {
         console.error('Fetch project attachments error:', error);

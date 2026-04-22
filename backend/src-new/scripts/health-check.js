@@ -49,10 +49,10 @@ const runCheck = async () => {
 
   // 3. Storage Check
   try {
-    const provider = process.env.STORAGE_PROVIDER || 'local';
+    const provider = process.env.STORAGE_PROVIDER || 'db';
     log(`Storage: Configured provider: ${provider}`, 'OK');
-    if (provider === 's3' && !process.env.AWS_BUCKET) {
-        log('Storage: S3 Bucket name is missing in .env', 'FAIL');
+    if (provider !== 'db') {
+      log('Storage: local/cloud providers are disabled. Set STORAGE_PROVIDER=db.', 'FAIL');
     }
   } catch (err) {
     log(`Storage: Config failed - ${err.message}`, 'FAIL');

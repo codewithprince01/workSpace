@@ -26,6 +26,8 @@ const taskCommentsRoutes = require('./task-comments.routes');
 router.use('/task-comments', taskCommentsRoutes);
 const attachmentsRoutes = require('./attachments.routes');
 router.use('/attachments', attachmentsRoutes);
+const filesRoutes = require('./files.routes');
+router.use('/files', filesRoutes);
 const logsRoutes = require('./logs.routes');
 router.use('/logs', logsRoutes);
 const projectStatusesRoutes = require('./project-statuses.routes');

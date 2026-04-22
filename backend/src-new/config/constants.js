@@ -19,6 +19,18 @@ if (!_sessionSecret || _sessionSecret.trim().length < 16) {
   );
 }
 
+const _storageProvider = String(process.env.STORAGE_PROVIDER || 'db').trim().toLowerCase();
+if (_storageProvider === 'local') {
+  throw new Error(
+    '[FATAL] STORAGE_PROVIDER=local is disabled. Use STORAGE_PROVIDER=db for database blob storage.'
+  );
+}
+if (!['db'].includes(_storageProvider)) {
+  throw new Error(
+    `[FATAL] Unsupported STORAGE_PROVIDER "${_storageProvider}". Supported providers: db.`
+  );
+}
+
 module.exports = {
   // Application
   APP_NAME: 'Worklenz',
@@ -87,7 +99,5 @@ module.exports = {
   SES_REGION: process.env.AWS_REGION || 'us-east-1',
 
   // Storage
-  STORAGE_PROVIDER: 'local',
-  S3_BUCKET: process.env.AWS_BUCKET || 'worklenz-files',
-  LOCAL_UPLOAD_DIR: process.env.LOCAL_UPLOAD_DIR || 'uploads',
+  STORAGE_PROVIDER: _storageProvider,
 };
