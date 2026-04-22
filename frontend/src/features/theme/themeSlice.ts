@@ -33,7 +33,7 @@ const updateDocumentTheme = (themeMode: ThemeType): void => {
 
   const root = document.documentElement;
   const oppositeTheme = themeMode === 'dark' ? 'light' : 'dark';
-  const themeColor = themeMode === 'dark' ? '#181818' : '#ffffff';
+  const themeColor = themeMode === 'dark' ? '#121417' : '#ffffff';
 
   [root, document.body].forEach(element => {
     element.classList.remove(oppositeTheme);

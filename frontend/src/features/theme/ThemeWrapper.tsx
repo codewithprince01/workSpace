@@ -28,7 +28,7 @@ const ThemeWrapper = memo(({ children }: ChildrenProp) => {
           colorBgContainer: colors.transparent,
         },
         Table: {
-          rowHoverBg: themeMode === 'dark' ? '#000' : '#edebf0',
+          rowHoverBg: themeMode === 'dark' ? '#15191d' : '#edebf0',
         },
         Select: {
           controlHeight: 32,
