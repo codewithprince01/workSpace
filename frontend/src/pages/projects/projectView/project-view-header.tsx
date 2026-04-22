@@ -59,7 +59,6 @@ import logger from '@/utils/errorLogger';
 import ImportTaskTemplate from '@/components/task-templates/import-task-template';
 import ProjectDrawer from '@/components/projects/project-drawer/project-drawer';
 import { toggleProjectMemberDrawer } from '@/features/projects/singleProject/members/projectMembersSlice';
-import useIsProjectManager from '@/hooks/useIsProjectManager';
 import { useProjectRole } from '@/services/project-role/projectRole.service';
 import useTabSearchParam from '@/hooks/useTabSearchParam';
 import { addTaskCardToTheTop, fetchBoardTaskGroups } from '@/features/board/board-slice';
@@ -79,7 +78,6 @@ const ProjectViewHeader = memo(() => {
   const authService = useAuthService();
   const currentSession = useMemo(() => authService.getCurrentSession(), [authService]);
   const isOwnerOrAdmin = useMemo(() => authService.isOwnerOrAdmin(), [authService]);
-  const isProjectManager = useIsProjectManager();
 
   const { socket, connected } = useSocket();
   const { projectRole } = useProjectRole();
@@ -401,8 +399,8 @@ const ProjectViewHeader = memo(() => {
       </Tooltip>
     );
 
-    // Invite button (Owner/Admin or Project Manager)
-    if (projectRole.canInviteMembers || isProjectManager) {
+    // Invite button (Owner/Admin only)
+    if (projectRole.canInviteMembers) {
       actions.push(
         <Tooltip key="invite-tooltip" title={t('inviteTooltip')}>
           <Button key="invite" type="primary" icon={<ShareAltOutlined />} onClick={handleInvite}>
@@ -460,7 +458,6 @@ const ProjectViewHeader = memo(() => {
     subscriptionLoading,
     selectedProject?.subscribed,
     handleSubscribe,
-    isProjectManager,
     handleInvite,
     creatingTask,
     dropdownItems,

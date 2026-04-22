@@ -12,6 +12,13 @@ const path = require('path');
 
 let s3Client;
 
+const normalizeHost = host => {
+  const value = String(host || '').trim();
+  if (!value) return 'http://localhost:3000';
+  if (value.startsWith('http://') || value.startsWith('https://')) return value;
+  return `http://${value}`;
+};
+
 console.log(`📦 Storage Service Initialized. Provider: ${constants.STORAGE_PROVIDER}`);
 
 /**
@@ -55,7 +62,7 @@ exports.getUploadUrl = async (fileKey, contentType) => {
   }
 
   // Local fallback: Return a backend URL
-  const host = process.env.BACKEND_URL || 'http://localhost:3000';
+  const host = normalizeHost(process.env.BACKEND_URL || process.env.HOSTNAME || 'localhost:3000');
   return `${host}/api/attachments/local-upload/${fileKey}`;
 };
 
@@ -75,7 +82,8 @@ exports.getDownloadUrl = async (fileKey) => {
   }
 
   // Local fallback: Return direct link to local upload dir
-  return `${process.env.HOSTNAME || 'http://localhost:3000'}/${constants.LOCAL_UPLOAD_DIR}/${fileKey}`;
+  const host = normalizeHost(process.env.HOSTNAME || process.env.BACKEND_URL || 'localhost:3000');
+  return `${host}/${constants.LOCAL_UPLOAD_DIR}/${fileKey}`;
 };
 
 /**
@@ -127,10 +135,7 @@ exports.uploadBase64 = async (fileKey, base64Data, fileName) => {
     logger.info(`Local Storage: Uploaded file ${fileKey}`);
     
     // Return local URL
-    let host = process.env.HOSTNAME || 'localhost:3000';
-    if (!host.startsWith('http://') && !host.startsWith('https://')) {
-      host = `http://${host}`;
-    }
+    const host = normalizeHost(process.env.HOSTNAME || process.env.BACKEND_URL || 'localhost:3000');
     return `${host}/${constants.LOCAL_UPLOAD_DIR || 'uploads'}/${fileKey}`;
   } catch (error) {
     logger.error('Storage Service: Upload failed for %s - %s', fileKey, error.message);

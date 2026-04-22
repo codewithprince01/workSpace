@@ -2,28 +2,32 @@ import { RouteObject } from 'react-router-dom';
 import { Navigate } from 'react-router-dom';
 import { Suspense } from 'react';
 import SettingsLayout from '@/layouts/SettingsLayout';
-import { settingsItems } from '@/lib/settings/settings-constants';
+import { settingsItems, canAccessSetting } from '@/lib/settings/settings-constants';
 import { useAuthService } from '@/hooks/useAuth';
 import { useProjectRole } from '@/services/project-role/projectRole.service';
 import { SuspenseFallback } from '@/components/suspense-fallback/suspense-fallback';
 
 const SettingsGuard = ({
   children,
-  adminRequired,
+  settingItem,
 }: {
   children: React.ReactNode;
-  adminRequired: boolean;
+  settingItem: (typeof settingsItems)[number];
 }) => {
-  const isOwnerOrAdmin = useAuthService().isOwnerOrAdmin();
+  const authService = useAuthService();
+  const isOwnerOrAdmin = authService.isOwnerOrAdmin();
+  const currentSession = authService.getCurrentSession();
   const { projectRole } = useProjectRole();
 
-  // If admin-only setting is requested but user is in an invited project, redirect to profile
-  if (adminRequired && !projectRole.isInOwnTeam) {
-    return <Navigate to="/worklenz/settings/profile" replace />;
-  }
+  const hasAccess = canAccessSetting(
+    settingItem,
+    isOwnerOrAdmin,
+    projectRole.isInOwnTeam,
+    projectRole.projectRole,
+    currentSession?.team_role
+  );
 
-  // If admin-only setting is requested but user is not admin/owner, redirect to profile
-  if (adminRequired && !isOwnerOrAdmin) {
+  if (!hasAccess) {
     return <Navigate to="/worklenz/settings/profile" replace />;
   }
 
@@ -38,7 +42,7 @@ const settingsRoutes: RouteObject[] = [
       path: item.endpoint,
       element: (
         <Suspense fallback={<SuspenseFallback />}>
-          <SettingsGuard adminRequired={!!item.adminOnly}>{item.element}</SettingsGuard>
+          <SettingsGuard settingItem={item}>{item.element}</SettingsGuard>
         </Suspense>
       ),
     })),

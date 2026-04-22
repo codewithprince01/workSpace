@@ -1,9 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const { protect } = require('../middlewares/auth.middleware');
-const { TaskAttachment, Task } = require('../models');
+const { TaskAttachment, Task, ProjectMember } = require('../models');
 const storageService = require('../services/storage.service');
 const logger = require('../utils/logger');
+const fs = require('fs-extra');
+const path = require('path');
+const constants = require('../config/constants');
 
 // Apply protection
 router.use(protect);
@@ -66,6 +69,40 @@ router.post('/upload-url', async (req, res) => {
     }
 });
 
+// PUT /api/attachments/local-upload/* - Local storage upload endpoint (used by local provider upload URLs)
+router.put('/local-upload/*', express.raw({ type: '*/*', limit: '200mb' }), async (req, res) => {
+    try {
+        const fileKey = req.params[0];
+        if (!fileKey) {
+            return res.status(400).json({ done: false, message: 'file key is required' });
+        }
+
+        if (!req.body || !Buffer.isBuffer(req.body) || req.body.length === 0) {
+            return res.status(400).json({ done: false, message: 'file body is required' });
+        }
+
+        const localPath = path.join(process.cwd(), constants.LOCAL_UPLOAD_DIR || 'uploads', fileKey);
+        await fs.ensureDir(path.dirname(localPath));
+        await fs.writeFile(localPath, req.body);
+
+        let host = process.env.HOSTNAME || 'localhost:3000';
+        if (!host.startsWith('http://') && !host.startsWith('https://')) {
+            host = `http://${host}`;
+        }
+
+        return res.json({
+            done: true,
+            body: {
+                file_key: fileKey,
+                url: `${host}/${constants.LOCAL_UPLOAD_DIR || 'uploads'}/${fileKey}`
+            }
+        });
+    } catch (error) {
+        logger.error('Local upload failed: %s', error.message);
+        return res.status(500).json({ done: false, message: 'Failed to upload file' });
+    }
+});
+
 // GET /api/attachments/tasks/:taskId - Get attachments for a task
 router.get('/tasks/:taskId', async (req, res) => {
     try {
@@ -77,12 +114,17 @@ router.get('/tasks/:taskId', async (req, res) => {
         const formatted = attachments.map(a => ({
             id: a._id,
             task_id: a.task_id,
+            project_id: a.project_id,
             file_name: a.file_name,
+            name: a.file_name,
             file_size: a.file_size,
+            size: a.file_size,
             file_type: a.file_type,
+            type: a.file_type,
             url: a.url,
             created_at: a.created_at,
             user_name: a.user_id?.name,
+            uploader_name: a.user_id?.name,
             user_id: a.user_id?._id
         }));
 
@@ -96,10 +138,25 @@ router.get('/tasks/:taskId', async (req, res) => {
 // POST /api/attachments/tasks - Create attachment entry
 router.post('/tasks', async (req, res) => {
     try {
-        const { task_id, file_name, file_key, file_size, file_type, url, file, size } = req.body;
+        const { task_id, project_id, file_name, file_key, file_size, file_type, url, file, size } = req.body;
 
-        if (!task_id || !file_name) {
-            return res.status(400).json({ done: false, message: 'Missing task_id or file_name' });
+        if (!file_name) {
+            return res.status(400).json({ done: false, message: 'Missing file_name' });
+        }
+
+        let finalTaskId = task_id || null;
+        let finalProjectId = project_id || null;
+
+        if (finalTaskId && !finalProjectId) {
+            const task = await Task.findById(finalTaskId).select('project_id');
+            if (!task) {
+                return res.status(400).json({ done: false, message: 'Invalid task_id' });
+            }
+            finalProjectId = task.project_id;
+        }
+
+        if (!finalProjectId) {
+            return res.status(400).json({ done: false, message: 'Missing project_id' });
         }
 
         // Handle case where frontend sends "file" (base64) and "size" instead of key/url
@@ -109,7 +166,8 @@ router.post('/tasks', async (req, res) => {
         const finalType = file_type || (file_name.split('.').pop() || 'file');
 
         const attachment = await TaskAttachment.create({
-            task_id,
+            task_id: finalTaskId,
+            project_id: finalProjectId,
             user_id: req.user._id,
             file_name,
             file_key: finalKey,
@@ -126,12 +184,17 @@ router.post('/tasks', async (req, res) => {
             body: {
                 id: populated._id,
                 task_id: populated.task_id,
+                project_id: populated.project_id,
                 file_name: populated.file_name,
+                name: populated.file_name,
                 file_size: populated.file_size,
+                size: populated.file_size,
                 file_type: populated.file_type,
+                type: populated.file_type,
                 url: populated.url,
                 created_at: populated.created_at,
-                user_name: populated.user_id?.name
+                user_name: populated.user_id?.name,
+                uploader_name: populated.user_id?.name
             }
         });
     } catch (error) {
@@ -148,8 +211,16 @@ router.delete('/tasks/:id', async (req, res) => {
             return res.status(404).json({ done: false, message: 'Attachment not found' });
         }
 
-        // Check permission
-        if (attachment.user_id.toString() !== req.user._id.toString()) {
+        // Check permission: uploader OR team admin/owner OR active project member
+        const isUploader = attachment.user_id.toString() === req.user._id.toString();
+        const isTeamAdmin = !!(req.user?.is_admin || req.user?.is_owner);
+        const isProjectMember = !!(attachment.project_id && await ProjectMember.exists({
+            project_id: attachment.project_id,
+            user_id: req.user._id,
+            is_active: true,
+        }));
+
+        if (!isUploader && !isTeamAdmin && !isProjectMember) {
             return res.status(403).json({ done: false, message: 'Not authorized' });
         }
 
@@ -168,42 +239,80 @@ router.delete('/tasks/:id', async (req, res) => {
     }
 });
 
+// GET /api/attachments/download?id=<attachmentId>&file=<fileName>
+router.get('/download', async (req, res) => {
+    try {
+        const { id } = req.query;
+
+        if (!id) {
+            return res.status(400).json({ done: false, message: 'id is required' });
+        }
+
+        const attachment = await TaskAttachment.findById(id);
+        if (!attachment) {
+            return res.status(404).json({ done: false, message: 'Attachment not found' });
+        }
+
+        let url = attachment.file_key
+            ? await storageService.getDownloadUrl(attachment.file_key)
+            : attachment.url;
+
+        if (url && !/^https?:\/\//i.test(url)) {
+            url = `http://${String(url).replace(/^\/+/, '')}`;
+        }
+
+        return res.json({ done: true, body: url });
+    } catch (error) {
+        logger.error('Download attachment error: %s', error.message);
+        return res.status(500).json({ done: false, message: 'Failed to download attachment' });
+    }
+});
+
 // GET /api/attachments/project/:projectId
 router.get('/project/:projectId', async (req, res) => {
     try {
         const { projectId } = req.params;
-        const { index, size } = req.query;
+        const { index, size, view } = req.query;
         
         const page = parseInt(index) || 1;
         const limit = parseInt(size) || 20;
         const skip = (page - 1) * limit;
+        const normalizedView = String(view || 'all').toLowerCase();
 
-        // Find tasks in project
-        const tasks = await Task.find({ project_id: projectId }).select('_id');
-        const taskIds = tasks.map(t => t._id);
+        const query = { project_id: projectId };
+        if (normalizedView === 'project') {
+            query.task_id = null;
+        } else if (normalizedView === 'task') {
+            query.task_id = { $ne: null };
+        }
 
-        const attachments = await TaskAttachment.find({ task_id: { $in: taskIds } })
+        const attachments = await TaskAttachment.find(query)
             .populate('user_id', 'name email avatar_url')
             .populate({
                 path: 'task_id',
-                select: 'name'
+                select: 'name task_key'
             })
             .sort({ created_at: -1 })
             .skip(skip)
             .limit(limit);
 
-        const total = await TaskAttachment.countDocuments({ task_id: { $in: taskIds } });
+        const total = await TaskAttachment.countDocuments(query);
 
         const formatted = attachments.map(a => ({
             id: a._id,
             task_id: a.task_id?._id || a.task_id,
             task_name: a.task_id?.name,
+            task_key: a.task_id?.task_key || null,
             file_name: a.file_name,
+            name: a.file_name,
             file_size: a.file_size,
+            size: a.file_size,
             file_type: a.file_type,
+            type: a.file_type,
             url: a.url,
             created_at: a.created_at,
-            user_name: a.user_id?.name
+            user_name: a.user_id?.name,
+            uploader_name: a.user_id?.name
         }));
 
         res.json({ 

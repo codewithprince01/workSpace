@@ -42,6 +42,9 @@ type SettingMenuItems = {
   adminOnly?: boolean;
   isDangerous?: boolean;
 };
+
+type ProjectRoleType = 'owner' | 'admin' | 'member' | 'viewer' | null | undefined;
+type TeamRoleType = 'owner' | 'admin' | 'member' | string | null | undefined;
 // settings all element items use for sidebar and routes
 export const settingsItems: SettingMenuItems[] = [
   // Available for everyone
@@ -164,12 +167,48 @@ export const settingsItems: SettingMenuItems[] = [
   },
 ];
 
-export const getAccessibleSettings = (isTeamOwnerOrAdmin: boolean, isInOwnTeam: boolean = true) => {
-  // If user is in an invited project (not their own team), show ONLY personal settings
-  if (!isInOwnTeam) {
-    return settingsItems.filter(item => !item.adminOnly);
+const MEMBER_IN_MANAGER_PROJECT_ALLOWED_SETTINGS = new Set([
+  'profile',
+  'notifications',
+  'appearance',
+  'language-and-region',
+  'trash',
+  'account-deletion',
+]);
+
+export const canAccessSetting = (
+  item: SettingMenuItems,
+  isTeamOwnerOrAdmin: boolean,
+  isInOwnTeam: boolean = true,
+  projectRole?: ProjectRoleType,
+  teamRole?: TeamRoleType
+) => {
+  const isTeamMember = teamRole?.toLowerCase() === 'member';
+  const isMemberInManagerProject =
+    !isInOwnTeam && (projectRole === 'member' || isTeamMember);
+
+  // Special restricted mode:
+  // user is a member and currently inside a manager's project.
+  if (isMemberInManagerProject) {
+    return MEMBER_IN_MANAGER_PROJECT_ALLOWED_SETTINGS.has(item.key);
   }
-  
-  // If in own team, filter by team role (admin-only settings require admin/owner role)
-  return settingsItems.filter(item => !item.adminOnly || isTeamOwnerOrAdmin);
+
+  // Existing behavior for invited project contexts (non-own team).
+  if (!isInOwnTeam) {
+    return !item.adminOnly;
+  }
+
+  // Existing behavior in own team.
+  return !item.adminOnly || isTeamOwnerOrAdmin;
+};
+
+export const getAccessibleSettings = (
+  isTeamOwnerOrAdmin: boolean,
+  isInOwnTeam: boolean = true,
+  projectRole?: ProjectRoleType,
+  teamRole?: TeamRoleType
+) => {
+  return settingsItems.filter(item =>
+    canAccessSetting(item, isTeamOwnerOrAdmin, isInOwnTeam, projectRole, teamRole)
+  );
 };

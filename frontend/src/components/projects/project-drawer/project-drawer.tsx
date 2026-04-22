@@ -88,9 +88,11 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
   const [createProject, { isLoading: isCreatingProject }] = useCreateProjectMutation();
 
   // Auth and permissions
-  const isProjectManager = currentSession?.team_member_id == selectedProjectManager?.id;
   const isOwnerorAdmin = useAuthService().isOwnerOrAdmin();
-  const isEditable = isProjectManager || isOwnerorAdmin;
+  // Use active team role for permission checks so switched member context is respected.
+  const canEditProjectSettings = currentSession?.team_role
+    ? ['owner', 'admin'].includes(currentSession.team_role)
+    : isOwnerorAdmin;
 
   const normalizeProjectStatus = useCallback((status?: string) => {
     if (!status) return 'proposed';
@@ -256,6 +258,11 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
 
   // Handlers
   const handleFormSubmit = async (values: any) => {
+    if (!canEditProjectSettings) {
+      notification.warning({ message: t('noPermission') });
+      return;
+    }
+
     try {
       const mapToLegacyStatus = (status?: string) => {
         const normalized = (status || '').toLowerCase().replace(/\s+/g, '_');
@@ -509,7 +516,7 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
       footer={
         <Flex justify="space-between">
           <Space>
-            {editMode && (isProjectManager || isOwnerorAdmin) && (
+            {editMode && canEditProjectSettings && (
               <Popconfirm
                 title={t('deleteConfirmation')}
                 description={t('deleteConfirmationDescription')}
@@ -524,7 +531,7 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
             )}
           </Space>
           <Space>
-            {(isProjectManager || isOwnerorAdmin) && (
+            {canEditProjectSettings && (
               <Button
                 type="primary"
                 onClick={() => form.submit()}
@@ -538,7 +545,7 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
         </Flex>
       }
     >
-      {!isEditable && (
+      {!canEditProjectSettings && (
         <Alert message={t('noPermission')} type="warning" showIcon style={{ marginBottom: 16 }} />
       )}
       <Form
@@ -553,29 +560,29 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
             editMode={editMode}
             project={project}
             form={form}
-            disabled={!isProjectManager && !isOwnerorAdmin}
+            disabled={!canEditProjectSettings}
           />
           <ProjectStatusSection
             form={form}
             t={t}
-            disabled={!isProjectManager && !isOwnerorAdmin}
+            disabled={!canEditProjectSettings}
           />
           <ProjectHealthSection
             form={form}
             t={t}
-            disabled={!isProjectManager && !isOwnerorAdmin}
+            disabled={!canEditProjectSettings}
           />
           <ProjectCategorySection
             categories={projectCategories}
             form={form}
             t={t}
-            disabled={!isProjectManager && !isOwnerorAdmin}
+            disabled={!canEditProjectSettings}
           />
 
           <Form.Item name="notes" label={t('notes')}>
             <Input.TextArea
               placeholder={t('enterNotes')}
-              disabled={!isProjectManager && !isOwnerorAdmin}
+              disabled={!canEditProjectSettings}
             />
           </Form.Item>
 
@@ -585,14 +592,14 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
             t={t}
             project={project}
             loadingClients={loadingClients}
-            disabled={!isProjectManager && !isOwnerorAdmin}
+            disabled={!canEditProjectSettings}
           />
 
           <Form.Item name="project_manager" label={t('projectManager')} layout="horizontal">
             <ProjectManagerDropdown
               selectedProjectManager={selectedProjectManager}
               setSelectedProjectManager={setSelectedProjectManager}
-              disabled={!isProjectManager && !isOwnerorAdmin}
+              disabled={!canEditProjectSettings}
             />
           </Form.Item>
 
@@ -601,7 +608,7 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
               <Form.Item name="start_date" label={t('startDate')}>
                 <DatePicker
                   disabledDate={disabledStartDate}
-                  disabled={!isProjectManager && !isOwnerorAdmin}
+                  disabled={!canEditProjectSettings}
                   onChange={date => {
                     const endDate = form.getFieldValue('end_date');
                     if (date && endDate) {
@@ -614,7 +621,7 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
               <Form.Item name="end_date" label={t('endDate')}>
                 <DatePicker
                   disabledDate={disabledEndDate}
-                  disabled={!isProjectManager && !isOwnerorAdmin}
+                  disabled={!canEditProjectSettings}
                   onChange={date => {
                     const startDate = form.getFieldValue('start_date');
                     if (startDate && date) {
@@ -641,7 +648,7 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
               },
             ]}
           >
-            <Input type="number" min={0} disabled={!isProjectManager && !isOwnerorAdmin} />
+            <Input type="number" min={0} disabled={!canEditProjectSettings} />
           </Form.Item>
 
           <Form.Item
@@ -661,7 +668,7 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
             <Input
               type="number"
               min={0}
-              disabled={!isProjectManager && !isOwnerorAdmin}
+              disabled={!canEditProjectSettings}
               onBlur={e => {
                 const value = parseInt(e.target.value, 10);
                 if (value < 0) {
@@ -690,7 +697,7 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
             <Input
               type="number"
               min={0}
-              disabled={!isProjectManager && !isOwnerorAdmin}
+              disabled={!canEditProjectSettings}
               onBlur={e => {
                 const value = parseInt(e.target.value, 10);
                 if (value < 0) {

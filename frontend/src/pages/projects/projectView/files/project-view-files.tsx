@@ -40,6 +40,7 @@ import {
 } from '@/types/tasks/task-attachment-view-model';
 import { useAppSelector } from '@/hooks/useAppSelector';
 import { attachmentsApiService } from '@/api/attachments/attachments.api.service';
+import apiClient from '@/api/api-client';
 import logger from '@/utils/errorLogger';
 import { evt_project_files_visit } from '@/shared/worklenz-analytics-events';
 import { useMixpanelTracking } from '@/hooks/useMixpanelTracking';
@@ -162,10 +163,10 @@ const ProjectViewFiles = () => {
           const { upload_url, file_key } = sigRes.body;
           
           // 2. Upload to storage (PUT request)
-          await fetch(upload_url, {
-            method: 'PUT',
-            body: file,
-            headers: { 'Content-Type': file.type }
+          await apiClient.put(upload_url, file, {
+            headers: {
+              'Content-Type': file.type || 'application/octet-stream',
+            },
           });
           
           // 3. Register in backend
@@ -174,7 +175,7 @@ const ProjectViewFiles = () => {
             file_name: file.name,
             file_key: file_key,
             file_size: file.size,
-            file_type: file.type.split('/')[1] || 'file',
+            file_type: file.type || 'application/octet-stream',
             url: upload_url
           });
         }
@@ -207,6 +208,27 @@ const ProjectViewFiles = () => {
         }}
       />
     );
+  };
+
+  const forceDownloadFile = async (url: string, fileName: string) => {
+    const response = await fetch(url, {
+      method: 'GET',
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to download file: ${response.status}`);
+    }
+
+    const blob = await response.blob();
+    const objectUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.setAttribute('download', fileName || 'file');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(objectUrl);
   };
 
   const columns = useMemo(() => {
@@ -286,15 +308,20 @@ const ProjectViewFiles = () => {
               <Button 
                   className="action-btn download-btn"
                   icon={<CloudDownloadOutlined style={{ color: '#fff' }} />} 
-                  onClick={async () => {
-                     const res = await attachmentsApiService.downloadAttachment(record.id!, record.name!);
-                     if (res.done && res.body) {
-                         const link = document.createElement('a');
-                         link.href = res.body;
-                         link.setAttribute('download', record.name || 'file');
-                         document.body.appendChild(link);
-                         link.click();
-                         document.body.removeChild(link);
+                   onClick={async () => {
+                     try {
+                       const res = await attachmentsApiService.downloadAttachment(record.id!, record.name!);
+                       if (res.done && res.body) {
+                           const downloadUrl = /^https?:\/\//i.test(res.body)
+                             ? res.body
+                             : `http://${String(res.body).replace(/^\/+/, '')}`;
+                           await forceDownloadFile(downloadUrl, record.name || 'file');
+                       } else {
+                         message.error('Failed to download file');
+                       }
+                     } catch (error) {
+                       logger.error('Download failed', error);
+                       message.error('Failed to download file');
                      }
                   }}
               />
