@@ -1,9 +1,8 @@
 import {
-  ClockCircleOutlined,
+  CalendarOutlined,
   HomeOutlined,
   MenuOutlined,
   ProjectOutlined,
-  QuestionCircleOutlined,
   ReadOutlined,
 } from '@/shared/antd-imports';
 import { Button, Card, Dropdown, Flex, MenuProps, Space, Typography } from '@/shared/antd-imports';
@@ -14,6 +13,8 @@ import { NavLink } from 'react-router-dom';
 import InviteButton from '../invite/InviteButton';
 import SwitchTeamButton from '../switch-team/SwitchTeamButton';
 import { useProjectRole } from '@/services/project-role/projectRole.service';
+import { navRoutes } from '../navRoutes';
+import { useAuthService } from '@/hooks/useAuth';
 // custom css
 import './mobileMenu.css';
 
@@ -21,33 +22,26 @@ const MobileMenuButton = () => {
   // localization
   const { t } = useTranslation('navbar');
   const { projectRole } = useProjectRole();
+  const currentSession = useAuthService().getCurrentSession();
 
-  const navLinks = [
-    {
-      name: 'home',
-      icon: React.createElement(HomeOutlined),
-    },
-    {
-      name: 'projects',
-      icon: React.createElement(ProjectOutlined),
-    },
-    {
-      name: 'schedule',
-      icon: React.createElement(ClockCircleOutlined),
-    },
-    {
-      name: 'reporting',
-      icon: React.createElement(ReadOutlined),
-      requiresReportsAccess: true,
-    },
-    {
-      name: 'help',
-      icon: React.createElement(QuestionCircleOutlined),
-    },
-  ];
+  const iconMap: Record<string, React.ReactNode> = {
+    home: React.createElement(HomeOutlined),
+    projects: React.createElement(ProjectOutlined),
+    calendar: React.createElement(CalendarOutlined),
+    reporting: React.createElement(ReadOutlined),
+  };
 
   // Filter nav links based on permissions
-  const filteredNavLinks = navLinks.filter(link => {
+  const filteredNavLinks = navRoutes.filter(link => {
+    if (
+      !link.freePlanFeature &&
+      currentSession?.subscription_type === 'free'
+    ) {
+      return false;
+    }
+    if (link.adminOnly && !projectRole.canAccessSettings) {
+      return false;
+    }
     if (link.requiresReportsAccess && !projectRole.canAccessReports) {
       return false;
     }
@@ -60,10 +54,10 @@ const MobileMenuButton = () => {
       label: (
         <Card className="mobile-menu-card" bordered={false} style={{ width: 230 }}>
           {filteredNavLinks.map((navEl, index) => (
-            <NavLink key={index} to={`/worklenz/${navEl.name}`}>
+            <NavLink key={index} to={navEl.path}>
               <Typography.Text strong>
                 <Space>
-                  {navEl.icon}
+                  {iconMap[navEl.name]}
                   {t(navEl.name)}
                 </Space>
               </Typography.Text>
@@ -71,24 +65,34 @@ const MobileMenuButton = () => {
           ))}
 
           <Flex
+            className="mobile-menu-actions"
             vertical
             gap={12}
             style={{
-              width: '90%',
-              marginInlineStart: 12,
-              marginBlock: 6,
+              width: '100%',
+              margin: 0,
+              padding: '12px 14px 6px',
+              boxSizing: 'border-box',
             }}
           >
-            <Button
+            {/* Mobile menu intentionally hides upgrade action for now */}
+            {/* <Button
+              className="mobile-menu-upgrade-btn"
               style={{
                 backgroundColor: colors.lightBeige,
                 color: 'black',
               }}
             >
               {t('upgradePlan')}
-            </Button>
-            {projectRole.canInviteMembers && <InviteButton />}
-            <SwitchTeamButton />
+            </Button> */}
+            {projectRole.canInviteMembers && (
+              <div className="mobile-menu-action-row">
+                <InviteButton />
+              </div>
+            )}
+            <div className="mobile-menu-action-row mobile-menu-switch-team">
+              <SwitchTeamButton />
+            </div>
           </Flex>
         </Card>
       ),

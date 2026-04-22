@@ -1,6 +1,8 @@
 .mobile-menu-dropdown .ant-dropdown-menu {
   padding: 0 !important;
   margin-top: 2px !important;
+  min-width: 248px;
+  max-width: calc(100vw - 24px);
 }
 
 .mobile-menu-dropdown .ant-dropdown-menu-item {
@@ -13,12 +15,16 @@
 
 .mobile-menu-card .ant-card-body {
   padding: 4px 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .mobile-menu-card .ant-card-body a {
   display: block;
   margin: 0;
   padding: 10px 15px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .mobile-menu-card .ant-card-body a:hover {
@@ -35,4 +41,54 @@ html[data-theme="dark"] .mobile-menu-card .ant-card-body a:hover {
 .mobile-menu-card {
   border: none !important;
   box-shadow: none !important;
+  max-width: min(248px, calc(100vw - 24px)) !important;
+}
+
+.mobile-menu-actions {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.mobile-menu-action-row {
+  width: 100%;
+}
+
+.mobile-menu-action-row .ant-btn,
+.mobile-menu-upgrade-btn {
+  width: 100%;
+  justify-content: center;
+}
+
+.mobile-menu-upgrade-btn {
+  height: 40px;
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+.mobile-menu-switch-team > div,
+.mobile-menu-switch-team .ant-tooltip-open > div {
+  width: 100%;
+}
+
+.mobile-menu-switch-team [role='button'],
+.mobile-menu-switch-team .ant-tooltip-open,
+.mobile-menu-switch-team .ant-dropdown-trigger {
+  width: 100%;
+}
+
+.mobile-menu-switch-team .ant-dropdown-trigger > div,
+.mobile-menu-switch-team .ant-tooltip-open > div {
+  width: 100%;
+  justify-content: center !important;
+  box-sizing: border-box;
+}
+
+.mobile-menu-switch-team .ant-typography {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html[data-theme="light"] .mobile-menu-actions {
+  border-top-color: rgba(0, 0, 0, 0.08);
 }
