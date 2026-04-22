@@ -58,7 +58,7 @@ const Overview: React.FC = () => {
   const cardStyle = {
     borderRadius: '4px',
     marginBottom: '24px',
-    backgroundColor: themeMode === 'dark' ? '#141414' : '#ffffff',
+    backgroundColor: themeMode === 'dark' ? '#121417' : '#ffffff',
     border: 'none',
     width: '100%'
   };
@@ -120,7 +120,7 @@ const Overview: React.FC = () => {
   };
 
   return (
-    <div style={{ width: '100%', minHeight: '100vh', padding: '16px 24px', backgroundColor: themeMode === 'dark' ? '#000000' : '#f0f2f5' }}>
+    <div style={{ width: '100%', minHeight: '100vh', padding: '16px 24px', backgroundColor: themeMode === 'dark' ? '#121417' : '#f0f2f5' }}>
       
       {/* Organization Profile Card */}
       <Card style={cardStyle} bodyStyle={{ padding: '32px' }}>

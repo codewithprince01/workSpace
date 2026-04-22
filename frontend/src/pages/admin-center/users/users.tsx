@@ -92,7 +92,7 @@ const Users: React.FC = () => {
 
   const cardStyle: React.CSSProperties = {
     borderRadius: '8px',
-    backgroundColor: '#141414',
+    backgroundColor: '#121417',
     border: '1px solid #303030',
     width: '100%',
     padding: '0'
@@ -105,7 +105,7 @@ const Users: React.FC = () => {
   };
 
   return (
-    <div style={{ width: '100%', minHeight: '100vh', padding: '24px 32px', backgroundColor: '#000000' }}>
+    <div style={{ width: '100%', minHeight: '100vh', padding: '24px 32px', backgroundColor: '#121417' }}>
       <Flex justify="space-between" align="center" style={{ marginBottom: '24px' }}>
         <div style={countLabelStyle}>
             {requestParams.total} {t('subTitle')}

@@ -27,12 +27,12 @@ const Billing: React.FC = React.memo(() => {
   const pageHeaderStyle = useMemo(() => ({ padding: '16px 0' }), []);
 
   return (
-    <div style={{ width: '100%', height: '100%', backgroundColor: '#000000', padding: '24px' }}>
+    <div style={{ width: '100%', height: '100%', backgroundColor: '#121417', padding: '24px' }}>
       <PageHeader title={<span style={{ color: '#fafafa', fontSize: '24px', fontWeight: 600 }}>{t('title')}</span>} style={pageHeaderStyle} />
       <Tabs defaultActiveKey="1" items={items} destroyOnHidden />
       <style>{`
         .ant-card {
-            background-color: #141414 !important;
+            background-color: #121417 !important;
             border-color: #303030 !important;
         }
         .ant-tabs-tab {
