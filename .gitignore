@@ -84,3 +84,17 @@ backups/
 *.bak
 *.tmp
 nginx/conf.d/*.bak
+
+# AI/Agent generated analysis & temp files
+COMPLETE_PROJECT_ANALYSIS.md
+DEBUG_INSIGHTS.md
+INSIGHTS_TROUBLESHOOTING.md
+MONGODB_MIGRATION_GUIDE.md
+analysis_*.txt
+analysis_*.md
+*_debug.txt
+repo_file_inventory.csv
+*.legacy
+output.txt
+*-output.txt
+backend/scripts/dev/
