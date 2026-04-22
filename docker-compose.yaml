@@ -11,7 +11,7 @@ services:
     restart: unless-stopped
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${DB_USER:-worklenz}
-      MONGO_INITDB_ROOT_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      MONGO_INITDB_ROOT_PASSWORD: ${DB_PASSWORD:-changeme_not_used_with_atlas}
       MONGO_INITDB_DATABASE: ${DB_NAME:-worklenz_db}
     volumes:
       - mongo_data:/data/db
