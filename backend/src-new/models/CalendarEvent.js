@@ -45,6 +45,10 @@ const calendarEventSchema = new Schema({
     ref: 'User',
     default: []
   }],
+  external_assigned_emails: {
+    type: [String],
+    default: []
+  },
   is_all_members: {
     type: Boolean,
     default: false,

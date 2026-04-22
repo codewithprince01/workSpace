@@ -8,6 +8,7 @@ import {
 } from '@/shared/antd-imports';
 
 const { Text } = Typography;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 interface Member {
   _id: string;
@@ -35,9 +36,16 @@ const MemberMultiSelect: React.FC<MemberMultiSelectProps> = ({
 
   // ── LOGIC ──────────────────────────────────────────────────
 
+  const memberIdSet = useMemo(() => new Set(members.map(m => m._id)), [members]);
+
   const selectedMembers = useMemo(() => 
     members.filter(m => selectedIds.includes(m._id)),
     [members, selectedIds]
+  );
+
+  const selectedExternalEmails = useMemo(
+    () => selectedIds.filter(value => !memberIdSet.has(value)),
+    [selectedIds, memberIdSet]
   );
 
   const filteredMembers = useMemo(() => {
@@ -56,15 +64,25 @@ const MemberMultiSelect: React.FC<MemberMultiSelectProps> = ({
     onChange(newSelectedIds);
   };
 
-  const isAllSelected = members.length > 0 && selectedIds.length === members.length;
+  const selectedInternalIdsCount = useMemo(
+    () => selectedIds.filter(value => memberIdSet.has(value)).length,
+    [selectedIds, memberIdSet]
+  );
+
+  const isAllSelected = members.length > 0 && selectedInternalIdsCount === members.length;
 
   const toggleAll = () => {
     if (isAllSelected) {
-      onChange([]);
+      onChange(selectedExternalEmails);
     } else {
-      onChange(members.map(m => m._id));
+      onChange([...members.map(m => m._id), ...selectedExternalEmails]);
     }
   };
+
+  const trimmedQuery = searchQuery.trim().toLowerCase();
+  const isValidExternalEmail = EMAIL_REGEX.test(trimmedQuery);
+  const memberByEmail = members.find(m => m.email.toLowerCase() === trimmedQuery);
+  const externalEmailSelected = selectedIds.includes(trimmedQuery);
 
   // ── COMPONENTS ─────────────────────────────────────────────
 
@@ -127,7 +145,26 @@ const MemberMultiSelect: React.FC<MemberMultiSelectProps> = ({
           </div>
         ))}
 
-        {filteredMembers.length === 0 && (
+        {isValidExternalEmail && !memberByEmail && (
+          <div
+            className="cal-member-item"
+            onClick={() => toggleMember(trimmedQuery)}
+          >
+            <Checkbox checked={externalEmailSelected} className="cal-member-checkbox" />
+            <Avatar
+              size={32}
+              icon={<UserOutlined />}
+              className="cal-member-avatar"
+              style={{ backgroundColor: '#595959' }}
+            />
+            <div className="cal-member-info">
+              <Text className="cal-member-name">{trimmedQuery}</Text>
+              <Text type="secondary" className="cal-member-email">External email</Text>
+            </div>
+          </div>
+        )}
+
+        {filteredMembers.length === 0 && !(isValidExternalEmail && !memberByEmail) && (
           <div style={{ padding: '12px', textAlign: 'center' }}>
             <Text type="secondary">No members found</Text>
           </div>
@@ -147,6 +184,16 @@ const MemberMultiSelect: React.FC<MemberMultiSelectProps> = ({
               style={{ border: '2px solid #141414', cursor: 'default' }}
             >
               {member.name.charAt(0)}
+            </Avatar>
+          </Tooltip>
+        ))}
+        {selectedExternalEmails.map(email => (
+          <Tooltip title={email} key={email}>
+            <Avatar
+              size={32}
+              style={{ border: '2px solid #141414', cursor: 'default', backgroundColor: '#595959' }}
+            >
+              @
             </Avatar>
           </Tooltip>
         ))}

@@ -12,6 +12,7 @@ export interface ICalendarEvent {
   user_id: { _id: string; name: string; email: string; avatar_url?: string } | string;
   assigned_user_id?: { _id: string; name: string; email: string; avatar_url?: string } | string | null;
   assigned_user_ids?: ({ _id: string; name: string; email: string; avatar_url?: string } | string)[];
+  external_assigned_emails?: string[];
   is_all_members?: boolean;
   team_id?: { _id: string; name: string } | string | null;
   project_id?: string | null;
@@ -37,6 +38,7 @@ export interface ICreateEventPayload {
   all_day?: boolean;
   assigned_user_id?: string | null;
   assigned_user_ids?: string[];
+  external_assigned_emails?: string[];
   is_all_members?: boolean;
   team_id?: string | null;
   project_id?: string | null;

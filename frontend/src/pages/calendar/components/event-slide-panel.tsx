@@ -21,6 +21,7 @@ import MemberMultiSelect from './member-multi-select';
 
 const { TextArea } = Input;
 const { Text } = Typography;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // ── Constants ────────────────────────────────────────────────
 
@@ -316,9 +317,13 @@ const EventSlidePanel: React.FC = () => {
     if (isEdit && selectedEvent) {
       // Initialize assignedUserIds from selectedEvent
       const eventAssignedUserIds = selectedEvent.assigned_user_ids || [];
+      const eventExternalAssignedEmails = selectedEvent.external_assigned_emails || [];
 
       setAssignedUserIds(
-        eventAssignedUserIds.map(id => typeof id === 'object' ? (id as any)._id : id)
+        [
+          ...eventAssignedUserIds.map(id => typeof id === 'object' ? (id as any)._id : id),
+          ...eventExternalAssignedEmails,
+        ]
       );
 
       form.setFieldsValue({
@@ -362,6 +367,11 @@ const EventSlidePanel: React.FC = () => {
   const handleSubmit = useCallback(async () => {
     try {
       const values = await form.validateFields();
+      const normalizedSelections = assignedUserIds
+        .map(value => String(value).trim())
+        .filter(Boolean);
+      const externalAssignedEmails = normalizedSelections.filter(value => EMAIL_REGEX.test(value));
+      const internalAssignedUserIds = normalizedSelections.filter(value => !EMAIL_REGEX.test(value));
 
       // For mood entries, auto-generate a display title from the emoji + energy
       let title = values.title;
@@ -381,7 +391,8 @@ const EventSlidePanel: React.FC = () => {
         priority: values.priority || 'medium',
         mood: values.type === 'mood_entry' ? values.mood : null,
         reminder_minutes: values.reminder_minutes || [],
-        assigned_user_ids: assignedUserIds,
+        assigned_user_ids: internalAssignedUserIds,
+        external_assigned_emails: externalAssignedEmails,
         
         // Contextual IDs - STRICT SEPARATION
         project_id: filters.project_id || null,

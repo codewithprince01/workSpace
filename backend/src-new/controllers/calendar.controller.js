@@ -1,6 +1,9 @@
 const { CalendarEvent, TeamMember, User, Project } = require('../models');
 const logger = require('../utils/logger');
 const { canEditEvent, canDeleteEvent } = require('../utils/calendarPermissions');
+const emailService = require('../services/email.service');
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // ─────────────────────────────────────────────────────────────
 // GET /api/calendar/events
@@ -90,11 +93,16 @@ exports.createEvent = async (req, res) => {
       title, description, type, start_time, end_time, all_day,
       assigned_user_ids, project_id, task_id, priority,
       mood, energy_level, mood_tags, color, reminder_minutes,
-      event_scope
+      event_scope, external_assigned_emails
     } = req.body;
 
     // 1. STRICT SAVE LOGIC
     const finalAssignedUserIds = Array.isArray(assigned_user_ids) ? assigned_user_ids : [];
+    const finalExternalAssignedEmails = Array.isArray(external_assigned_emails)
+      ? [...new Set(external_assigned_emails
+          .map(email => String(email || '').trim().toLowerCase())
+          .filter(email => EMAIL_REGEX.test(email)))]
+      : [];
 
     const event = new CalendarEvent({
       title,
@@ -105,6 +113,7 @@ exports.createEvent = async (req, res) => {
       all_day: all_day || false,
       user_id: userId,
       assigned_user_ids: finalAssignedUserIds,
+      external_assigned_emails: finalExternalAssignedEmails,
       is_all_members: false, // Always false as per requirement
       event_scope: event_scope || 'personal',
       project_id: project_id || null,
@@ -125,6 +134,49 @@ exports.createEvent = async (req, res) => {
     const savedEvent = await event.save();
 
     logger.info(`[Calendar DB Verify] _id=${savedEvent._id}, stored_assigned_user_ids=${JSON.stringify(savedEvent.assigned_user_ids)}`);
+
+    const [creator, assignedUsers, project] = await Promise.all([
+      User.findById(userId).select('name email').lean(),
+      finalAssignedUserIds.length
+        ? User.find({ _id: { $in: finalAssignedUserIds } }).select('name email').lean()
+        : Promise.resolve([]),
+      project_id ? Project.findById(project_id).select('name').lean() : Promise.resolve(null),
+    ]);
+
+    const emailRecipients = [
+      ...assignedUsers.map(user => ({
+        email: user.email,
+        name: user.name,
+      })),
+      ...finalExternalAssignedEmails.map(email => ({
+        email,
+        name: '',
+      })),
+    ]
+      .filter(recipient => recipient.email)
+      .filter((recipient, index, list) =>
+        list.findIndex(item => item.email.toLowerCase() === recipient.email.toLowerCase()) === index
+      );
+
+    if (emailRecipients.length) {
+      await Promise.allSettled(
+        emailRecipients.map(recipient =>
+          emailService.sendCalendarAssignmentEmail({
+            toEmail: recipient.email,
+            recipientName: recipient.name,
+            creatorName: creator?.name,
+            eventTitle: title,
+            eventType: type,
+            startTime: start_time,
+            endTime: end_time,
+            allDay: all_day || false,
+            description: description || '',
+            priority: priority || 'medium',
+            projectName: project?.name || '',
+          })
+        )
+      );
+    }
 
     const populated = await CalendarEvent.findById(savedEvent._id)
       .populate('user_id', 'name email avatar_url')
@@ -151,6 +203,13 @@ exports.updateEvent = async (req, res) => {
 
     if (updates.hasOwnProperty('assigned_user_ids')) {
       updates.assigned_user_ids = Array.isArray(updates.assigned_user_ids) ? updates.assigned_user_ids : [];
+    }
+    if (updates.hasOwnProperty('external_assigned_emails')) {
+      updates.external_assigned_emails = Array.isArray(updates.external_assigned_emails)
+        ? [...new Set(updates.external_assigned_emails
+            .map(email => String(email || '').trim().toLowerCase())
+            .filter(email => EMAIL_REGEX.test(email)))]
+        : [];
     }
     updates.is_all_members = false;
 

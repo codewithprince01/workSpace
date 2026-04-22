@@ -130,3 +130,74 @@ exports.sendProjectInviteEmail = async (toEmail, inviterName, projectName, invit
     html
   });
 };
+
+exports.sendCalendarAssignmentEmail = async ({
+  toEmail,
+  recipientName,
+  creatorName,
+  eventTitle,
+  eventType,
+  startTime,
+  endTime,
+  allDay,
+  description,
+  priority,
+  projectName,
+}) => {
+  const safeRecipient = recipientName || 'there';
+  const safeCreator = creatorName || 'A teammate';
+  const safeTitle = eventTitle || 'Untitled event';
+  const safeType = (eventType || 'event').replace(/_/g, ' ');
+  const formattedStart = startTime
+    ? new Date(startTime).toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: allDay ? undefined : 'numeric',
+        minute: allDay ? undefined : '2-digit',
+        hour12: true,
+      })
+    : '-';
+  const formattedEnd = endTime
+    ? new Date(endTime).toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: allDay ? undefined : 'numeric',
+        minute: allDay ? undefined : '2-digit',
+        hour12: true,
+      })
+    : null;
+
+  const subject = `New event assigned: ${safeTitle}`;
+  const html = `
+    <div style="font-family: Arial, Helvetica, sans-serif; background:#f7f8fa; padding:24px;">
+      <div style="max-width:640px; margin:0 auto; background:#ffffff; border:1px solid #e5e7eb; border-radius:12px; overflow:hidden;">
+        <div style="padding:24px 24px 8px;">
+          <h2 style="margin:0 0 12px; font-size:22px; color:#111827;">You have been assigned a calendar event</h2>
+          <p style="margin:0; font-size:14px; line-height:1.6; color:#4b5563;">
+            Hi ${safeRecipient}, ${safeCreator} assigned you to an event in Worklenz.
+          </p>
+        </div>
+        <div style="padding:16px 24px 24px;">
+          <div style="border:1px solid #e5e7eb; border-radius:10px; padding:18px; background:#f9fafb;">
+            <p style="margin:0 0 12px; font-size:20px; font-weight:700; color:#111827;">${safeTitle}</p>
+            <p style="margin:0 0 8px; font-size:14px; color:#374151;"><strong>Type:</strong> ${safeType}</p>
+            <p style="margin:0 0 8px; font-size:14px; color:#374151;"><strong>Date:</strong> ${formattedStart}</p>
+            ${formattedEnd ? `<p style="margin:0 0 8px; font-size:14px; color:#374151;"><strong>Ends:</strong> ${formattedEnd}</p>` : ''}
+            <p style="margin:0 0 8px; font-size:14px; color:#374151;"><strong>All day:</strong> ${allDay ? 'Yes' : 'No'}</p>
+            <p style="margin:0 0 8px; font-size:14px; color:#374151;"><strong>Priority:</strong> ${priority || 'medium'}</p>
+            ${projectName ? `<p style="margin:0 0 8px; font-size:14px; color:#374151;"><strong>Project:</strong> ${projectName}</p>` : ''}
+            ${description ? `<div style="margin-top:14px;"><p style="margin:0 0 6px; font-size:14px; font-weight:700; color:#111827;">Details</p><p style="margin:0; font-size:14px; line-height:1.6; color:#4b5563; white-space:pre-wrap;">${description}</p></div>` : ''}
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  return exports.sendEmail({
+    to: toEmail,
+    subject,
+    html,
+  });
+};
