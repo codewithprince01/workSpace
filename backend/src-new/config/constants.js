@@ -66,8 +66,11 @@ module.exports = {
   AUTH_RATE_LIMIT_WINDOW: parseInt(process.env.AUTH_RATE_LIMIT_WINDOW_MS, 10) || 15 * 60 * 1000, // 15 minutes
   AUTH_RATE_LIMIT_MAX: parseInt(process.env.AUTH_RATE_LIMIT_MAX, 10) || 10, // 10 requests per 15 mins (stricter)
 
-  // Cache (Redis)
-  REDIS_URL: process.env.REDIS_URL || null,
+  // Cache (Redis) — build URL from individual vars if REDIS_URL not set directly
+  REDIS_URL: process.env.REDIS_URL ||
+    (process.env.REDIS_HOST
+      ? `redis://:${process.env.REDIS_PASSWORD || ''}@${process.env.REDIS_HOST}:${process.env.REDIS_PORT || 6379}/${process.env.REDIS_DB || 0}`
+      : null),
   CACHE_TTL: 60 * 15, // 15 minutes default
 
   // Task Status Colors
