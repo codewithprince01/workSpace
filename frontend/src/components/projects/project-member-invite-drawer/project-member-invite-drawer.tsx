@@ -9,6 +9,7 @@ import {
   QuestionCircleOutlined,
   ShareAltOutlined,
 } from '@/shared/antd-imports';
+import { theme } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
@@ -41,6 +42,9 @@ const ProjectMemberDrawer = () => {
   const [teamMembersLoading, setTeamMembersLoading] = useState(false);
   const [role, setRole] = useState<'admin' | 'member'>('member');
   const [targets, setTargets] = useState<string[]>([]);
+
+  // ─── Theme tokens ────────────────────────────────────────────────
+  const { token } = theme.useToken();
 
   const currentProjectMemberIds = useMemo(
     () => (currentMembersList || []).map(m => m.team_member_id).filter(Boolean),
@@ -162,7 +166,7 @@ const ProjectMemberDrawer = () => {
   return (
     <Modal
       title={
-        <Typography.Text style={{ fontWeight: 700, fontSize: 17, color: '#ffffff' }}>
+        <Typography.Text style={{ fontWeight: 700, fontSize: 17, color: token.colorText }}>
           {`Share "${projectName}"`}
         </Typography.Text>
       }
@@ -175,14 +179,26 @@ const ProjectMemberDrawer = () => {
       footer={null}
       width={620}
       styles={{
-        content: { background: '#1f1f1f', border: '1px solid #2d2d2d', borderRadius: 12 },
-        header: { background: '#1f1f1f', borderBottom: 'none', paddingBottom: 0 },
-        body: { paddingTop: 12 },
+        content: {
+          background: token.colorBgElevated,
+          border: `1px solid ${token.colorBorderSecondary}`,
+          borderRadius: token.borderRadiusLG,
+        },
+        header: {
+          background: token.colorBgElevated,
+          borderBottom: `1px solid ${token.colorBorderSecondary}`,
+          paddingBottom: 12,
+        },
+        body: { paddingTop: 16 },
       }}
     >
       <Form form={form} layout="vertical">
         <Form.Item
-          label={<Typography.Text style={{ color: '#e5e7eb', fontSize: 14 }}>Invite with email</Typography.Text>}
+          label={
+            <Typography.Text style={{ color: token.colorText, fontSize: 14 }}>
+              Invite with email
+            </Typography.Text>
+          }
           style={{ marginBottom: 18 }}
         >
           <Flex gap={12} align="center">
@@ -196,7 +212,11 @@ const ProjectMemberDrawer = () => {
               style={{ flex: 1 }}
               tokenSeparators={[',', ';']}
               onSearch={value => setSearchTerm(value)}
-              onChange={values => setTargets(Array.from(new Set(values.map(v => String(v).trim()).filter(Boolean))))}
+              onChange={values =>
+                setTargets(
+                  Array.from(new Set(values.map(v => String(v).trim()).filter(Boolean)))
+                )
+              }
               onDropdownVisibleChange={open => {
                 if (open && !members?.data?.length) {
                   void fetchTeamMembers('');
@@ -218,8 +238,10 @@ const ProjectMemberDrawer = () => {
         <Form.Item
           label={
             <Flex align="center" gap={6}>
-              <Typography.Text style={{ color: '#e5e7eb', fontSize: 14 }}>Team role</Typography.Text>
-              <QuestionCircleOutlined style={{ color: '#9ca3af', fontSize: 14 }} />
+              <Typography.Text style={{ color: token.colorText, fontSize: 14 }}>
+                Team role
+              </Typography.Text>
+              <QuestionCircleOutlined style={{ color: token.colorTextTertiary, fontSize: 14 }} />
             </Flex>
           }
           style={{ marginBottom: 16 }}

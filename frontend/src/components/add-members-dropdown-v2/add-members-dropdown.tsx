@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { Avatar, Button, Checkbox, Dropdown, Input, Menu, Typography } from '@/shared/antd-imports';
+import { Avatar, Button, Checkbox, Dropdown, Input, Menu, Typography, theme } from '@/shared/antd-imports';
 import { UserAddOutlined, UsergroupAddOutlined } from '@/shared/antd-imports';
 import './add-members-dropdown.css';
-import { useAppSelector } from '@/hooks/useAppSelector';
 import { AvatarNamesMap } from '@/shared/constants';
 
 const AddMembersDropdown: React.FC = () => {
   const [checkedMembers, setCheckedMembers] = useState<string[]>([]);
+  const { token } = theme.useToken();
 
   const handleCheck = (member: string) => {
     setCheckedMembers(prevChecked =>
@@ -15,8 +15,6 @@ const AddMembersDropdown: React.FC = () => {
         : [...prevChecked, member]
     );
   };
-
-  const themeMode = useAppSelector(state => state.themeReducer.mode);
 
   const inviteItems = [
     {
@@ -27,13 +25,7 @@ const AddMembersDropdown: React.FC = () => {
           onClick={e => e.stopPropagation()}
           onChange={() => handleCheck('Invite Member 1')}
         >
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
+          <div style={{ display: 'flex', alignItems: 'center' }}>
             <Avatar
               style={{
                 backgroundColor: AvatarNamesMap['R'],
@@ -44,13 +36,7 @@ const AddMembersDropdown: React.FC = () => {
             >
               R
             </Avatar>
-            <div
-              style={{
-                lineHeight: '15px',
-                display: 'flex',
-                flexDirection: 'column',
-              }}
-            >
+            <div style={{ lineHeight: '15px', display: 'flex', flexDirection: 'column' }}>
               <Typography.Text>Raveesha Dilanka</Typography.Text>
               <Typography.Text type="secondary" style={{ fontSize: '80%' }}>
                 raveeshadilanka1999@gmail.com
@@ -62,33 +48,35 @@ const AddMembersDropdown: React.FC = () => {
     },
   ];
 
-  // Define menu items with header and footer
   const menu = (
-    <div>
-      {/* Header */}
-      <div
-        style={{
-          backgroundColor: themeMode === 'dark' ? 'black' : 'white',
-          padding: '8px 16px',
-          fontWeight: 'bold',
-        }}
-      >
+    <div
+      style={{
+        backgroundColor: token.colorBgElevated,
+        borderRadius: token.borderRadiusLG,
+        overflow: 'hidden',
+        boxShadow: token.boxShadowSecondary,
+      }}
+    >
+      {/* Header / Search */}
+      <div style={{ backgroundColor: token.colorBgElevated, padding: '8px 16px' }}>
         <Input placeholder="Search by name" />
       </div>
 
-      {/* Invite Items */}
+      {/* Member list */}
       <Menu
         items={inviteItems}
         style={{
           maxHeight: '300px',
           overflowY: 'auto',
+          backgroundColor: token.colorBgElevated,
         }}
       />
 
       <Button
         style={{
           width: '100%',
-          backgroundColor: themeMode === 'dark' ? 'black' : 'white',
+          backgroundColor: token.colorBgElevated,
+          color: token.colorText,
         }}
         type="link"
       >
@@ -100,9 +88,8 @@ const AddMembersDropdown: React.FC = () => {
         style={{
           padding: '8px',
           textAlign: 'right',
-          backgroundColor: themeMode === 'dark' ? 'black' : 'white',
-          borderTop: '1px solid rgba(0, 0, 0, 0.15)',
-          color: '#1890ff',
+          backgroundColor: token.colorBgElevated,
+          borderTop: `1px solid ${token.colorBorderSecondary}`,
         }}
       >
         <Button
@@ -124,10 +111,7 @@ const AddMembersDropdown: React.FC = () => {
       trigger={['click']}
       dropdownRender={() => menu}
       overlayClassName="custom-dropdown-menu"
-      overlayStyle={{
-        width: '300px',
-        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
-      }}
+      overlayStyle={{ width: '300px' }}
     >
       <UserAddOutlined />
     </Dropdown>

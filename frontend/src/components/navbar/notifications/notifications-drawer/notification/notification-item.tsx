@@ -47,62 +47,93 @@ const NotificationItem = ({
   return (
     <div
       style={{
-        backgroundColor: '#1f1f1f',
-        border: '1px solid #4a1a4a',
-        borderRadius: '8px',
-        padding: '16px',
-        marginBottom: '12px',
+        backgroundColor: token.colorBgElevated,
+        border: `1px solid ${token.colorBorderSecondary}`,
+        borderRadius: token.borderRadiusLG,
+        padding: '14px 16px',
+        marginBottom: '10px',
         cursor: notification.url ? 'pointer' : 'default',
-        color: '#fff'
+        transition: 'background 0.2s',
       }}
       onClick={handleNotificationClick}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', color: '#8c8c8c', fontSize: '14px' }}>
-        <BankOutlined style={{ fontSize: '16px' }} />
-        <span>{notification.team || 'Riyansh'}</span>
+      {/* Team name row */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          marginBottom: '8px',
+          color: token.colorTextTertiary,
+          fontSize: '13px',
+        }}
+      >
+        <BankOutlined style={{ fontSize: '14px' }} />
+        <span>{notification.team || 'Worklenz'}</span>
       </div>
 
-      <div 
-        style={{ 
-          marginBottom: '12px', 
-          fontSize: '15px', 
-          lineHeight: '1.5',
-          color: '#e8e8e8'
-        }} 
-        dangerouslySetInnerHTML={{ 
-          __html: (notification.message || '')
-            .replace(/\*\*(.*?)\*\*/g, '<strong style="color: #fff">$1</strong>')
-        }} 
+      {/* Message */}
+      <div
+        style={{
+          marginBottom: '10px',
+          fontSize: '14px',
+          lineHeight: '1.6',
+          color: token.colorText,
+        }}
+        dangerouslySetInnerHTML={{
+          __html: (notification.message || '').replace(
+            /\*\*(.*?)\*\*/g,
+            `<strong style="color:${token.colorText};font-weight:600">$1</strong>`
+          ),
+        }}
       />
 
+      {/* Project badge */}
       {(notification.project || (notification as any).meta?.project_name) && (
-        <div style={{ 
-          display: 'inline-block',
-          backgroundColor: '#2b213a',
-          color: '#d3adf7',
-          padding: '2px 8px',
-          borderRadius: '4px',
-          fontSize: '12px',
-          marginBottom: '16px'
-        }}>
+        <div
+          style={{
+            display: 'inline-block',
+            backgroundColor: token.colorPrimaryBg,
+            color: token.colorPrimaryText ?? token.colorPrimary,
+            padding: '2px 10px',
+            borderRadius: token.borderRadius,
+            fontSize: '12px',
+            marginBottom: '12px',
+            border: `1px solid ${token.colorPrimaryBorder}`,
+          }}
+        >
           {notification.project || (notification as any).meta?.project_name}
         </div>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+      {/* Footer: mark as read + timestamp */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginTop: '4px',
+        }}
+      >
         {isUnreadNotifications && markNotificationAsRead && (
           <Button
             loading={loading}
             type="link"
             size="small"
             className="p-0"
-            style={{ color: '#177ddc', fontSize: '14px', textDecoration: 'underline' }}
+            style={{ color: token.colorPrimary, fontSize: '13px', padding: 0 }}
             onClick={e => handleMarkAsRead(e)}
           >
             Mark as read
           </Button>
         )}
-        <Text style={{ color: '#595959', fontSize: '12px', marginLeft: 'auto' }}>
+        <Text
+          style={{
+            color: token.colorTextQuaternary,
+            fontSize: '12px',
+            marginLeft: 'auto',
+          }}
+        >
           {notification.created_at ? fromNow(notification.created_at) : 'a few seconds ago'}
         </Text>
       </div>

@@ -12,6 +12,8 @@ import logger from '@/utils/errorLogger';
 import { TFunction } from 'i18next';
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Button, Typography, theme } from '@/shared/antd-imports';
+import { TeamOutlined } from '@/shared/antd-imports';
 
 interface InvitationItemProps {
   item: ITeamInvitationViewModel;
@@ -24,6 +26,7 @@ const InvitationItem: React.FC<InvitationItemProps> = ({ item, isUnreadNotificat
   const [joining, setJoining] = useState(false);
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
+  const { token } = theme.useToken();
 
   const authService = createAuthService(navigate);
 
@@ -51,7 +54,6 @@ const InvitationItem: React.FC<InvitationItemProps> = ({ item, isUnreadNotificat
   const handleVerifyAuth = async () => {
     const result = await dispatch(verifyAuthentication()).unwrap();
     if (result.authenticated) {
-      // Backend returns { authenticated, data: { user } } - extract user correctly
       const user = (result as any).data?.user || result.user;
       if (user) {
         dispatch(setUser(user));
@@ -92,44 +94,69 @@ const InvitationItem: React.FC<InvitationItemProps> = ({ item, isUnreadNotificat
 
   return (
     <div
-      style={{ width: 'auto' }}
-      className="ant-notification-notice worklenz-notification rounded-4"
+      style={{
+        backgroundColor: token.colorBgElevated,
+        border: `1px solid ${token.colorBorderSecondary}`,
+        borderRadius: token.borderRadiusLG,
+        padding: '14px 16px',
+        marginBottom: '10px',
+      }}
     >
-      <div className="ant-notification-notice-content">
-        <div className="ant-notification-notice-description">
-          You have been invited to work with <b>{item.team_name}</b>.
-        </div>
-        {isUnreadNotifications && (
-          <div
-            className="mt-2"
-            style={{ display: 'flex', gap: '8px', justifyContent: 'space-between' }}
-          >
-            <button
-              onClick={markAsReadOnly}
-              disabled={inProgress()}
-              className="p-0"
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: inProgress() ? 'not-allowed' : 'pointer',
-              }}
-            >
-              {accepting ? 'Loading...' : <u>{t('notificationsDrawer.markAsRead')}</u>}
-            </button>
-            <button
-              onClick={() => acceptAndJoin()}
-              disabled={inProgress()}
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: inProgress() ? 'not-allowed' : 'pointer',
-              }}
-            >
-              {joining ? 'Loading...' : <u>{t('notificationsDrawer.readAndJoin')}</u>}
-            </button>
-          </div>
-        )}
+      {/* Team icon + invitation message */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: '10px',
+          marginBottom: isUnreadNotifications ? '12px' : 0,
+        }}
+      >
+        <TeamOutlined
+          style={{
+            fontSize: '18px',
+            color: token.colorPrimary,
+            marginTop: '2px',
+            flexShrink: 0,
+          }}
+        />
+        <Typography.Text style={{ color: token.colorText, fontSize: '14px', lineHeight: '1.6' }}>
+          You have been invited to work with{' '}
+          <Typography.Text strong style={{ color: token.colorText }}>
+            {item.team_name}
+          </Typography.Text>
+          .
+        </Typography.Text>
       </div>
+
+      {/* Action buttons */}
+      {isUnreadNotifications && (
+        <div
+          style={{
+            display: 'flex',
+            gap: '8px',
+            justifyContent: 'flex-end',
+          }}
+        >
+          <Button
+            size="small"
+            type="text"
+            onClick={markAsReadOnly}
+            disabled={inProgress()}
+            style={{ color: token.colorTextSecondary, fontSize: '13px' }}
+          >
+            {accepting ? 'Loading...' : t('notificationsDrawer.markAsRead')}
+          </Button>
+          <Button
+            size="small"
+            type="primary"
+            onClick={() => acceptAndJoin()}
+            disabled={inProgress()}
+            loading={joining}
+          >
+            {joining ? 'Joining...' : t('notificationsDrawer.readAndJoin')}
+          </Button>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import { Drawer, Empty, Segmented, Typography, Spin, Button, Flex } from '@/shared/antd-imports';
+import { Drawer, Empty, Segmented, Typography, Spin, Button, Flex, theme } from '@/shared/antd-imports';
 import { useEffect, useState } from 'react';
 import { useAppSelector } from '@/hooks/useAppSelector';
 import { useAppDispatch } from '@/hooks/useAppDispatch';
@@ -39,6 +39,7 @@ const NotificationDrawer = () => {
   const { socket, connected } = useSocket();
   const [notificationsSettings, setNotificationsSettings] = useState<INotificationSettings>({});
   const [showBrowserPush, setShowBrowserPush] = useState(false);
+  const { token } = theme.useToken();
 
   const notificationCount = notifications?.length || 0;
   const [isLoading, setIsLoading] = useState(false);
@@ -144,10 +145,10 @@ const NotificationDrawer = () => {
       dispatch(fetchInvitations());
     }
   };
+
   const handleVerifyAuth = async () => {
     const result = await dispatch(verifyAuthentication()).unwrap();
     if (result.authenticated) {
-      // Backend returns { authenticated, data: { user } } - extract user correctly
       const user = (result as any).data?.user || result.user;
       if (user) {
         dispatch(setUser(user));
@@ -155,8 +156,6 @@ const NotificationDrawer = () => {
       }
     }
   };
-
-
 
   const goToUrl = async (event: React.MouseEvent, notification: IWorklenzNotification) => {
     event.preventDefault();
@@ -233,7 +232,7 @@ const NotificationDrawer = () => {
   return (
     <Drawer
       title={
-        <Typography.Text style={{ fontWeight: 500, fontSize: 16, color: '#fff' }}>
+        <Typography.Text style={{ fontWeight: 500, fontSize: 16, color: token.colorText }}>
           {notificationType === NOTIFICATION_OPTION_READ
             ? 'Read notifications'
             : 'Unread notifications'}{' '}
@@ -244,16 +243,23 @@ const NotificationDrawer = () => {
       onClose={() => dispatch(toggleDrawer())}
       width={400}
       styles={{
-        body: { backgroundColor: '#141414', padding: '16px' },
-        header: { backgroundColor: '#141414', borderBottom: '1px solid #303030' }
+        body: {
+          backgroundColor: token.colorBgContainer,
+          padding: '16px',
+        },
+        header: {
+          backgroundColor: token.colorBgContainer,
+          borderBottom: `1px solid ${token.colorBorderSecondary}`,
+        },
+        mask: {
+          backgroundColor: 'rgba(0,0,0,0.45)',
+        },
       }}
-      closeIcon={<span style={{ color: '#fff' }}>✕</span>}
     >
       <Flex justify="space-between" align="center" style={{ marginBottom: '24px' }}>
         <Segmented<string>
           options={['Unread', 'Read']}
           defaultValue={NOTIFICATION_OPTION_UNREAD}
-          style={{ backgroundColor: '#1f1f1f', color: '#fff' }}
           onChange={(value: string) => {
             if (value === NOTIFICATION_OPTION_UNREAD)
               dispatch(setNotificationType(NOTIFICATION_OPTION_UNREAD));
@@ -262,8 +268,8 @@ const NotificationDrawer = () => {
           }}
         />
 
-        <Button type="link" onClick={handleMarkAllAsRead} style={{ color: '#faad14' }}>
-          Mark as read
+        <Button type="link" onClick={handleMarkAllAsRead} style={{ color: token.colorPrimary }}>
+          Mark all as read
         </Button>
       </Flex>
 
@@ -299,7 +305,11 @@ const NotificationDrawer = () => {
       ) : (
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}
-          description={t('notificationsDrawer.noNotifications')}
+          description={
+            <Typography.Text style={{ color: token.colorTextSecondary }}>
+              {t('notificationsDrawer.noNotifications')}
+            </Typography.Text>
+          }
           style={{
             display: 'flex',
             flexDirection: 'column',
