@@ -288,6 +288,7 @@ router.post('/', async (req, res) => {
                 targetUser = await User.create({
                     email: mail.toLowerCase().trim(),
                     name: mail.split('@')[0], // Use email prefix as temporary name
+                    password: crypto.randomBytes(16).toString('hex'), // Temporary random password
                     is_active: false,
                     setup_completed: false
                 });
@@ -368,13 +369,20 @@ router.post('/', async (req, res) => {
                 ? `${frontendUrl}/auth/login` 
                 : `${frontendUrl}/auth/signup?email=${encodeURIComponent(targetUser.email)}`;
 
-            await emailService.sendTeamInviteEmail(
-                targetUser.email,
-                req.user.name,
-                teamName,
-                inviteLink,
-                assignedRole
-            );
+            console.log(`[TEAM-INVITE] Sending email to ${targetUser.email} with link: ${inviteLink}`);
+            try {
+                await emailService.sendTeamInviteEmail(
+                    targetUser.email,
+                    req.user.name,
+                    teamName,
+                    inviteLink,
+                    assignedRole
+                );
+                console.log(`[TEAM-INVITE] ✅ Email sent successfully to ${targetUser.email}`);
+            } catch (emailError) {
+                console.error(`[TEAM-INVITE] ❌ Failed to send email to ${targetUser.email}:`, emailError.message);
+                // Continue with other emails if any
+            }
 
             results.push({ email: mail, status: 'Invited (Email sent)', user: targetUser });
         } catch (err) {

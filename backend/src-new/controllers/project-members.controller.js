@@ -148,6 +148,7 @@ exports.invite = async (req, res, next) => {
       user = await User.create({
         email: email.toLowerCase(),
         name: email.split('@')[0], // Use email prefix as temporary name
+        password: crypto.randomBytes(16).toString('hex'), // Temporary random password
         is_active: false, // Not activated until they accept
         pending_invitation: true
       });
@@ -155,10 +156,11 @@ exports.invite = async (req, res, next) => {
       console.log(`📧 Created pending user for: ${email}`);
     }
     
-    // Strict duplicate check: do not allow re-invite if membership already exists
+    // Strict duplicate check: allow re-invite if membership is pending or inactive
     const existing = await ProjectMember.findOne({ project_id, user_id: user._id });
     if (existing) {
       if (existing.is_active && !existing.pending_invitation) {
+        console.log(`[PROJECT-INVITE] User ${user.email} is already an active member. Skipping email.`);
         return res.status(409).json({
           done: false,
           message: 'Member is already in project',
@@ -166,23 +168,21 @@ exports.invite = async (req, res, next) => {
         });
       }
 
-      if (existing.pending_invitation || !existing.is_active) {
-        return res.status(409).json({
-          done: false,
-          message: 'Member is already invited to project',
-          body: { code: 'PROJECT_MEMBER_ALREADY_INVITED', email: user.email },
-        });
-      }
+      console.log(`[PROJECT-INVITE] User ${user.email} exists but is pending/inactive. Re-sending invite.`);
+      existing.is_active = false;
+      existing.pending_invitation = true;
+      await existing.save();
+    } else {
+      // Create project membership
+      console.log(`[PROJECT-INVITE] Creating new membership for ${user.email}`);
+      await ProjectMember.create({
+        project_id,
+        user_id: user._id,
+        role: 'member',
+        is_active: false,
+        pending_invitation: true
+      });
     }
-    
-    // Create project membership
-    const member = await ProjectMember.create({
-      project_id,
-      user_id: user._id,
-      role: 'member',
-      is_active: false,
-      pending_invitation: true
-    });
     
     // Generate token for the invitation
     const token = crypto.randomBytes(32).toString('hex');
@@ -205,16 +205,23 @@ exports.invite = async (req, res, next) => {
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     const inviteLink = `${frontendUrl}/worklenz/invite/project/${token}`;
 
-    await emailService.sendProjectInviteEmail(
-      user.email,
-      req.user.name,
-      project?.name || 'a project',
-      inviteLink,
-      'member'
-    );
+    console.log(`[PROJECT-INVITE] Sending email to ${user.email} with link: ${inviteLink}`);
+    try {
+      await emailService.sendProjectInviteEmail(
+        user.email,
+        req.user.name,
+        project?.name || 'a project',
+        inviteLink,
+        'member'
+      );
+      console.log(`[PROJECT-INVITE] ✅ Email sent successfully to ${user.email}`);
+    } catch (emailError) {
+      console.error(`[PROJECT-INVITE] ❌ Failed to send email to ${user.email}:`, emailError.message);
+      // We still return 201 because the DB record was created/updated
+    }
     
     const response = {
-      id: member._id,
+      id: user._id, // Use user ID or member ID as needed
       name: user.name,
       email: user.email,
       avatar_url: user.avatar_url,
