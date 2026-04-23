@@ -6,7 +6,10 @@ const { protect } = require('../middlewares/auth.middleware');
 const { checkProjectRole, requireProjectOwner, requireProjectAdmin } = require('../middlewares/project-role.middleware');
 const { projectValidators, commonValidators } = require('../middlewares/validation.middleware');
 
-router.use(protect); // All routes require authentication
+router.get('/invite/:token', projects.getInviteByToken);  // public — fetch invite details
+router.post('/invite/accept', protect, projects.acceptInvite); // must be logged in to accept
+
+router.use(protect); // All routes below require authentication
 
 router.route('/')
   .get(projects.getAll)
@@ -26,9 +29,6 @@ router.get('/members/:id', commonValidators.mongoId, checkProjectRole, projects.
 // Admin-only: Inviting members
 router.post('/:id/members', commonValidators.mongoId, checkProjectRole, requireProjectAdmin, projects.addMember);
 router.post('/:id/invite', commonValidators.mongoId, checkProjectRole, requireProjectAdmin, projects.inviteMember);
-
-// Public/Authenticated:- Accept Invite
-router.post('/invite/accept', projects.acceptInvite);
 
 // Any member can favorite/toggle personal settings
 router.put('/favorite/:id', commonValidators.mongoId, checkProjectRole, projects.toggleFavorite);

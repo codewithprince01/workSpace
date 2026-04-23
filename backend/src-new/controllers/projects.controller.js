@@ -51,31 +51,45 @@ const normalizeProjectHealthValue = (value) => {
  */
 
 /**
- * @swagger
- * /api/projects/:id/invite:
- *   post:
- *     summary: Invite member to project
- *     tags: [Projects]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               email:
- *                 type: string
- *               role:
- *                 type: string
- *     responses:
- *       200:
- *         description: Invitation sent
+ * @desc    Get invite details by token (public — no auth required)
+ * @route   GET /api/projects/invite/:token
+ * @access  Public
+ */
+exports.getInviteByToken = async (req, res, next) => {
+  try {
+    const { token } = req.params;
+
+    const invitation = await ProjectInvitation.findOne({
+      token,
+      status: 'pending',
+      expires_at: { $gt: new Date() }
+    }).populate('project_id', 'name').populate('inviter_id', 'name');
+
+    if (!invitation) {
+      return res.status(404).json({
+        done: false,
+        message: 'This invite link is invalid or has expired.'
+      });
+    }
+
+    res.json({
+      done: true,
+      body: {
+        project_name: invitation.project_id?.name || 'a project',
+        inviter_name: invitation.inviter_id?.name || 'Someone',
+        role: invitation.role,
+        email: invitation.email,
+        expires_at: invitation.expires_at,
+        token
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Invite member to project via email
  */
 exports.inviteMember = async (req, res, next) => {
   try {
