@@ -217,6 +217,7 @@ const SignupPage = () => {
         name: values.name,
         email: values.email.toLowerCase().trim(),
         password: values.password,
+        team_name: values.organization_name?.trim() || '',
       };
 
       const res = await authApiService.signUpCheck(body);
@@ -250,7 +251,7 @@ const SignupPage = () => {
       if (result?.authenticated) {
         message.success('Successfully signed up!');
         setTimeout(() => {
-          navigate('/auth/authenticating');
+          window.location.href = '/worklenz/home';
         }, 1000);
       }
     } catch (error: any) {
@@ -288,6 +289,17 @@ const SignupPage = () => {
         required: true,
         type: 'email',
         message: t('emailRequired'),
+      },
+    ],
+    organization_name: [
+      {
+        required: true,
+        message: 'Organization name is required',
+        whitespace: true,
+      },
+      {
+        min: 2,
+        message: 'Organization name must be at least 2 characters',
       },
     ],
     password: [
@@ -382,6 +394,19 @@ const SignupPage = () => {
           <Input
             prefix={<MailOutlined />}
             placeholder={t('emailPlaceholder', {defaultValue: 'Enter your email'})}
+            size="large"
+            style={{ borderRadius: 4 }}
+          />
+        </Form.Item>
+
+        <Form.Item
+          name="organization_name"
+          label="Organization Name"
+          rules={formRules.organization_name}
+        >
+          <Input
+            prefix={<UserOutlined />}
+            placeholder="Enter your organization or team name"
             size="large"
             style={{ borderRadius: 4 }}
           />

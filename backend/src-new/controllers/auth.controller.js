@@ -70,7 +70,7 @@ exports.signup = async (req, res, next) => {
       });
     }
 
-    const { name, email, password } = req.body;
+    const { name, email, password, team_name } = req.body;
     
     // Check if user exists
     const existingUser = await User.findOne({ email });
@@ -81,25 +81,35 @@ exports.signup = async (req, res, next) => {
       });
     }
     
-    // Create user
+    // Create user — setup_completed=true so we skip account-setup flow
     const user = await User.create({
       name,
       email,
-      password
+      password,
+      setup_completed: true
     });
     
-    // Create default team for user
+    // Use organization name from signup form, fallback to user name
+    const resolvedTeamName = (team_name && team_name.trim())
+      ? team_name.trim()
+      : `${name}'s Team`;
+
+    // Create team for user
     const team = await Team.create({
-      name: `${name}'s Team`,
+      name: resolvedTeamName,
       owner_id: user._id
     });
     
-    // Add user as team member
+    // Add user as owner of the team
     await TeamMember.create({
       team_id: team._id,
       user_id: user._id,
       role: 'owner'
     });
+
+    // Set last_team_id so organization auto-selects after login
+    user.last_team_id = team._id;
+    await user.save({ validateBeforeSave: false });
     
     sendTokenResponse(user, 201, res, 'Account created successfully');
   } catch (error) {
@@ -159,8 +169,13 @@ exports.login = async (req, res, next) => {
 
     // Check ownership
     const ownerMembership = await TeamMember.findOne({ user_id: user._id, role: 'owner', is_active: true });
-    // Attach to user instance (will be used in sendTokenResponse)
     user.owner = !!ownerMembership;
+
+    // If user has no last_team_id, auto-assign their first team (owner team)
+    if (!user.last_team_id && ownerMembership) {
+      user.last_team_id = ownerMembership.team_id;
+      await user.save({ validateBeforeSave: false });
+    }
 
     sendTokenResponse(user, 200, res, 'Login successful');
   } catch (error) {

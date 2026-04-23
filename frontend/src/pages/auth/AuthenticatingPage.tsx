@@ -46,13 +46,7 @@ const AuthenticatingPage: React.FC = () => {
         setSession(user);
         dispatch(setUser(user));
 
-        const isSetupCompleted = user.setup_completed ?? true;
-        if (!isSetupCompleted) {
-          window.location.href = '/worklenz/setup';
-          return;
-        }
-
-        // Redirect to home directly since setup is completed
+        // Always redirect to home — setup flow is disabled
         window.location.href = '/worklenz/home';
         return;
       } catch (error) {
