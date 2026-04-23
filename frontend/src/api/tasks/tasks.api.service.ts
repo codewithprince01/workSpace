@@ -670,4 +670,9 @@ export const tasksApiService = {
     });
     return response.data;
   },
+
+  create: async (task: any): Promise<IServerResponse<any>> => {
+    const response = await apiClient.post(rootUrl, task);
+    return response.data;
+  },
 };

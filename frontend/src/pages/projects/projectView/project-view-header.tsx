@@ -50,7 +50,7 @@ import {
   toggleProjectDrawer,
   setProjectId,
 } from '@/features/project/project-drawer.slice';
-import { setSelectedTaskId, setShowTaskDrawer } from '@/features/task-drawer/task-drawer.slice';
+import { fetchTask, setSelectedTaskId, setShowTaskDrawer } from '@/features/task-drawer/task-drawer.slice';
 import { ITaskCreateRequest } from '@/types/tasks/task-create-request.types';
 import { DEFAULT_TASK_NAME, UNMAPPED } from '@/shared/constants';
 import { IProjectTask } from '@/types/project/projectTasksViewModel.types';
@@ -204,45 +204,79 @@ const ProjectViewHeader = memo(() => {
     }
   }, [dispatch, selectedProject?.id]);
 
-  // Optimized task creation handler
-  const handleCreateTask = useCallback(() => {
-    if (!selectedProject?.id || !currentSession?.id || !socket) return;
+  // Fixed: works from any tab (updates, board, members, files, etc.)
+  const handleCreateTask = useCallback(async () => {
+    const pId = selectedProject?.id || (selectedProject as any)?._id || projectId;
+    const sId = currentSession?.id || (currentSession as any)?._id;
+
+    console.log('🚀 handleCreateTask clicked', {
+      projectId: pId,
+      sessionId: sId,
+      socketConnected: !!socket && connected
+    });
+
+    if (!pId || !sId) {
+      console.warn('❌ handleCreateTask: missing projectId or sessionId');
+      return;
+    }
 
     try {
       setCreatingTask(true);
 
       const body: Partial<ITaskCreateRequest> = {
         name: t('defaultTaskName'),
-        project_id: selectedProject.id,
-        reporter_id: currentSession.id,
+        project_id: pId,
+        reporter_id: sId,
         team_id: currentSession.team_id,
       };
 
-      const handleTaskCreated = (task: IProjectTask) => {
-        if (task.id) {
-          dispatch(setSelectedTaskId(task.id));
-          dispatch(setShowTaskDrawer(true));
-
-          const groupId = groupBy === IGroupBy.PHASE ? UNMAPPED : getGroupIdByGroupedColumn(task);
-          if (groupId) {
-            if (tab === 'board') {
-              dispatch(addTaskCardToTheTop({ sectionId: groupId, task }));
-            } else {
-              dispatch(addTask({ task, groupId }));
+      if (socket && connected) {
+        console.log('📡 Sending QUICK_TASK via socket...', body);
+        const handleTaskCreated = (task: IProjectTask) => {
+          console.log('✅ Task created via socket:', task);
+          if (task.id) {
+            dispatch(setSelectedTaskId(task.id));
+            dispatch(fetchTask({ taskId: task.id, projectId: pId }));
+            dispatch(setShowTaskDrawer(true));
+            if (tab === 'tasks-list' || tab === 'board') {
+              const groupId = groupBy === IGroupBy.PHASE ? UNMAPPED : getGroupIdByGroupedColumn(task);
+              if (groupId) {
+                if (tab === 'board') {
+                  dispatch(addTaskCardToTheTop({ sectionId: groupId, task }));
+                } else {
+                  dispatch(addTask({ task, groupId }));
+                }
+                socket.emit(SocketEvents.GET_TASK_PROGRESS.toString(), task.id);
+              }
             }
-            socket.emit(SocketEvents.GET_TASK_PROGRESS.toString(), task.id);
           }
+          setCreatingTask(false);
+        };
+        socket.once(SocketEvents.QUICK_TASK.toString(), handleTaskCreated);
+        socket.emit(SocketEvents.QUICK_TASK.toString(), JSON.stringify(body));
+        setTimeout(() => { 
+          console.log('⏳ Socket QUICK_TASK timeout');
+          socket.off(SocketEvents.QUICK_TASK.toString(), handleTaskCreated); 
+          setCreatingTask(false); 
+        }, 5000);
+      } else {
+        console.log('🌐 Socket not available, falling back to REST API...', body);
+        const { tasksApiService } = await import('@/api/tasks/tasks.api.service');
+        const res = await tasksApiService.create(body);
+        console.log('✅ Task created via REST:', res);
+        if (res?.done && res.body?.id) {
+          dispatch(setSelectedTaskId(res.body.id));
+          dispatch(fetchTask({ taskId: res.body.id, projectId: pId }));
+          dispatch(setShowTaskDrawer(true));
         }
         setCreatingTask(false);
-      };
-
-      socket.once(SocketEvents.QUICK_TASK.toString(), handleTaskCreated);
-      socket.emit(SocketEvents.QUICK_TASK.toString(), JSON.stringify(body));
+      }
     } catch (error) {
+      console.error('❌ Error creating task:', error);
       logger.error('Error creating task', error);
       setCreatingTask(false);
     }
-  }, [selectedProject?.id, currentSession, socket, dispatch, groupBy, tab, t]);
+  }, [selectedProject?.id, currentSession, socket, connected, dispatch, groupBy, tab, t]);
 
   // Memoized import task template handler
   const handleImportTaskTemplate = useCallback(() => {

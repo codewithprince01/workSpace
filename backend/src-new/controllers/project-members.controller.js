@@ -1,4 +1,6 @@
-const { ProjectMember, User, TeamMember } = require('../models');
+const { ProjectMember, User, TeamMember, Project, ProjectInvitation } = require('../models');
+const emailService = require('../services/email.service');
+const crypto = require('crypto');
 
 /**
  * @desc    Add member to project
@@ -84,12 +86,6 @@ exports.create = async (req, res, next) => {
             return res.json({ done: true, body: response });
          }
          console.log('❌ [ADD-MEMBER] User already exists as active member');
-         console.log('Existing member details:', { 
-           project_id: existing.project_id, 
-           user_id: existing.user_id, 
-           is_active: existing.is_active,
-           role: existing.role
-         });
          return res.status(409).json({ done: false, message: 'User is already a project member' });
     }
     
@@ -112,6 +108,18 @@ exports.create = async (req, res, next) => {
     };
     
     console.log('✅ [ADD-MEMBER] Member added successfully:', response);
+
+    // Send notification email
+    const project = await Project.findById(project_id);
+    if (project && response.email) {
+      await emailService.sendProjectAdditionEmail(
+        response.email,
+        req.user.name,
+        project.name,
+        response.role
+      );
+    }
+
     res.status(201).json({ done: true, body: response });
   } catch (error) {
     console.error('❌ [ADD-MEMBER] ERROR:', error);
@@ -144,8 +152,7 @@ exports.invite = async (req, res, next) => {
         pending_invitation: true
       });
       
-      // TODO: Send invitation email here
-      console.log(`📧 Invitation would be sent to: ${email}`);
+      console.log(`📧 Created pending user for: ${email}`);
     }
     
     // Strict duplicate check: do not allow re-invite if membership already exists
@@ -177,6 +184,35 @@ exports.invite = async (req, res, next) => {
       pending_invitation: true
     });
     
+    // Generate token for the invitation
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+
+    // Save invitation to DB if model exists
+    if (ProjectInvitation) {
+      await ProjectInvitation.create({
+        project_id,
+        inviter_id: req.user._id,
+        email: user.email,
+        role: 'member',
+        token,
+        expires_at: expiresAt
+      });
+    }
+
+    const project = await Project.findById(project_id);
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const inviteLink = `${frontendUrl}/worklenz/invite/project/${token}`;
+
+    await emailService.sendProjectInviteEmail(
+      user.email,
+      req.user.name,
+      project?.name || 'a project',
+      inviteLink,
+      'member'
+    );
+    
     const response = {
       id: member._id,
       name: user.name,
@@ -184,9 +220,6 @@ exports.invite = async (req, res, next) => {
       avatar_url: user.avatar_url,
       pending_invitation: true
     };
-    
-    // TODO: Send invitation email
-    console.log(`📧 Project invitation would be sent to: ${email} for project: ${project_id}`);
     
     res.status(201).json({ done: true, body: response, message: 'Invitation sent successfully' });
   } catch (error) {

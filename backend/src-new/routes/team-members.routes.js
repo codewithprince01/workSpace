@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const { protect } = require('../middlewares/auth.middleware');
 const { TeamMember, User, Team, Notification, ProjectMember } = require('../models');
+const emailService = require('../services/email.service');
+const crypto = require('crypto');
 
 // Apply protection to all routes
 router.use(protect);
@@ -278,97 +280,103 @@ router.post('/', async (req, res) => {
             console.log(`[INVITE] Processing email: ${mail}`);
             const user = await User.findOne({ email: mail.toLowerCase().trim() });
             
-            if (user) {
-                console.log(`[INVITE] User found in DB: ${user._id} (${user.name})`);
-                const existing = await TeamMember.findOne({
-                  team_id: targetTeamId,
-                  user_id: user._id,
+            let targetUser = user;
+
+            if (!targetUser) {
+                console.log(`[INVITE] ⚠️ User not found in DB for email: ${mail}. Creating pending user...`);
+                // Create a pending user (invitation)
+                targetUser = await User.create({
+                    email: mail.toLowerCase().trim(),
+                    name: mail.split('@')[0], // Use email prefix as temporary name
+                    is_active: false,
+                    setup_completed: false
                 });
+            }
 
-                if (existing) {
-                    console.log(`[INVITE] Existing record found: { is_active: ${existing.is_active}, pending: ${existing.pending_invitation}, role: ${existing.role} }`);
-                    
-                    // Case: already an active member (not pending)
-                    if (existing.is_active && !existing.pending_invitation) {
-                        const msg = 'Member is already in team';
-                        if (isSingleInvite) return res.status(409).json({ done: false, message: msg, body: { email: mail, code: 'TEAM_MEMBER_EXISTS' } });
-                        errors.push({ email: mail, error: msg, code: 'TEAM_MEMBER_EXISTS' });
-                        continue;
-                    }
+            console.log(`[INVITE] Target User: ${targetUser._id} (${targetUser.email})`);
+            
+            const existing = await TeamMember.findOne({
+                team_id: targetTeamId,
+                user_id: targetUser._id,
+            });
 
-                    // Case: previously invited but invitation is still pending - re-send notification
-                    if (existing.pending_invitation) {
-                        // Update role in case it changed
-                        existing.role = assignedRole;
-                        await existing.save();
-                        console.log(`[INVITE] Resending invitation notification to existing pending member`);
-                        await Notification.create({
-                            user_id: user._id,
-                            team_id: targetTeamId,
-                            type: 'team_invite',
-                            message: `You have been invited to join team "${teamName}" as an ${assignedRole === 'admin' ? 'Admin' : 'Member'} by ${req.user.name}`
-                        });
-                        results.push({ email: mail, status: 'Invitation resent' });
-                        continue;
-                    }
+            let skipEmail = false;
 
-                    // Case: was previously deactivated - re-invite them
-                    if (!existing.is_active && !existing.pending_invitation) {
-                        existing.is_active = false;
-                        existing.pending_invitation = true;
-                        existing.role = assignedRole;
-                        await existing.save();
-                        console.log(`[INVITE] Re-inviting previously deactivated member`);
-                        await Notification.create({
-                            user_id: user._id,
-                            team_id: targetTeamId,
-                            type: 'team_invite',
-                            message: `You have been invited to join team "${teamName}" as an ${assignedRole === 'admin' ? 'Admin' : 'Member'} by ${req.user.name}`
-                        });
-                        results.push({ email: mail, status: 'Re-invited' });
-                        continue;
-                    }
+            if (existing) {
+                console.log(`[INVITE] Existing record found: { is_active: ${existing.is_active}, pending: ${existing.pending_invitation}, role: ${existing.role} }`);
+                
+                // Case: already an active member (not pending)
+                if (existing.is_active && !existing.pending_invitation) {
+                    const msg = 'Member is already in team';
+                    if (isSingleInvite) return res.status(409).json({ done: false, message: msg, body: { email: mail, code: 'TEAM_MEMBER_EXISTS' } });
+                    errors.push({ email: mail, error: msg, code: 'TEAM_MEMBER_EXISTS' });
+                    continue;
                 }
 
+                // Case: previously invited but invitation is still pending - re-send notification
+                if (existing.pending_invitation) {
+                    // Update role in case it changed
+                    existing.role = assignedRole;
+                    await existing.save();
+                    console.log(`[INVITE] Resending invitation notification to existing pending member`);
+                } else if (!existing.is_active) {
+                    // Case: was previously deactivated - re-invite them
+                    existing.is_active = false;
+                    existing.pending_invitation = true;
+                    existing.role = assignedRole;
+                    await existing.save();
+                    console.log(`[INVITE] Re-inviting previously deactivated member`);
+                }
+            } else {
                 // No existing record — create fresh invitation
                 await TeamMember.create({
                     team_id: targetTeamId,
-                    user_id: user._id,
+                    user_id: targetUser._id,
                     role: assignedRole,
                     job_title: job_title || null,
                     is_active: false,
                     pending_invitation: true
                 });
-                console.log(`[INVITE] Created TeamMember record with role: "${assignedRole}"`);
-
-                results.push({ email: mail, status: 'Invited', user });
-                
-                if (user._id.toString() !== req.user._id.toString()) {
-                    const notification = await Notification.create({
-                        user_id: user._id,
-                        team_id: targetTeamId,
-                        type: 'team_invite',
-                        message: `You have been invited to join team "${teamName}" as an ${assignedRole === 'admin' ? 'Admin' : 'Member'} by ${req.user.name}`
-                    });
-                    console.log(`[INVITE] ✅ Notification created: ${notification._id} for user ${user._id}`);
-
-                    // Emit real-time socket notification if available
-                    const io = req.app.get('io');
-                    if (io) {
-                        io.to(user._id.toString()).emit('notification', {
-                            type: 'team_invite',
-                            message: `You have been invited to join team "${teamName}" by ${req.user.name}`,
-                            team_id: targetTeamId
-                        });
-                        console.log(`[INVITE] ✅ Socket notification emitted to user ${user._id}`);
-                    }
-                } else {
-                    console.log(`[INVITE] Skipping notification (inviting yourself)`);
-                }
-            } else {
-                console.log(`[INVITE] ⚠️ User not found in DB for email: ${mail}. Email-based invite (no account exists).`);
-                results.push({ email: mail, status: 'Invited (Email sent - no account found)' });
+                console.log(`[INVITE] Created fresh TeamMember record`);
             }
+
+            // Create internal notification
+            if (targetUser._id.toString() !== req.user._id.toString()) {
+                await Notification.create({
+                    user_id: targetUser._id,
+                    team_id: targetTeamId,
+                    type: 'team_invite',
+                    message: `You have been invited to join team "${teamName}" as an ${assignedRole === 'admin' ? 'Admin' : 'Member'} by ${req.user.name}`
+                });
+
+                // Emit real-time socket notification
+                const io = req.app.get('io');
+                if (io) {
+                    io.to(targetUser._id.toString()).emit('notification', {
+                        type: 'team_invite',
+                        message: `You have been invited to join team "${teamName}" by ${req.user.name}`,
+                        team_id: targetTeamId
+                    });
+                }
+            }
+
+            // Send actual email
+            const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+            // If user exists and is active, they just need to log in.
+            // If they are new/pending, they need to sign up.
+            const inviteLink = targetUser.is_active 
+                ? `${frontendUrl}/auth/login` 
+                : `${frontendUrl}/auth/signup?email=${encodeURIComponent(targetUser.email)}`;
+
+            await emailService.sendTeamInviteEmail(
+                targetUser.email,
+                req.user.name,
+                teamName,
+                inviteLink,
+                assignedRole
+            );
+
+            results.push({ email: mail, status: 'Invited (Email sent)', user: targetUser });
         } catch (err) {
             console.error(`[INVITE] ❌ Error processing ${mail}:`, err.message);
             errors.push({ email: mail, error: err.message });
