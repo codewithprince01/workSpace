@@ -16,7 +16,7 @@ const validate = (req, res, next) => {
 };
 
 /**
- * Auth validators
+ * Auth validators #####
  */
 const authValidators = {
   signup: [
