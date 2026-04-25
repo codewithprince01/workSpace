@@ -181,7 +181,7 @@ const MemberMultiSelect: React.FC<MemberMultiSelectProps> = ({
             <Avatar 
               src={member.avatar_url} 
               size={32} 
-              style={{ border: '2px solid #141414', cursor: 'default' }}
+              style={{ border: '2px solid var(--cal-avatar-ring)', cursor: 'default' }}
             >
               {member.name.charAt(0)}
             </Avatar>
@@ -191,7 +191,7 @@ const MemberMultiSelect: React.FC<MemberMultiSelectProps> = ({
           <Tooltip title={email} key={email}>
             <Avatar
               size={32}
-              style={{ border: '2px solid #141414', cursor: 'default', backgroundColor: '#595959' }}
+              style={{ border: '2px solid var(--cal-avatar-ring)', cursor: 'default', backgroundColor: '#595959' }}
             >
               @
             </Avatar>
@@ -204,6 +204,8 @@ const MemberMultiSelect: React.FC<MemberMultiSelectProps> = ({
         dropdownRender={() => dropdownContent}
         disabled={disabled}
         overlayClassName="cal-member-popover"
+        overlayStyle={{ zIndex: 2500 }}
+        getPopupContainer={triggerNode => triggerNode?.ownerDocument?.body || document.body}
       >
         <Button 
           shape="circle" 
