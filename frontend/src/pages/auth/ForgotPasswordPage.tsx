@@ -70,7 +70,7 @@ const ForgotPasswordPage = () => {
         // Normalize email to lowercase for case-insensitive comparison
         const normalizedEmail = values.email.toLowerCase().trim();
         const result = await dispatch(resetPassword(normalizedEmail)).unwrap();
-        if (result.done) {
+        if (result.done || (result as any).success) {
           trackMixpanelEvent(evt_reset_password_click);
           setIsSuccess(true);
         }

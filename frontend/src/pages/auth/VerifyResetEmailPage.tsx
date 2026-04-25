@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Form, Card, Input, Flex, Button, Typography, Result } from 'antd/es';
 import { LockOutlined } from '@/shared/antd-imports';
 import { useTranslation } from 'react-i18next';
@@ -22,12 +22,16 @@ import { IUpdatePasswordRequest } from '@/types/auth/verify-reset-email.types';
 const VerifyResetEmailPage = () => {
   const [form] = Form.useForm();
   const { hash, user } = useParams();
+  const location = useLocation();
+  const query = new URLSearchParams(location.search);
+  const tokenFromQuery = query.get('token') || '';
 
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [urlParams, setUrlParams] = useState({
     hash: hash || '',
     user: user || '',
+    token: tokenFromQuery || hash || '',
   });
 
   const navigate = useNavigate();
@@ -80,13 +84,14 @@ const VerifyResetEmailPage = () => {
       try {
         setIsLoading(true);
         const body: IUpdatePasswordRequest = {
+          token: urlParams.token,
           hash: urlParams.hash,
           user: urlParams.user,
           password: values.newPassword,
           confirmPassword: values.confirmPassword,
         };
         const result = await dispatch(updatePassword(body)).unwrap();
-        if (result.done) {
+        if (result.done || (result as any).success) {
           setIsSuccess(true);
           navigate('/auth/login');
         }
@@ -96,7 +101,7 @@ const VerifyResetEmailPage = () => {
         setIsLoading(false);
       }
     },
-    [dispatch, t]
+    [dispatch, navigate, t, urlParams]
   );
 
   return (

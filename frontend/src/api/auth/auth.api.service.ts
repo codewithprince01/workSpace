@@ -36,16 +36,23 @@ export const authApiService = {
   },
 
   async resetPassword(email: string): Promise<IServerResponse<string>> {
-    const response = await apiClient.post<IServerResponse<string>>(`${rootUrl}/reset-password`, {
+    const response = await apiClient.post<IServerResponse<string>>(`${rootUrl}/forgot-password`, {
       email,
     });
     return response.data;
   },
 
   async updatePassword(values: any): Promise<IServerResponse<string>> {
+    const token = values?.token || values?.hash;
+    if (!token) {
+      throw new Error('Reset token is required');
+    }
+
     const response = await apiClient.post<IServerResponse<string>>(
-      `${rootUrl}/update-password`,
-      values
+      `${rootUrl}/reset-password/${encodeURIComponent(token)}`,
+      {
+        password: values?.password,
+      }
     );
     return response.data;
   },
