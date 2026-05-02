@@ -658,14 +658,6 @@ const ProjectList: React.FC = () => {
         ),
       },
       {
-        title: t('client'),
-        dataIndex: 'client_name',
-        key: 'client_name',
-        sorter: true,
-        showSorterTooltip: false,
-        render: (text: string) => text || '-',
-      },
-      {
         title: t('category'),
         dataIndex: 'category_name',
         key: 'category_id',

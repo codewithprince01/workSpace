@@ -241,7 +241,12 @@ const MoodForm: React.FC = () => (
 
 // ── Task Deadline Form ───────────────────────────────────────
 
-const TaskDeadlineForm: React.FC<{ isEdit: boolean; selectedEvent: any }> = ({ isEdit, selectedEvent }) => (
+const TaskDeadlineForm: React.FC<{
+  isEdit: boolean;
+  selectedEvent: any;
+  disablePastDate: (current: dayjs.Dayjs) => boolean;
+  getDisabledPastTime: (selectedDate?: dayjs.Dayjs | null) => any;
+}> = ({ isEdit, selectedEvent, disablePastDate, getDisabledPastTime }) => (
   <>
     {/* Can always set a title for the deadline */}
     <Form.Item name="title" label="Deadline Title" rules={[{ required: true, message: 'Enter a title' }]}>
@@ -260,6 +265,8 @@ const TaskDeadlineForm: React.FC<{ isEdit: boolean; selectedEvent: any }> = ({ i
         style={{ width: '100%' }}
         placeholder="Select deadline date & time"
         suffixIcon={<ClockCircleOutlined />}
+        disabledDate={disablePastDate}
+        disabledTime={getDisabledPastTime}
       />
     </Form.Item>
 
@@ -311,6 +318,19 @@ const EventSlidePanel: React.FC = () => {
 
   const memberOptions = teamMembers.map(m => ({ value: m._id, label: `${m.name} (${m.email})` }));
   const currentTypeColor = eventType ? (TYPE_COLOR_MAP[eventType] || '#1677ff') : '#1677ff';
+  const disablePastDate = (current: dayjs.Dayjs) =>
+    !!current && current.startOf('day').isBefore(dayjs().startOf('day'));
+  const getDisabledPastTime = (selectedDate?: dayjs.Dayjs | null) => {
+    if (!selectedDate || !selectedDate.isSame(dayjs(), 'day')) return {};
+    const now = dayjs();
+    const currentHour = now.hour();
+    const currentMinute = now.minute();
+    return {
+      disabledHours: () => Array.from({ length: currentHour }, (_, i) => i),
+      disabledMinutes: (hour: number) =>
+        hour === currentHour ? Array.from({ length: currentMinute }, (_, i) => i) : [],
+    };
+  };
 
   useEffect(() => {
     if (!slidePanelOpen) return;
@@ -368,6 +388,21 @@ const EventSlidePanel: React.FC = () => {
   const handleSubmit = useCallback(async () => {
     try {
       const values = await form.validateFields();
+      const start = values.start_time ? dayjs(values.start_time) : null;
+      if (start) {
+        const isPastAllDay = !!values.all_day && start.startOf('day').isBefore(dayjs().startOf('day'));
+        const isPastTimed = !values.all_day && start.isBefore(dayjs());
+        if (isPastAllDay || isPastTimed) {
+          form.setFields([
+            { name: 'start_time', errors: ['Past date/time is not allowed'] },
+          ]);
+          return;
+        }
+      }
+      if (values.end_time && values.start_time && dayjs(values.end_time).isBefore(dayjs(values.start_time))) {
+        form.setFields([{ name: 'end_time', errors: ['End time must be after start time'] }]);
+        return;
+      }
       const normalizedSelections = assignedUserIds
         .map(value => String(value).trim())
         .filter(Boolean);
@@ -544,6 +579,8 @@ const EventSlidePanel: React.FC = () => {
                   format={allDay ? 'MMM DD, YYYY' : TIME_PICKER_FORMAT}
                   style={{ width: '100%' }}
                   suffixIcon={<ClockCircleOutlined />}
+                  disabledDate={disablePastDate}
+                  disabledTime={allDay ? undefined : getDisabledPastTime}
                 />
               </Form.Item>
               <Form.Item name="end_time" label="End" style={{ flex: 1 }}>
@@ -551,6 +588,8 @@ const EventSlidePanel: React.FC = () => {
                   showTime={allDay ? false : { format: 'h:mm A', use12Hours: true }}
                   format={allDay ? 'MMM DD, YYYY' : TIME_PICKER_FORMAT}
                   style={{ width: '100%' }}
+                  disabledDate={disablePastDate}
+                  disabledTime={allDay ? undefined : getDisabledPastTime}
                 />
               </Form.Item>
             </Space>
@@ -580,7 +619,7 @@ const EventSlidePanel: React.FC = () => {
               />
             </Form.Item>
             <Form.Item name="start_time" label="Date" rules={[{ required: true }]}>
-              <DatePicker format="MMM DD, YYYY" style={{ width: '100%' }} />
+              <DatePicker format="MMM DD, YYYY" style={{ width: '100%' }} disabledDate={disablePastDate} />
             </Form.Item>
           </>
         )}
@@ -596,6 +635,8 @@ const EventSlidePanel: React.FC = () => {
                 showTime={{ format: 'h:mm A', use12Hours: true }}
                 format={TIME_PICKER_FORMAT}
                 style={{ width: '100%' }}
+                disabledDate={disablePastDate}
+                disabledTime={getDisabledPastTime}
               />
             </Form.Item>
             <Form.Item name="description" label="Note">
@@ -609,7 +650,12 @@ const EventSlidePanel: React.FC = () => {
 
         {/* ── TASK DEADLINE (editable) ── */}
         {eventType === 'task_deadline' && (
-          <TaskDeadlineForm isEdit={isEdit} selectedEvent={selectedEvent} />
+          <TaskDeadlineForm
+            isEdit={isEdit}
+            selectedEvent={selectedEvent}
+            disablePastDate={disablePastDate}
+            getDisabledPastTime={getDisabledPastTime}
+          />
         )}
 
         {/* ── CUSTOM EVENT ── */}
@@ -620,6 +666,8 @@ const EventSlidePanel: React.FC = () => {
                 showTime={{ format: 'h:mm A', use12Hours: true }}
                 format={TIME_PICKER_FORMAT}
                 style={{ width: '100%' }}
+                disabledDate={disablePastDate}
+                disabledTime={getDisabledPastTime}
               />
             </Form.Item>
             <Form.Item name="description" label="Description">

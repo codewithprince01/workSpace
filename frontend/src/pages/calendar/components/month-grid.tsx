@@ -119,10 +119,27 @@ const MonthGrid: React.FC = () => {
   const eventsByDate = useMemo(() => {
     const map: Record<string, ICalendarEvent[]> = {};
     events.forEach(event => {
-      const key = dayjs(event.start_time).format('YYYY-MM-DD');
-      if (!map[key]) map[key] = [];
-      map[key].push(event);
+      const start = dayjs(event.start_time).startOf('day');
+      const end = dayjs(event.end_time || event.start_time).startOf('day');
+
+      // Ensure at least one-day render and handle bad ranges safely.
+      const rangeStart = start.isAfter(end) ? end : start;
+      const rangeEnd = start.isAfter(end) ? start : end;
+
+      let cursor = rangeStart.clone();
+      while (cursor.isBefore(rangeEnd) || cursor.isSame(rangeEnd, 'day')) {
+        const key = cursor.format('YYYY-MM-DD');
+        if (!map[key]) map[key] = [];
+        map[key].push(event);
+        cursor = cursor.add(1, 'day');
+      }
     });
+
+    // Keep deterministic order per day.
+    Object.keys(map).forEach(key => {
+      map[key].sort((a, b) => dayjs(a.start_time).valueOf() - dayjs(b.start_time).valueOf());
+    });
+
     return map;
   }, [events]);
 
@@ -183,6 +200,13 @@ const MonthGrid: React.FC = () => {
             <div className="day-events">
               {allVisibleEvents.map(event => {
                 const cfg = TYPE_COLORS[event.type] || TYPE_COLORS.meeting;
+                const eventStartKey = dayjs(event.start_time).format('YYYY-MM-DD');
+                const eventEndKey = dayjs(event.end_time || event.start_time).format('YYYY-MM-DD');
+                const isMultiDay = eventStartKey !== eventEndKey;
+                const isStartDay = key === eventStartKey;
+                const isEndDay = key === eventEndKey;
+                const isMiddleDay = isMultiDay && !isStartDay && !isEndDay;
+                const isContinuationDay = isMultiDay && !isStartDay;
 
                 // ── Mood chip — rich card style ──
                 if (event.type === 'mood_entry') {
@@ -214,16 +238,31 @@ const MonthGrid: React.FC = () => {
                   <EventPreviewTooltip key={event._id} event={event}>
                     <div
                       className={`event-chip type-${event.type}`}
-                      style={{ background: cfg.bg, color: cfg.text, borderLeftColor: cfg.border }}
-                      title={event.all_day ? event.title : `${dayjs(event.start_time).format('HH:mm')} ${event.title}`}
+                      style={{
+                        background: cfg.bg,
+                        color: cfg.text,
+                        borderLeftColor: cfg.border,
+                        borderTopLeftRadius: isContinuationDay ? 4 : 8,
+                        borderBottomLeftRadius: isContinuationDay ? 4 : 8,
+                        borderTopRightRadius: isMultiDay && !isEndDay ? 4 : 8,
+                        borderBottomRightRadius: isMultiDay && !isEndDay ? 4 : 8,
+                        opacity: isMiddleDay ? 0.95 : 1,
+                      }}
+                      title={
+                        event.all_day
+                          ? event.title
+                          : `${dayjs(event.start_time).format('HH:mm')} ${event.title}`
+                      }
                       onClick={e => handleEventClick(e, event)}
                     >
-                      {!event.all_day && (
+                      {!event.all_day && isStartDay && (
                         <span className="event-chip-time">
                           {dayjs(event.start_time).format('HH:mm')}
                         </span>
                       )}
-                      <span className="event-chip-title">{event.title}</span>
+                      <span className="event-chip-title">
+                        {isMiddleDay ? `↔ ${event.title}` : isContinuationDay ? `→ ${event.title}` : event.title}
+                      </span>
                       {event.priority === 'high' && (
                         <span className="priority-dot high" title="High priority" />
                       )}

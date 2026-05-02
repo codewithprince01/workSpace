@@ -154,7 +154,18 @@
 }
 
 .day-cell.other-month {
-  opacity: 0.4;
+  opacity: 0.62;
+}
+
+.day-cell.other-month .day-number {
+  opacity: 1;
+  color: #aeb6c2;
+  font-weight: 500;
+}
+
+.theme-dark .day-cell.other-month .day-number,
+[data-theme='dark'] .day-cell.other-month .day-number {
+  color: #6f7885;
 }
 
 .day-cell.today {

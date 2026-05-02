@@ -39,7 +39,6 @@ import ProjectBasicInfo from './project-basic-info/project-basic-info';
 import ProjectHealthSection from './project-health-section/project-health-section';
 import ProjectStatusSection from './project-status-section/project-status-section';
 import ProjectCategorySection from './project-category-section/project-category-section';
-import ProjectClientSection from './project-client-section/project-client-section';
 
 import { IProjectViewModel } from '@/types/project/projectViewModel.types';
 import { ITeamMemberViewModel } from '@/types/teamMembers/teamMembersGetResponse.types';
@@ -586,14 +585,14 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
             />
           </Form.Item>
 
-          <ProjectClientSection
+          {/* <ProjectClientSection
             clients={clients}
             form={form}
             t={t}
             project={project}
             loadingClients={loadingClients}
             disabled={!canEditProjectSettings}
-          />
+          /> */}
 
           <Form.Item name="project_manager" label={t('projectManager')} layout="horizontal">
             <ProjectManagerDropdown
@@ -651,7 +650,7 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
             <Input type="number" min={0} disabled={!canEditProjectSettings} />
           </Form.Item>
 
-          <Form.Item
+          {/* <Form.Item
             name="man_days"
             label={t('estimateManDays')}
             rules={[
@@ -676,7 +675,7 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
                 }
               }}
             />
-          </Form.Item>
+          </Form.Item> */}
 
           <Form.Item
             name="hours_per_day"
@@ -684,11 +683,11 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
             rules={[
               {
                 validator: (_, value) => {
-                  if (value === undefined || (value >= 0 && value <= 24)) {
+                  if (value === undefined || value === null || value === '' || (value >= 1 && value <= 8)) {
                     return Promise.resolve();
                   }
                   return Promise.reject(
-                    new Error(t('hoursPerDayValidationMessage', { min: 0, max: 24 }))
+                    new Error(t('hoursPerDayValidationMessage', { min: 1, max: 8 }))
                   );
                 },
               },
@@ -696,11 +695,35 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
           >
             <Input
               type="number"
-              min={0}
+              min={1}
+              max={8}
               disabled={!canEditProjectSettings}
+              onChange={e => {
+                const raw = e.target.value;
+                if (raw === '') {
+                  form.setFieldsValue({ hours_per_day: '' });
+                  return;
+                }
+                const value = parseInt(raw, 10);
+                if (Number.isNaN(value)) {
+                  form.setFieldsValue({ hours_per_day: 1 });
+                  return;
+                }
+                if (value < 1) {
+                  form.setFieldsValue({ hours_per_day: 1 });
+                  return;
+                }
+                if (value > 8) {
+                  form.setFieldsValue({ hours_per_day: 8 });
+                  return;
+                }
+                form.setFieldsValue({ hours_per_day: value });
+              }}
               onBlur={e => {
                 const value = parseInt(e.target.value, 10);
-                if (value < 0) {
+                if (Number.isNaN(value) || value < 1) {
+                  form.setFieldsValue({ hours_per_day: 1 });
+                } else if (value > 8) {
                   form.setFieldsValue({ hours_per_day: 8 });
                 }
               }}
