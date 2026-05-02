@@ -214,7 +214,7 @@ const AddTaskListRow = ({ groupId = null, parentTask = null }: IAddTaskListRowPr
   };
 
   const handleAddTask = () => {
-    if (creatingTask) return; // Prevent multiple submissions
+    if (creatingTask || taskName.trim().length === 0) return; // Prevent multiple/empty submissions
     addInstantTask();
   };
 
@@ -243,7 +243,7 @@ const AddTaskListRow = ({ groupId = null, parentTask = null }: IAddTaskListRowPr
               borderColor: error ? '#ff4d4f' : colors.skyBlue,
               paddingRight: creatingTask ? '32px' : '12px',
             }}
-            placeholder={t('addTaskInputPlaceholder')}
+            placeholder={parentTask ? t('enterSubtaskName') : 'Write a task...'}
             value={taskName}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}

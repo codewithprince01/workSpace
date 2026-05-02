@@ -52,7 +52,7 @@ import {
 } from '@/features/project/project-drawer.slice';
 import { fetchTask, setSelectedTaskId, setShowTaskDrawer } from '@/features/task-drawer/task-drawer.slice';
 import { ITaskCreateRequest } from '@/types/tasks/task-create-request.types';
-import { DEFAULT_TASK_NAME, UNMAPPED } from '@/shared/constants';
+import { UNMAPPED } from '@/shared/constants';
 import { IProjectTask } from '@/types/project/projectTasksViewModel.types';
 import { getGroupIdByGroupedColumn } from '@/services/task-list/taskList.service';
 import logger from '@/utils/errorLogger';

@@ -8,6 +8,7 @@ import {
   QuestionCircleOutlined,
 } from '@/shared/antd-imports';
 import { attachmentsApiService } from '@/api/attachments/attachments.api.service';
+import apiClient from '@/api/api-client';
 import { IconsMap } from '@/shared/constants';
 import './attachments-preview.css';
 import taskAttachmentsApiService from '@/api/tasks/task-attachments.api.service';
@@ -38,6 +39,25 @@ const AttachmentsPreview = ({
   const [downloading, setDownloading] = useState(false);
   const [previewedFileId, setPreviewedFileId] = useState<string | null>(null);
   const [previewedFileName, setPreviewedFileName] = useState<string | null>(null);
+  const [generatedObjectUrl, setGeneratedObjectUrl] = useState<string | null>(null);
+
+  const normalizeFileUrl = (url?: string | null): string => {
+    const raw = String(url || '').trim();
+    if (!raw) return '';
+    if (/^https?:\/\//i.test(raw) || raw.startsWith('data:') || raw.startsWith('blob:')) {
+      return raw;
+    }
+    if (raw.startsWith('//')) {
+      return `${window.location.protocol}${raw}`;
+    }
+    if (/^localhost[:/]/i.test(raw)) {
+      return `http://${raw}`;
+    }
+    if (raw.startsWith('/')) {
+      return `${window.location.origin}${raw}`;
+    }
+    return `http://${raw}`;
+  };
 
   const getFileIcon = (type?: string) => {
     if (!type) return 'search.png';
@@ -61,9 +81,15 @@ const AttachmentsPreview = ({
   };
 
   const handleCancel = () => {
+    if (generatedObjectUrl) {
+      URL.revokeObjectURL(generatedObjectUrl);
+      setGeneratedObjectUrl(null);
+    }
     setIsVisible(false);
     setPreviewedFileId(null);
     setPreviewedFileName(null);
+    setCurrentFileUrl(null);
+    setCurrentFileType(null);
   };
 
   const download = async (id?: string, name?: string) => {
@@ -77,8 +103,12 @@ const AttachmentsPreview = ({
       const res = await api(id, name);
 
       if (res && res.done) {
+        const safeUrl = normalizeFileUrl(res.body || '');
+        if (!safeUrl) {
+          throw new Error('Empty download URL');
+        }
         const link = document.createElement('a');
-        link.href = res.body || '';
+        link.href = safeUrl;
         link.download = name;
         link.click();
         link.remove();
@@ -135,7 +165,7 @@ const AttachmentsPreview = ({
     return ['ppt', 'pptx', 'doc', 'docx', 'xls', 'xlsx', 'pdf'].includes(extension);
   };
 
-  const previewFile = (fileUrl?: string, id?: string, fileName?: string) => {
+  const previewFile = async (fileUrl?: string, id?: string, fileName?: string) => {
     if (!fileUrl || !id || !fileName) return;
 
     setPreviewedFileId(id);
@@ -163,7 +193,26 @@ const AttachmentsPreview = ({
       setCurrentFileType('unknown');
     }
 
-    setCurrentFileUrl(fileUrl);
+    // Always resolve preview URL via backend download endpoint to avoid malformed URLs
+    // and to keep a single path for files created through different storage versions.
+    try {
+      const res = await attachmentsApiService.downloadAttachment(id, fileName);
+      const resolvedUrl = normalizeFileUrl(res?.done ? res.body : fileUrl);
+
+      // For documents, load via authenticated blob URL to avoid iframe cross-origin/auth issues.
+      if (isDoc(typeStr)) {
+        const response = await apiClient.get(resolvedUrl, { responseType: 'blob' });
+        const blobUrl = URL.createObjectURL(response.data);
+        if (generatedObjectUrl) URL.revokeObjectURL(generatedObjectUrl);
+        setGeneratedObjectUrl(blobUrl);
+        setCurrentFileUrl(blobUrl);
+      } else {
+        setCurrentFileUrl(resolvedUrl);
+      }
+    } catch (e) {
+      const fallbackUrl = normalizeFileUrl(fileUrl);
+      setCurrentFileUrl(fallbackUrl);
+    }
   };
 
   return (

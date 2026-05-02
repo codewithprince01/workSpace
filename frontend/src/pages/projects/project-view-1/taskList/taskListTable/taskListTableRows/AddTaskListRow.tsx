@@ -20,7 +20,7 @@ const AddTaskListRow = () => {
         <Input
           className="h-12 w-full rounded-none"
           style={{ borderColor: colors.skyBlue }}
-          placeholder={t('addTaskInputPlaceholder')}
+          placeholder="Write a task..."
           onBlur={() => setIsEdit(false)}
         />
       ) : (

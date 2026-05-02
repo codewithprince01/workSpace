@@ -125,6 +125,7 @@ const TaskListInstantTaskInput = ({
   };
 
   const handleAddTask = () => {
+    if (taskName.trim() === '') return;
     setIsEdit(false);
     addInstantTask();
   };
@@ -138,7 +139,7 @@ const TaskListInstantTaskInput = ({
         <Input
           className="w-full rounded-none"
           style={{ borderColor: colors.skyBlue, height: '40px' }}
-          placeholder={t('addTaskInputPlaceholder')}
+          placeholder={parentTask ? t('enterSubtaskName') : 'Write a task...'}
           onChange={e => setTaskName(e.target.value)}
           onBlur={handleAddTask}
           onPressEnter={handleAddTask}

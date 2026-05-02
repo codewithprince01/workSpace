@@ -22,6 +22,7 @@ import { deleteTask as deleteKanbanTask, updateEnhancedKanbanSubtask } from '@/f
 import useTabSearchParam from '@/hooks/useTabSearchParam';
 import { ITaskViewModel } from '@/types/tasks/task.types';
 import TaskHierarchyBreadcrumb from '../task-hierarchy-breadcrumb/task-hierarchy-breadcrumb';
+import { DEFAULT_TASK_NAME } from '@/shared/constants';
 
 type TaskDrawerHeaderProps = {
   inputRef: React.RefObject<InputRef | null>;
@@ -136,7 +137,9 @@ const TaskDrawerHeader = ({ inputRef, t }: TaskDrawerHeaderProps) => {
     // No need for local socket listeners that could interfere with global handlers
   };
 
-  const displayTaskName = taskName || t('taskHeader.taskNamePlaceholder');
+  const drawerTaskPlaceholder = 'Write your task';
+  const isDefaultUntitledName = (taskName || '').trim() === DEFAULT_TASK_NAME;
+  const displayTaskName = !taskName?.trim() || isDefaultUntitledName ? drawerTaskPlaceholder : taskName;
   const truncatedTaskName = truncateText(displayTaskName, 50);
   const shouldShowTooltip = displayTaskName.length > 50;
 
@@ -151,10 +154,10 @@ const TaskDrawerHeader = ({ inputRef, t }: TaskDrawerHeaderProps) => {
             <Input
               ref={inputRef}
               size="large"
-              value={taskName}
+              value={isDefaultUntitledName ? '' : taskName}
               onChange={e => onTaskNameChange(e)}
               onBlur={handleInputBlur}
-              placeholder={t('taskHeader.taskNamePlaceholder')}
+              placeholder={drawerTaskPlaceholder}
               className="task-name-input"
               style={{
                 width: '100%',
