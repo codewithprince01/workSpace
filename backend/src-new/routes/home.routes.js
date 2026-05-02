@@ -11,10 +11,13 @@ router.post('/personal-task', async (req, res) => {
     const { PersonalTask } = require('../models');
     // Frontend sends 'name' in the body, not 'task'
     const { task, name } = req.body;
-    const taskName = name || task;
+    const taskName = (name || task || '').trim();
     
     if (!taskName) {
       return res.status(400).json({ done: false, message: 'Task name is required' });
+    }
+    if (taskName.length > 20000) {
+      return res.status(400).json({ done: false, message: 'Task name cannot exceed 20000 characters' });
     }
 
     const newTask = await PersonalTask.create({
@@ -28,7 +31,8 @@ router.post('/personal-task', async (req, res) => {
       body: {
         id: newTask._id,
         name: newTask.name,
-        is_completed: newTask.is_completed
+        is_completed: newTask.is_completed,
+        done: newTask.is_completed
       }
     });
   } catch (error) {
@@ -61,7 +65,8 @@ router.put('/update-personal-task', async (req, res) => {
       body: {
         id: task._id,
         name: task.name,
-        is_completed: task.is_completed
+        is_completed: task.is_completed,
+        done: task.is_completed
       }
     });
   } catch (error) {
@@ -84,7 +89,8 @@ router.get('/personal-tasks', async (req, res) => {
       body: tasks.map(t => ({
         id: t._id,
         name: t.name,
-        is_completed: t.is_completed
+        is_completed: t.is_completed,
+        done: t.is_completed
       }))
     });
   } catch (error) {
@@ -106,7 +112,16 @@ router.put('/personal-task/:id', async (req, res) => {
     }
     
     if (is_completed !== undefined) task.is_completed = is_completed;
-    if (name) task.name = name;
+    if (typeof name === 'string') {
+      const normalizedName = name.trim();
+      if (!normalizedName) {
+        return res.status(400).json({ done: false, message: 'Task name is required' });
+      }
+      if (normalizedName.length > 20000) {
+        return res.status(400).json({ done: false, message: 'Task name cannot exceed 20000 characters' });
+      }
+      task.name = normalizedName;
+    }
     
     await task.save();
 
@@ -115,7 +130,8 @@ router.put('/personal-task/:id', async (req, res) => {
       body: {
         id: task._id,
         name: task.name,
-        is_completed: task.is_completed
+        is_completed: task.is_completed,
+        done: task.is_completed
       }
     });
   } catch (error) {

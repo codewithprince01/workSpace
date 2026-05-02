@@ -48,6 +48,19 @@ const api = createApi({
         body: { id: taskId },
       }),
     }),
+    updatePersonalTask: builder.mutation<IServerResponse<any>, { id: string; name: string }>({
+      query: ({ id, name }) => ({
+        url: `${rootUrl}/personal-task/${id}`,
+        method: 'PUT',
+        body: { name },
+      }),
+    }),
+    deletePersonalTask: builder.mutation<IServerResponse<any>, string>({
+      query: taskId => ({
+        url: `${rootUrl}/personal-task/${taskId}`,
+        method: 'DELETE',
+      }),
+    }),
     getMyTasks: builder.query<IServerResponse<IHomeTasksModel>, IHomeTasksConfig>({
       query: config => {
         const { tasks_group_by, current_tab, is_calendar_view, selected_date, time_zone } = config;
@@ -84,6 +97,8 @@ export const {
   useGetProjectsQuery,
   useGetProjectsByTeamQuery,
   useMarkPersonalTaskAsDoneMutation,
+  useUpdatePersonalTaskMutation,
+  useDeletePersonalTaskMutation,
 } = api;
 
 export default api;

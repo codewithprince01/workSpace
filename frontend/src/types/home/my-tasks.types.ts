@@ -3,7 +3,8 @@ import { ITaskStatusViewModel } from '../tasks/taskStatusGetResponse.types';
 
 export interface IMyTask extends IProjectTask {
   is_task: boolean;
-  done: boolean;
+  done?: boolean;
+  is_completed?: boolean;
   project_color?: string;
   project_name?: string;
   team_id?: string;
