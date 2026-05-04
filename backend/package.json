@@ -82,6 +82,7 @@
     "moment-timezone": "^0.5.43",
     "mongoose": "^9.1.4",
     "morgan": "^1.10.0",
+    "multer": "^2.1.1",
     "nanoid": "^3.3.6",
     "nodemailer": "^7.0.13",
     "passport": "^0.7.0",
@@ -99,6 +100,7 @@
     "tinymce": "^7.8.0",
     "uglify-js": "^3.17.4",
     "winston": "^3.10.0",
+    "xlsx": "^0.18.5",
     "xss-filters": "^1.2.7"
   },
   "devDependencies": {

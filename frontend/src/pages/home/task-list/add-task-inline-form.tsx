@@ -228,21 +228,24 @@ const AddTaskInlineForm = ({ t, calendarView }: AddTaskInlineFormProps) => {
         )}
       </Flex>
 
-      <Form.Item name="dueDate" style={{ width: '100%', maxWidth: 200 }}>
-        {isDueDateFieldShowing && !calendarView && (
-          <Select
-            suffixIcon={null}
-            options={dueDateOptions}
-            defaultOpen
-            onSelect={() => {
-              setIsProjectFieldShowing(true);
-            }}
-            onChange={() => {
-              setIsProjectFieldShowing(true);
-            }}
-          />
-        )}
-        {calendarView && (
+      {!calendarView ? (
+        isDueDateFieldShowing && (
+          <Form.Item name="dueDate" style={{ width: '100%', maxWidth: 200 }}>
+            <Select
+              suffixIcon={null}
+              options={dueDateOptions}
+              defaultOpen
+              onSelect={() => {
+                setIsProjectFieldShowing(true);
+              }}
+              onChange={() => {
+                setIsProjectFieldShowing(true);
+              }}
+            />
+          </Form.Item>
+        )
+      ) : (
+        <Form.Item name="dueDate" style={{ width: '100%', maxWidth: 200 }}>
           <DatePicker
             disabled
             value={homeTasksConfig.selected_date || dayjs()}
@@ -250,20 +253,20 @@ const AddTaskInlineForm = ({ t, calendarView }: AddTaskInlineFormProps) => {
               setIsProjectFieldShowing(true);
             }}
           />
-        )}
-      </Form.Item>
+        </Form.Item>
+      )}
 
-      <Form.Item
-        name="project"
-        style={{ width: '100%', maxWidth: 200 }}
-        rules={[
-          {
-            required: true,
-            message: t('home:tasks.projectRequired'),
-          },
-        ]}
-      >
-        {isProjectFieldShowing && (
+      {isProjectFieldShowing && (
+        <Form.Item
+          name="project"
+          style={{ width: '100%', maxWidth: 200 }}
+          rules={[
+            {
+              required: true,
+              message: t('home:tasks.projectRequired'),
+            },
+          ]}
+        >
           <Select
             suffixIcon={null}
             placeholder={'Project'}
@@ -277,7 +280,7 @@ const AddTaskInlineForm = ({ t, calendarView }: AddTaskInlineFormProps) => {
                 .toLowerCase()
                 .localeCompare((optionB?.label ?? '').toLowerCase())
             }
-            onSelect={(value) => {
+            onSelect={value => {
               form.setFieldValue('project', value);
               // Small timeout to allow value to settle before submit
               setTimeout(() => {
@@ -285,8 +288,8 @@ const AddTaskInlineForm = ({ t, calendarView }: AddTaskInlineFormProps) => {
               }, 100);
             }}
           />
-        )}
-      </Form.Item>
+        </Form.Item>
+      )}
     </Form>
   );
 };

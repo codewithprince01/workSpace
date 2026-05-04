@@ -40,9 +40,20 @@ exports.getOverviewStatistics = async (req, res, next) => {
     const teamProjectsCount = await Project.countDocuments({ team_id: { $in: teamIds }, is_archived: false });
     const teamMembersCount = await TeamMember.distinct('user_id', { team_id: { $in: teamIds }, is_active: true });
 
-    // 2. Projects Stats (where user is a member)
-    const myProjectMemberships = await ProjectMember.find({ user_id: userId, is_active: true }).select('project_id');
-    const projectIds = myProjectMemberships.map(m => m.project_id);
+    // 2. Projects Stats
+    // Super admins viewing a switched org get ALL projects for that team;
+    // normal users are scoped to their ProjectMember records.
+    let projectIds;
+    if (req.isSuperAdmin && req.superAdminActiveTeam) {
+      const teamProjects = await Project.find({
+        team_id: req.superAdminActiveTeam,
+        is_archived: false
+      }).select('_id');
+      projectIds = teamProjects.map(p => p._id);
+    } else {
+      const myProjectMemberships = await ProjectMember.find({ user_id: userId, is_active: true }).select('project_id');
+      projectIds = myProjectMemberships.map(m => m.project_id);
+    }
 
     const totalProjects = projectIds.length;
     const activeProjects = await Project.countDocuments({ _id: { $in: projectIds }, status: 'active', is_archived: false });
@@ -169,10 +180,18 @@ exports.getProjectsReports = async (req, res, next) => {
     const limit = parseInt(size) || 10;
     const skip = (page - 1) * limit;
 
-    // Get user's projects
-    const memberships = await ProjectMember.find({ user_id: userId, is_active: true });
-    logger.debug(`Found ${memberships.length} memberships for user ${userId}`);
-    const projectIds = memberships.map(m => m.project_id);
+    // Get user's projects — super admins see all projects in the switched team
+    let projectIds;
+    if (req.isSuperAdmin && req.superAdminActiveTeam) {
+      const teamProjects = await Project.find({
+        team_id: req.superAdminActiveTeam
+      }).select('_id');
+      projectIds = teamProjects.map(p => p._id);
+    } else {
+      const memberships = await ProjectMember.find({ user_id: userId, is_active: true });
+      logger.debug(`Found ${memberships.length} memberships for user ${userId}`);
+      projectIds = memberships.map(m => m.project_id);
+    }
 
     const query = { _id: { $in: projectIds } };
     
@@ -428,11 +447,19 @@ exports.getAllocationData = async (req, res, next) => {
         projectQuery.category_id = { $in: categories };
     }
     
-    // ALWAYS filter by user's project memberships first
+    // Scope to user's allowed projects — super admins see all projects in the switched team
     const userId = req.user._id;
-    const memberships = await ProjectMember.find({ user_id: userId, is_active: true });
-    const allowedProjectIds = memberships.map(m => m.project_id);
-    logger.debug(`User ${userId} has ${memberships.length} project memberships`);
+    let allowedProjectIds;
+    if (req.isSuperAdmin && req.superAdminActiveTeam) {
+      const teamProjects = await Project.find({
+        team_id: req.superAdminActiveTeam
+      }).select('_id');
+      allowedProjectIds = teamProjects.map(p => p._id);
+    } else {
+      const memberships = await ProjectMember.find({ user_id: userId, is_active: true });
+      allowedProjectIds = memberships.map(m => m.project_id);
+      logger.debug(`User ${userId} has ${memberships.length} project memberships`);
+    }
     
     // Then apply team filter if needed (but stay within user's allowed projects)
     if (Array.isArray(teams) && teams.length > 0) {

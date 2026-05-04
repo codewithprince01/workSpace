@@ -82,12 +82,11 @@ const LoginPage: React.FC = () => {
 
   useEffect(() => {
     trackMixpanelEvent(evt_login_page_visit);
-    if (currentSession && !currentSession?.setup_completed) {
-      navigate('/worklenz/setup');
-      return;
-    }
+    // Setup is handled by the backend on login — do NOT redirect to /worklenz/setup
+    // from a stale session check. Just verify auth and go to home if already logged in.
     void verifyAuthStatus();
   }, [dispatch, navigate, trackMixpanelEvent]);
+
 
   const onFinish = useCallback(
     async (values: LoginFormValues) => {

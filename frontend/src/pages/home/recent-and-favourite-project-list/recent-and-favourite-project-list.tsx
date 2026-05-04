@@ -152,7 +152,7 @@ const RecentAndFavouriteProjectList = () => {
         {projectsData?.body?.length === 0 ? (
           <Empty
             image="https://s3.us-west-2.amazonaws.com/worklenz.com/assets/empty-box.webp"
-            imageStyle={{ height: 60 }}
+            styles={{ image: { height: 60 } }}
             style={{
               display: 'flex',
               flexDirection: 'column',

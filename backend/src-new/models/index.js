@@ -24,5 +24,6 @@ module.exports = {
   TaskDependency: require('./TaskDependency'),
   JobTitle: require('./JobTitle'),
   CalendarEvent: require('./CalendarEvent'),
-  StoredFile: require('./StoredFile')
+  StoredFile: require('./StoredFile'),
+  AuditLog: require('./AuditLog')
 };

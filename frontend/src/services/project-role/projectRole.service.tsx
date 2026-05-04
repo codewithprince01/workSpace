@@ -60,7 +60,6 @@ export const ProjectRoleProvider = ({ children }: { children: ReactNode }) => {
   const checkProjectOwnership = useCallback((projectId: string, ownerId: string): boolean => {
     const user = getUser();
     if (!user?.id) return false;
-    // Convert both to strings for comparison
     return user.id.toString() === ownerId.toString();
   }, [getUser]);
 
@@ -71,106 +70,78 @@ export const ProjectRoleProvider = ({ children }: { children: ReactNode }) => {
     if (projectId) {
       if (ownerId) setProjectOwnerId(ownerId);
       
-      // Convert both to strings for comparison (handles ObjectId vs string)
       const userId = user?.id?.toString();
       const ownerIdStr = ownerId?.toString();
-      // User is owner if IDs match OR if the explicitly passed role is 'owner'
       const isOwner = !!((userId && ownerIdStr && userId === ownerIdStr) || role === 'owner');
       
-      // Determine effective role
+      const teamRole = user?.team_role;
+      const isAdminFlag = user?.is_admin;
+      const isOwnerFlag = user?.owner;
+      const isSuperAdminMode = teamRole === 'super_admin' || user?.is_super_admin;
+      
+      // Robust check for team-level admin/owner status
+      const isTeamAdminOrOwner = 
+        teamRole === 'owner' || 
+        teamRole === 'admin' || 
+        isAdminFlag === true || 
+        isOwnerFlag === true || 
+        isSuperAdminMode;
+        
+      const isInOwnTeam = isTeamAdminOrOwner;
+
       let effectiveRole = role;
       if (isOwner) effectiveRole = 'owner';
-      else if (!effectiveRole) effectiveRole = 'member'; // Default to member if not owner and no role specified
+      else if (isSuperAdminMode) effectiveRole = 'owner';
+      else if (!effectiveRole) effectiveRole = 'member';
 
-      const isAdminOrOwner = isOwner || effectiveRole === 'admin';
+      // BUG FIX: team-level admin role ALWAYS preserves admin permissions even inside projects
+      // where the user was invited as a project "member". Team admin > project member.
+      const isAdminOrOwner = isOwner || effectiveRole === 'admin' || isSuperAdminMode || isTeamAdminOrOwner;
 
-      // Determine if user is in their own team or an invited team
-      // Key insight: team_role indicates user's role in the CURRENT team
-      // - 'owner' = User owns this team (their own team)
-      // - 'admin'/'member' = User was invited to this team (not their own)
-      const teamRole = user?.team_role;
-      const isInOwnTeam = teamRole === 'owner';
-
-      console.log('🔐 Project Role Check:', {
+      console.log('🛡️ [PROJECT-ROLE] Setting role:', {
         projectId,
-        userId,
-        ownerId: ownerIdStr,
-        isOwner,
-        role,
-        effectiveRole,
-        isAdminOrOwner,
+        projectRole: effectiveRole,
         teamRole,
-        isInOwnTeam: isInOwnTeam ? '✅ OWN TEAM' : '❌ INVITED TEAM'
+        isTeamAdminOrOwner,
+        isAdminOrOwner,
+        isInOwnTeam
       });
-      
-      // Inside a project: Set permissions based on ownership/role
+
       setProjectRole({
-        isProjectOwner: isOwner,
+        isProjectOwner: isOwner || isSuperAdminMode,
         projectRole: effectiveRole as any,
-        isInOwnTeam, // Track if user is in their own team
-        
-        // Owners AND Admins can access Reports and Invite
+        isInOwnTeam,
         canAccessReports: isAdminOrOwner,
         canAccessSettings: isAdminOrOwner,
         canInviteMembers: isAdminOrOwner,
-        
-        // Only owners can delete/archive/transfer?
-        // Requirement says "Admin... all admin actions". 
-        // Assuming Delete Project is Owner only for safety, but Settings is Admin+Owner.
-        // Let's allow Settings access via canAccessReports (or separate flag if needed, usually linked).
-        
-        canDeleteProject: isOwner, // Keep strict for delete
+        canDeleteProject: isOwner || isSuperAdminMode,
         canArchiveProject: isAdminOrOwner,
-      })
-;
+      });
     } else {
-      // No project selected (home page) - use team_role from session
-      // Check user's team-level role to determine permissions
       const teamRole = user?.team_role;
-      const isTeamAdminOrOwner = teamRole === 'owner' || teamRole === 'admin';
-      
-      console.log('🏠 [ROLE-CHECK] No project selected - checking team role:', {
-        userId: user?.id,
-        userName: user?.name,
-        teamId: user?.team_id,
-        teamRole: teamRole,
-        isTeamAdminOrOwner: isTeamAdminOrOwner,
-        fullUserObject: user
+      const isSuperAdminMode = teamRole === 'super_admin' || user?.is_super_admin;
+      const isTeamAdminOrOwner = 
+        teamRole === 'owner' || 
+        teamRole === 'admin' || 
+        user?.is_admin === true || 
+        user?.owner === true || 
+        isSuperAdminMode;
+        
+      const isInOwnTeam = isTeamAdminOrOwner;
+
+      console.log('🛡️ [PROJECT-ROLE] Clearing project (No Project Context):', {
+        teamRole,
+        isTeamAdminOrOwner,
+        isInOwnTeam
       });
-      
-      // FALLBACK: If team_role is undefined, check if user is owner of current team
-      // This ensures Owners get full access even if backend doesn't send team_role
-      let shouldHaveAccess = isTeamAdminOrOwner;
-      
-      if (teamRole === undefined || teamRole === null) {
-        // Check if user.owner flag is set (means they own this team)
-        if (user?.owner === true) {
-          shouldHaveAccess = true;
-          console.log('⚠️ [ROLE-CHECK] team_role undefined, using user.owner fallback → FULL ACCESS');
-        } else {
-          // Default to true for better UX (prevents locking out users)
-          shouldHaveAccess = true;
-          console.log('⚠️ [ROLE-CHECK] team_role undefined, defaulting to FULL ACCESS');
-        }
-      }
-      
-      console.log('✅ [ROLE-CHECK] Setting permissions:', {
-        shouldHaveAccess,
-        canAccessReports: shouldHaveAccess,
-        canInviteMembers: shouldHaveAccess
-      });
-      
-      // On home page, check if user owns this team
-      const isInOwnTeam = teamRole === 'owner';
-      
+
       setProjectRole({
         isProjectOwner: false,
         projectRole: null,
-        isInOwnTeam, // Use team_role to determine ownership
-        // Use team role to determine permissions on home page
-        canAccessReports: shouldHaveAccess,
-        canAccessSettings: shouldHaveAccess,
-        canInviteMembers: shouldHaveAccess,
+        isInOwnTeam,
+        canAccessReports: isTeamAdminOrOwner,
+        canAccessSettings: isTeamAdminOrOwner,
+        canInviteMembers: isTeamAdminOrOwner,
         canDeleteProject: false,
         canArchiveProject: false,
       });
@@ -179,35 +150,30 @@ export const ProjectRoleProvider = ({ children }: { children: ReactNode }) => {
   }, [getUser]);
 
   useEffect(() => {
-    // Initialize permissions on mount and when user changes
     const user = getUser();
-    
     if (!user) {
-      // User logged out - reset to defaults
       setProjectRole(defaultProjectRole);
       setCurrentProjectId(null);
       setProjectOwnerId(null);
       return;
     }
     
-    // Only initialize if no project is selected (home page)
     if (!currentProjectId) {
       const teamRole = user?.team_role;
-      const isTeamAdminOrOwner = teamRole === 'owner' || teamRole === 'admin';
-      
-      console.log('🔄 [INIT] Initializing permissions on mount:', {
-        teamRole,
-        isTeamAdminOrOwner,
-        userId: user.id
-      });
-      
-      // Check if user owns this team
-      const isInOwnTeam = teamRole === 'owner';
-      
+      const isSuperAdminMode = teamRole === 'super_admin' || user?.is_super_admin;
+      const isTeamAdminOrOwner = 
+        teamRole === 'owner' || 
+        teamRole === 'admin' || 
+        user?.is_admin === true || 
+        user?.owner === true || 
+        isSuperAdminMode;
+        
+      const isInOwnTeam = isTeamAdminOrOwner;
+
       setProjectRole({
         isProjectOwner: false,
         projectRole: null,
-        isInOwnTeam, // Use team_role to determine ownership
+        isInOwnTeam,
         canAccessReports: isTeamAdminOrOwner,
         canAccessSettings: isTeamAdminOrOwner,
         canInviteMembers: isTeamAdminOrOwner,

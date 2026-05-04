@@ -17,19 +17,27 @@ const taskDependenciesRoutes = require('./task-dependencies.routes');
 const { auth } = require('../controllers');
 const { protect } = require('../middlewares/auth.middleware');
 const { User } = require('../models');
+
 router.use('/time-logs', timeLogsRoutes);
+
 const taskTimeLogsRoutes = require('./task-time-logs.routes');
 router.use('/task-time-log', taskTimeLogsRoutes);
+
 const activityLogsRoutes = require('./activity-logs.routes');
 router.use('/activity-logs', activityLogsRoutes);
+
 const taskCommentsRoutes = require('./task-comments.routes');
 router.use('/task-comments', taskCommentsRoutes);
+
 const attachmentsRoutes = require('./attachments.routes');
 router.use('/attachments', attachmentsRoutes);
+
 const filesRoutes = require('./files.routes');
 router.use('/files', filesRoutes);
+
 const logsRoutes = require('./logs.routes');
 router.use('/logs', logsRoutes);
+
 const projectStatusesRoutes = require('./project-statuses.routes');
 const projectHealthsRoutes = require('./project-healths.routes');
 const projectCategoriesRoutes = require('./project-categories.routes');
@@ -47,8 +55,9 @@ const projectManagersRoutes = require('./project-managers.routes');
 const projectCommentsRoutes = require('./project-comments.routes');
 const reportingRoutes = require('./reporting.routes');
 const reportingExportRoutes = require('./reporting-export.routes');
+const superAdminRoutes = require('./super-admin.routes');
 
-// Mount routes
+// Mount core routes
 router.use('/auth', authRoutes);
 router.use('/projects', projectsRoutes);
 router.use('/tasks', tasksRoutes);
@@ -60,6 +69,7 @@ router.use('/project-templates', projectTemplatesRoutes);
 router.use('/task-templates', taskTemplatesRoutes);
 router.use('/reporting', reportingRoutes);
 router.use('/reporting-export', reportingExportRoutes);
+router.use('/super-admin', superAdminRoutes);
 
 const calendarRoutes = require('./calendar.routes');
 router.use('/calendar', calendarRoutes);
@@ -94,9 +104,7 @@ router.get('/timezones', (req, res) => {
 router.put('/timezones', protect, async (req, res) => {
   try {
     const { timezone } = req.body;
-    
     await User.findByIdAndUpdate(req.user._id, { timezone });
-    
     res.json({ done: true, message: 'Timezone updated successfully' });
   } catch (error) {
     console.error('Error updating timezone:', error);

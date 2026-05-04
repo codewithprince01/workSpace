@@ -31,11 +31,26 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  role: {
+    type: String,
+    enum: ['user', 'super_admin'],
+    default: 'user'
+  },
   is_admin: {
     type: Boolean,
     default: false
   },
   is_owner: {
+    type: Boolean,
+    default: false
+  },
+  // Super admin context: which org they are currently viewing
+  super_admin_active_team: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Team',
+    default: null
+  },
+  super_admin_manage_mode: {
     type: Boolean,
     default: false
   },
@@ -83,7 +98,18 @@ const userSchema = new mongoose.Schema({
   show_unread_items_count: {
     type: Boolean,
     default: true
+  },
+  // ── User Directory fields (set by super admin provisioning) ──────────────
+  department: {
+    type: String,
+    default: ''
+  },
+  provisioned_by: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
   }
+
 }, {
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }
 });

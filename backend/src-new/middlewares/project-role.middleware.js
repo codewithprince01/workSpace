@@ -15,6 +15,17 @@ exports.checkProjectRole = async (req, res, next) => {
       return next(); // No project context, skip
     }
 
+    // ── Super Admin Bypass ────────────────────────────────────────────────────
+    // Super admins who have switched into an org get synthetic owner access to
+    // all projects within that org — no ProjectMember row required.
+    if (req.isSuperAdmin && req.superAdminActiveTeam) {
+      req.isProjectOwner = true;
+      req.projectRole    = 'owner';
+      req.projectMemberId = null;
+      return next();
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     // Find the project
     const project = await Project.findById(projectId).select('owner_id');
     

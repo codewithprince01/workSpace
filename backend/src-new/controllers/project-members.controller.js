@@ -59,11 +59,12 @@ exports.create = async (req, res, next) => {
     if (!['member', 'viewer', 'admin'].includes(assignedRole)) {
       assignedRole = 'member';
     }
-    
-    // Only owners can assign admin role
-    if (assignedRole === 'admin' && !req.isProjectOwner) {
-       console.log('⚠️ Non-owner tried to assign ADMIN role. Downgrading to member.');
-       assignedRole = 'member';
+
+    // Only owners AND admins can assign admin role (owners can; admins can too)
+    const isAdminOrOwner = req.isProjectOwner || req.projectRole === 'admin';
+    if (assignedRole === 'admin' && !isAdminOrOwner) {
+      console.log('⚠️ Non-admin tried to assign ADMIN role. Downgrading to member.');
+      assignedRole = 'member';
     }
     
     // Check if exists
@@ -134,68 +135,68 @@ exports.create = async (req, res, next) => {
  */
 exports.invite = async (req, res, next) => {
   try {
-    const { project_id, email } = req.body;
-    
+    const { project_id, email, role: rawRole } = req.body;
+    // Resolve and validate role — default to 'member' if not provided or invalid
+    const validRoles = ['member', 'admin', 'viewer'];
+    const assignedRole = validRoles.includes((rawRole || '').toLowerCase())
+      ? rawRole.toLowerCase()
+      : 'member';
+
     if (!email || !project_id) {
       return res.status(400).json({ done: false, message: 'Email and project_id are required' });
     }
-    
+
     // Check if user exists
     let user = await User.findOne({ email: email.toLowerCase() });
-    
+
     if (!user) {
-      // Create a pending user (invitation)
       user = await User.create({
         email: email.toLowerCase(),
-        name: email.split('@')[0], // Use email prefix as temporary name
-        password: crypto.randomBytes(16).toString('hex'), // Temporary random password
-        is_active: false, // Not activated until they accept
-        pending_invitation: true
+        name: email.split('@')[0],
+        password: crypto.randomBytes(16).toString('hex'),
+        is_active: false,
+        setup_completed: false
       });
-      
       console.log(`📧 Created pending user for: ${email}`);
     }
-    
-    // Strict duplicate check: allow re-invite if membership is pending or inactive
+
+    // Duplicate check — allow re-invite if pending/inactive
     const existing = await ProjectMember.findOne({ project_id, user_id: user._id });
     if (existing) {
       if (existing.is_active && !existing.pending_invitation) {
-        console.log(`[PROJECT-INVITE] User ${user.email} is already an active member. Skipping email.`);
         return res.status(409).json({
           done: false,
           message: 'Member is already in project',
           body: { code: 'PROJECT_MEMBER_EXISTS', email: user.email },
         });
       }
-
-      console.log(`[PROJECT-INVITE] User ${user.email} exists but is pending/inactive. Re-sending invite.`);
+      // BUG FIX: update role on re-invite
       existing.is_active = false;
       existing.pending_invitation = true;
+      existing.role = assignedRole;
       await existing.save();
+      console.log(`[PROJECT-INVITE] Re-invited ${user.email} as ${assignedRole}`);
     } else {
-      // Create project membership
-      console.log(`[PROJECT-INVITE] Creating new membership for ${user.email}`);
       await ProjectMember.create({
         project_id,
         user_id: user._id,
-        role: 'member',
+        role: assignedRole,   // BUG FIX: use assignedRole not hardcoded 'member'
         is_active: false,
         pending_invitation: true
       });
+      console.log(`[PROJECT-INVITE] Created membership for ${user.email} as ${assignedRole}`);
     }
-    
-    // Generate token for the invitation
+
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
 
-    // Save invitation to DB if model exists
     if (ProjectInvitation) {
       await ProjectInvitation.create({
         project_id,
         inviter_id: req.user._id,
         email: user.email,
-        role: 'member',
+        role: assignedRole,   // BUG FIX: use assignedRole not hardcoded 'member'
         token,
         expires_at: expiresAt
       });
@@ -205,30 +206,24 @@ exports.invite = async (req, res, next) => {
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     const inviteLink = `${frontendUrl}/worklenz/invite/project/${token}`;
 
-    console.log(`[PROJECT-INVITE] Sending email to ${user.email} with link: ${inviteLink}`);
     try {
       await emailService.sendProjectInviteEmail(
         user.email,
         req.user.name,
         project?.name || 'a project',
         inviteLink,
-        'member'
+        assignedRole   // BUG FIX: use assignedRole not hardcoded 'member'
       );
-      console.log(`[PROJECT-INVITE] ✅ Email sent successfully to ${user.email}`);
+      console.log(`[PROJECT-INVITE] ✅ Email sent to ${user.email} as ${assignedRole}`);
     } catch (emailError) {
-      console.error(`[PROJECT-INVITE] ❌ Failed to send email to ${user.email}:`, emailError.message);
-      // We still return 201 because the DB record was created/updated
+      console.error(`[PROJECT-INVITE] ❌ Email failed:`, emailError.message);
     }
-    
-    const response = {
-      id: user._id, // Use user ID or member ID as needed
-      name: user.name,
-      email: user.email,
-      avatar_url: user.avatar_url,
-      pending_invitation: true
-    };
-    
-    res.status(201).json({ done: true, body: response, message: 'Invitation sent successfully' });
+
+    res.status(201).json({
+      done: true,
+      body: { id: user._id, name: user.name, email: user.email, avatar_url: user.avatar_url, pending_invitation: true, role: assignedRole },
+      message: 'Invitation sent successfully'
+    });
   } catch (error) {
     next(error);
   }

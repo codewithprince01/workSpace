@@ -92,15 +92,15 @@ export const LicenseExpiryGuard = memo(({ children }: GuardProps) => {
 LicenseExpiryGuard.displayName = 'LicenseExpiryGuard';
 
 export const SetupGuard = memo(({ children }: GuardProps) => {
-  const { isAuthenticated, isSetupComplete, location } = useAuthStatus();
+  const { isAuthenticated, location } = useAuthStatus();
 
   if (!isAuthenticated) {
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
-  if (!isSetupComplete) {
-    return <Navigate to="/worklenz/setup" />;
-  }
+  // Setup is now handled automatically by the backend on login —
+  // provisioned/invited users get a team auto-created and setup_completed=true.
+  // Do NOT redirect to /worklenz/setup to avoid blocking those users.
 
   return <>{children}</>;
 });
@@ -109,15 +109,14 @@ SetupGuard.displayName = 'SetupGuard';
 
 // Combined guard for routes that require both authentication and setup completion
 export const AuthAndSetupGuard = memo(({ children }: GuardProps) => {
-  const { isAuthenticated, isSetupComplete, location } = useAuthStatus();
+  const { isAuthenticated, location } = useAuthStatus();
 
   if (!isAuthenticated) {
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
-  if (!isSetupComplete) {
-    return <Navigate to="/worklenz/setup" />;
-  }
+  // Setup redirect removed — backend auto-completes setup on login for all
+  // provisioned/invited users. Redirecting here would break their flow.
 
   return <>{children}</>;
 });

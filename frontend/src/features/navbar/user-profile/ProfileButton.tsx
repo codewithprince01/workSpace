@@ -32,18 +32,22 @@ const ProfileButton = ({ isOwnerOrAdmin }: ProfileButtonProps) => {
   // Determine role to display based on context
   // Priority: Project role > Team role > Fallback
   const role = (() => {
-    // If inside a project, use project role
-    if (roleInfo.projectRole) {
-      return roleInfo.projectRole.charAt(0).toUpperCase() + roleInfo.projectRole.slice(1); // Capitalize
+    const teamRole = currentSession?.team_role;
+    const projectRole = roleInfo.projectRole;
+    
+    // Priority: Super Admin > Team Role (if Admin/Owner) > Project Role > Fallback
+    if (teamRole === 'super_admin' || currentSession?.is_super_admin) return 'Super Admin';
+    
+    // If user is Team Owner or Admin, always show that as it's their highest privilege
+    if (teamRole === 'owner' || currentSession?.owner) return 'Owner';
+    if (teamRole === 'admin' || currentSession?.is_admin) return 'Admin';
+    
+    // Otherwise, if inside a project, show project role
+    if (projectRole) {
+      return projectRole.charAt(0).toUpperCase() + projectRole.slice(1);
     }
     
-    // If on home page or no project selected, use team role from session
-    if (currentSession?.team_role) {
-      return currentSession.team_role.charAt(0).toUpperCase() + currentSession.team_role.slice(1); // Capitalize
-    }
-    
-    // Fallback to old logic for backwards compatibility
-    return roleInfo.isProjectOwner ? 'Owner' : 'Member';
+    return 'Member';
   })();
   
   const themeMode = useAppSelector((state: RootState) => state.themeReducer.mode);

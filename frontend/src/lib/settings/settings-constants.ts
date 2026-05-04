@@ -14,6 +14,7 @@ import {
   BulbOutlined,
   DeleteOutlined,
   InboxOutlined,
+  DatabaseOutlined,
 } from '@/shared/antd-imports';
 import React, { ReactNode, lazy } from 'react';
 const ProfileSettings = lazy(() => import('../../pages/settings/profile/profile-settings'));
@@ -31,6 +32,7 @@ const LanguageAndRegionSettings = lazy(() => import('@/pages/settings/language-a
 const AppearanceSettings = lazy(() => import('@/pages/settings/appearance/appearance-settings'));
 const AccountDeletion = lazy(() => import('@/pages/settings/account-deletion/AccountDeletion'));
 const TrashSettings = lazy(() => import('@/pages/settings/trash/trash-settings'));
+const UserDirectoryPage = lazy(() => import('@/pages/settings/user-directory/UserDirectoryPage'));
 
 // type of menu item in settings sidebar
 type SettingMenuItems = {
@@ -40,8 +42,10 @@ type SettingMenuItems = {
   icon: ReactNode;
   element: ReactNode;
   adminOnly?: boolean;
+  superAdminOnly?: boolean;
   isDangerous?: boolean;
 };
+
 
 type ProjectRoleType = 'owner' | 'admin' | 'member' | 'viewer' | null | undefined;
 type TeamRoleType = 'owner' | 'admin' | 'member' | string | null | undefined;
@@ -165,6 +169,15 @@ export const settingsItems: SettingMenuItems[] = [
     element: React.createElement(AccountDeletion),
     isDangerous: true,
   },
+  // ── Super Admin Only ───────────────────────────────────────────────────
+  {
+    key: 'user-directory',
+    name: 'user-directory',
+    endpoint: 'user-directory',
+    icon: React.createElement(DatabaseOutlined),
+    element: React.createElement(UserDirectoryPage),
+    superAdminOnly: true,
+  },
 ];
 
 const MEMBER_IN_MANAGER_PROJECT_ALLOWED_SETTINGS = new Set([
@@ -181,8 +194,12 @@ export const canAccessSetting = (
   isTeamOwnerOrAdmin: boolean,
   isInOwnTeam: boolean = true,
   projectRole?: ProjectRoleType,
-  teamRole?: TeamRoleType
+  teamRole?: TeamRoleType,
+  isSuperAdmin?: boolean
 ) => {
+  // Super-admin-only items: only visible to super admins
+  if (item.superAdminOnly) return !!isSuperAdmin;
+
   const isTeamMember = teamRole?.toLowerCase() === 'member';
   const isMemberInManagerProject =
     !isInOwnTeam && (projectRole === 'member' || isTeamMember);
@@ -202,13 +219,16 @@ export const canAccessSetting = (
   return !item.adminOnly || isTeamOwnerOrAdmin;
 };
 
+
 export const getAccessibleSettings = (
   isTeamOwnerOrAdmin: boolean,
   isInOwnTeam: boolean = true,
   projectRole?: ProjectRoleType,
-  teamRole?: TeamRoleType
+  teamRole?: TeamRoleType,
+  isSuperAdmin?: boolean
 ) => {
   return settingsItems.filter(item =>
-    canAccessSetting(item, isTeamOwnerOrAdmin, isInOwnTeam, projectRole, teamRole)
+    canAccessSetting(item, isTeamOwnerOrAdmin, isInOwnTeam, projectRole, teamRole, isSuperAdmin)
   );
 };
+

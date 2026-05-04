@@ -24,8 +24,10 @@ const SettingsGuard = ({
     isOwnerOrAdmin,
     projectRole.isInOwnTeam,
     projectRole.projectRole,
-    currentSession?.team_role
+    currentSession?.team_role,
+    currentSession?.role === 'super_admin'
   );
+
 
   if (!hasAccess) {
     return <Navigate to="/worklenz/settings/profile" replace />;

@@ -20,10 +20,16 @@ export const projectsApi = createApi({
       if (!token) {
         token = await refreshCsrfToken();
       }
-
       if (token) {
         headers.set('X-CSRF-Token', token);
       }
+
+      // Attach JWT token (RTK Query bypasses axios interceptors)
+      const jwtToken = localStorage.getItem('worklenz_token');
+      if (jwtToken) {
+        headers.set('Authorization', `Bearer ${jwtToken}`);
+      }
+
       headers.set('Content-Type', 'application/json');
       return headers;
     },

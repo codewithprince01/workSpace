@@ -6,6 +6,7 @@ import Navbar from '@/features/navbar/navbar';
 import { useAppSelector } from '../hooks/useAppSelector';
 import { colors } from '../styles/colors';
 import { TrialExpirationAlert } from '@/components/TrialExpirationAlert/TrialExpirationAlert';
+import SuperAdminBar from '@/components/super-admin/SuperAdminBar';
 
 const MainLayout = memo(() => {
   const themeMode = useAppSelector(state => state.themeReducer.mode);
@@ -39,6 +40,9 @@ const MainLayout = memo(() => {
         >
           <Navbar />
         </Layout.Header>
+
+        {/* Super Admin org context bar */}
+        <SuperAdminBar />
 
         <Layout.Content className={`px-4 sm:px-8 lg:px-12 xl:px-16 ${!isProjectView ? 'overflow-x-hidden max-w-[1400px]' : ''} mx-auto w-full`}>
           <Outlet />

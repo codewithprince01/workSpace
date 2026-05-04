@@ -1,8 +1,9 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Col, ConfigProvider, Flex, Menu } from '@/shared/antd-imports';
+import { Col, ConfigProvider, Flex, Menu, Button, Tooltip, Badge } from '@/shared/antd-imports';
 import { createPortal } from 'react-dom';
+import { CrownFilled } from '@ant-design/icons';
 
 import InviteTeamMembers from '../../components/common/invite-team-members/invite-team-members';
 import InviteButton from './invite/InviteButton';
@@ -13,6 +14,7 @@ import ProfileButton from './user-profile/ProfileButton';
 import SwitchTeamButton from './switch-team/SwitchTeamButton';
 import UpgradePlanButton from './upgrade-plan/UpgradePlanButton';
 import NotificationDrawer from '../../components/navbar/notifications/notifications-drawer/notification/notfication-drawer';
+import OrgSwitcherModal from '@/components/super-admin/OrgSwitcherModal';
 
 import { useResponsive } from '@/hooks/useResponsive';
 import { getJSONFromLocalStorage } from '@/utils/localStorageFunctions';
@@ -25,13 +27,21 @@ import TimerButton from './timers/TimerButton';
 import { useMixpanelTracking } from '@/hooks/useMixpanelTracking';
 import { useProjectRole } from '@/services/project-role/projectRole.service';
 import { useAppDispatch } from '@/hooks/useAppDispatch';
+import { useAppSelector } from '@/hooks/useAppSelector';
 import { setUser } from '@/features/user/userSlice';
+import {
+  setIsSuperAdmin,
+  openOrgSwitcher,
+  fetchSuperAdminContext,
+} from '@/features/super-admin/superAdminSlice';
 
 const Navbar = () => {
   const dispatch = useAppDispatch();
   const [current, setCurrent] = useState<string>('home');
   const currentSession = useAuthService().getCurrentSession();
   const [daysUntilExpiry, setDaysUntilExpiry] = useState<number | null>(null);
+  const isSuperAdmin = useAppSelector(state => state.superAdminReducer.isSuperAdmin);
+  const superAdminContext = useAppSelector(state => state.superAdminReducer.context);
 
   const location = useLocation();
   const { isDesktop, isMobile, isTablet } = useResponsive();
@@ -74,27 +84,19 @@ const Navbar = () => {
       .verify()
       .then(authorizeResponse => {
         if (authorizeResponse.authenticated) {
-          // Backend returns { authenticated, data: { user } } - extract user correctly
           const user = (authorizeResponse as any).data?.user || authorizeResponse.user;
           if (user) {
-            console.log('🔍 [NAVBAR] Verify response user object:', {
-              userId: user.id,
-              userName: user.name,
-              teamId: user.team_id,
-              teamRole: user.team_role,
-              hasTeamRole: 'team_role' in user,
-              fullUser: user
-            });
-            
             authService.setCurrentSession(user);
             dispatch(setUser(user));
             setIdentity(user);
             setIsOwnerOrAdmin(!!(user.is_admin || user.owner));
-            
-            console.log('✅ [NAVBAR] Session updated on page load with team_role:', user.team_role);
-            
-            // Note: Project-specific roles are fetched when navigating to a project
-            // We don't set project role here since we don't know which project user is viewing
+
+            // ── Super Admin bootstrap ─────────────────────────────────────
+            const isSuper = user.role === 'super_admin' || user.is_super_admin === true;
+            dispatch(setIsSuperAdmin(isSuper));
+            if (isSuper) {
+              dispatch(fetchSuperAdminContext());
+            }
           }
         }
       })
@@ -200,16 +202,48 @@ const Navbar = () => {
                     ) && <UpgradePlanButton />}
                   {projectRole.canInviteMembers && <InviteButton />}
                   <Flex align="center">
+                    {/* Super Admin: Switch Org button */}
+                    {isSuperAdmin && (
+                      <Tooltip title={superAdminContext?.active_team_id
+                        ? `Viewing: ${superAdminContext.active_team_name}`
+                        : 'Switch Organization (Super Admin)'
+                      }>
+                        <Button
+                          type={superAdminContext?.active_team_id ? 'primary' : 'text'}
+                          shape="circle"
+                          icon={<CrownFilled style={{ color: superAdminContext?.active_team_id ? '#fff' : '#6366f1' }} />}
+                          onClick={() => dispatch(openOrgSwitcher())}
+                          style={{
+                            background: superAdminContext?.active_team_id
+                              ? 'linear-gradient(135deg, #6366f1, #a855f7)'
+                              : 'transparent',
+                            border: superAdminContext?.active_team_id ? 'none' : '1.5px solid #6366f1',
+                            boxShadow: superAdminContext?.active_team_id
+                              ? '0 2px 8px rgba(99,102,241,0.4)'
+                              : 'none',
+                          }}
+                        />
+                      </Tooltip>
+                    )}
                     <SwitchTeamButton />
                     <NotificationButton />
                     <TimerButton />
-                    {/* <HelpButton /> */}
                     <ProfileButton isOwnerOrAdmin={isOwnerOrAdmin} />
                   </Flex>
                 </Flex>
               )}
               {isTablet && !isDesktop && (
                 <Flex gap={12} align="center">
+                  {isSuperAdmin && (
+                    <Tooltip title="Switch Organization">
+                      <Button
+                        type="text"
+                        shape="circle"
+                        icon={<CrownFilled style={{ color: '#6366f1' }} />}
+                        onClick={() => dispatch(openOrgSwitcher())}
+                      />
+                    </Tooltip>
+                  )}
                   <SwitchTeamButton />
                   <NotificationButton />
                   <ProfileButton isOwnerOrAdmin={isOwnerOrAdmin} />
@@ -230,6 +264,7 @@ const Navbar = () => {
 
       {createPortal(<InviteTeamMembers />, document.body, 'invite-team-members')}
       {createPortal(<NotificationDrawer />, document.body, 'notification-drawer')}
+      {isSuperAdmin && createPortal(<OrgSwitcherModal />, document.body, 'org-switcher-modal')}
     </Col>
   );
 };

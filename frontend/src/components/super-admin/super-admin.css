@@ -1,0 +1,25 @@
+/* Super Admin UI Styles */
+
+/* Org Switcher Modal - hover effect on org rows */
+.hover-org-row:hover {
+  background: linear-gradient(90deg, #f5f3ff 0%, #faf5ff 100%) !important;
+  border-color: #d3adf7 !important;
+  transform: translateX(2px);
+  box-shadow: 2px 0 8px rgba(114, 46, 209, 0.08);
+}
+
+/* Super Admin bar pulse animation when in manage mode */
+@keyframes sa-manage-pulse {
+  0%, 100% { box-shadow: 0 2px 8px rgba(255, 77, 79, 0.2); }
+  50% { box-shadow: 0 2px 16px rgba(255, 77, 79, 0.4); }
+}
+
+.sa-manage-mode {
+  animation: sa-manage-pulse 2s ease-in-out infinite;
+}
+
+/* Crown button glow effect */
+.super-admin-crown-btn:hover {
+  transform: scale(1.1);
+  transition: transform 0.15s ease;
+}

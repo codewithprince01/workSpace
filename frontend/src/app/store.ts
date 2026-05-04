@@ -5,6 +5,9 @@ import { TypedUseSelectorHook, useDispatch, useSelector } from 'react-redux';
 import authReducer from '@features/auth/authSlice';
 import userReducer from '@features/user/userSlice';
 
+// Super Admin
+import superAdminReducer from '@features/super-admin/superAdminSlice';
+
 // Home Page
 import homePageReducer from '@features/home-page/home-page.slice';
 import userActivityReducer from '@features/home-page/user-activity.slice';
@@ -100,6 +103,9 @@ export const store = configureStore({
     // Auth & User
     auth: authReducer,
     userReducer: userReducer,
+
+    // Super Admin
+    superAdminReducer: superAdminReducer,
 
     // Account Setup
     accountSetupReducer: accountSetupReducer,

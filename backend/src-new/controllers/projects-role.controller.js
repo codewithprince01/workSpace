@@ -12,6 +12,17 @@ const mongoose = require('mongoose');
 exports.getUserRole = async (req, res, next) => {
   try {
     const { id } = req.params;
+
+    // ── Super Admin Bypass ─────────────────────────────────────────────────
+    // checkProjectRole already validated the request; here we short-circuit
+    // any additional DB lookups so super admins always get 'owner' role.
+    if (req.isSuperAdmin && req.superAdminActiveTeam) {
+      return res.json({
+        done: true,
+        body: { role: 'owner', project_id: id }
+      });
+    }
+    // ──────────────────────────────────────────────────────────────────────
     
     // First check if user is the project owner
     const project = await Project.findById(id);

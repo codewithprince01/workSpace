@@ -21,11 +21,13 @@ const SettingSidebar: React.FC = () => {
   };
 
   // Get accessible settings based on user role AND team ownership context
+  const isSuperAdmin = currentSession?.role === 'super_admin';
   const accessibleSettings = getAccessibleSettings(
     isOwnerOrAdmin,
     projectRole.isInOwnTeam,
     projectRole.projectRole,
-    currentSession?.team_role
+    currentSession?.team_role,
+    isSuperAdmin
   );
 
   const items: Required<MenuProps>['items'] = accessibleSettings

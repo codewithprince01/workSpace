@@ -213,36 +213,41 @@ exports.getAll = async (req, res, next) => {
     const limit = parseInt(size) || 20;
     const skip = (page - 1) * limit;
 
-    // Filter project memberships
-    const memberQuery = { user_id: req.user._id, is_active: true };
-    if (starred === 'true') {
-        memberQuery.is_favorite = true;
-    }
-    const memberProjects = await ProjectMember.find(memberQuery);
+    const isSuperAdminContext = req.user.role === 'super_admin' && req.user.super_admin_active_team;
     
-    let projectIds = memberProjects.map(pm => pm.project_id);
-
     // Build project query
-    const query = {
-      _id: { $in: projectIds }
-    };
+    const query = {};
     
-    if (archived === 'true') {
-        query.is_archived = true;
+    if (isSuperAdminContext) {
+        // Super Admins see EVERYTHING in the switched team
+        query.team_id = new mongoose.Types.ObjectId(req.user.super_admin_active_team);
     } else {
-        query.is_archived = false;
+        // Normal users see only projects they are members of
+        const memberQuery = { user_id: req.user._id, is_active: true };
+        if (starred === 'true') {
+            memberQuery.is_favorite = true;
+        }
+        const memberProjects = await ProjectMember.find(memberQuery);
+        let projectIds = memberProjects.map(pm => pm.project_id);
+        query._id = { $in: projectIds };
+
+        const userTeamId = req.user.last_team_id;
+        if (userTeamId) query.team_id = userTeamId;
     }
-    
+
     if (team_id) {
         if (mongoose.Types.ObjectId.isValid(team_id)) {
              query.team_id = new mongoose.Types.ObjectId(team_id);
         } else {
              query.team_id = team_id;
         }
-    } else {
-        const userTeamId = req.user.last_team_id;
-        if (userTeamId) query.team_id = userTeamId;
     }
+    if (archived === 'true') {
+        query.is_archived = true;
+    } else {
+        query.is_archived = false;
+    }
+
     if (status) query.status = status; 
     if (search) query.name = { $regex: search, $options: 'i' };
 
@@ -421,16 +426,23 @@ exports.getGrouped = async (req, res, next) => {
         return res.status(401).json({ done: false, message: 'Unauthorized' });
     }
 
-    const memberQuery = { user_id: req.user._id, is_active: true };
-    if (starred === 'true') memberQuery.is_favorite = true;
-    const memberProjects = await ProjectMember.find(memberQuery);
-    let projectIds = memberProjects.map(pm => pm.project_id);
+    const isSuperAdminContext = req.user.role === 'super_admin' && req.user.super_admin_active_team;
+    const query = {};
 
-    const query = { _id: { $in: projectIds } };
+    if (isSuperAdminContext) {
+        query.team_id = new mongoose.Types.ObjectId(req.user.super_admin_active_team);
+    } else {
+        const memberQuery = { user_id: req.user._id, is_active: true };
+        if (starred === 'true') memberQuery.is_favorite = true;
+        const memberProjects = await ProjectMember.find(memberQuery);
+        let projectIds = memberProjects.map(pm => pm.project_id);
+        query._id = { $in: projectIds };
+        if (team_id) query.team_id = team_id;
+    }
+
     if (archived === 'true') query.is_archived = true;
     else query.is_archived = false;
 
-    if (team_id) query.team_id = team_id;
     if (status) query.status = status;
     if (search) query.name = { $regex: search, $options: 'i' };
 
@@ -871,22 +883,30 @@ exports.getById = async (req, res, next) => {
       });
     }
     
-    const isMember = await ProjectMember.findOne({ 
-      project_id: project._id, 
-      user_id: req.user._id 
-    });
-    
-    if (!isMember && !project.is_public && project.owner_id._id.toString() !== req.user._id.toString()) {
-      return res.status(403).json({
-        done: false,
-        message: 'Access denied'
+    // Super admins in a switched org context have full access to all projects
+    const isContextSuperAdmin = req.isSuperAdmin && req.superAdminActiveTeam;
+
+    // isMember declared in outer scope so lines below can always reference it
+    let isMember = null;
+
+    if (!isContextSuperAdmin) {
+      isMember = await ProjectMember.findOne({
+        project_id: project._id,
+        user_id: req.user._id
       });
+
+      if (!isMember && !project.is_public && project.owner_id._id.toString() !== req.user._id.toString()) {
+        return res.status(403).json({
+          done: false,
+          message: 'Access denied'
+        });
+      }
     }
-    
+
     const statuses = await TaskStatus.find({ project_id: project._id }).sort({ sort_order: 1 });
     const members = await ProjectMember.find({ project_id: project._id, is_active: true })
       .populate('user_id', 'name email avatar_url');
-    
+
     res.json({
       done: true,
       body: {
@@ -910,15 +930,19 @@ exports.getById = async (req, res, next) => {
             : null,
         statuses,
         members: members.map(m => ({ ...m.user_id.toObject(), role: m.role })),
-        is_favorite: isMember ? isMember.is_favorite : false,
-        favorite: isMember ? isMember.is_favorite : false,
-        current_user_role: isMember ? isMember.role : (project.owner_id._id.toString() === req.user._id.toString() ? 'owner' : null)
+        // Super admins get synthetic values — they have no ProjectMember row
+        is_favorite: isContextSuperAdmin ? false : (isMember ? isMember.is_favorite : false),
+        favorite:    isContextSuperAdmin ? false : (isMember ? isMember.is_favorite : false),
+        current_user_role: isContextSuperAdmin
+          ? 'owner'
+          : (isMember ? isMember.role : (project.owner_id._id.toString() === req.user._id.toString() ? 'owner' : null))
       }
     });
   } catch (error) {
     next(error);
   }
 };
+
 
 /**
  * @desc    Update project

@@ -46,10 +46,14 @@ const sendTokenResponse = (user, statusCode, res, message = null) => {
           name: user.name,
           email: user.email,
           avatar_url: user.avatar_url,
-          is_admin: user.is_admin,
-          owner: user.owner, // Ensure owner flag is passed
-          team_id: user.last_team_id, // Add persistent team ID
-          setup_completed: user.setup_completed || false
+          is_admin: user.owner || user.is_admin || false,
+          role: user.role || 'user',
+          is_super_admin: user.role === 'super_admin',
+          owner: user.owner || false,
+          team_id: user.last_team_id,
+          setup_completed: user.setup_completed || false,
+          super_admin_active_team: user.super_admin_active_team || null,
+          super_admin_manage_mode: user.super_admin_manage_mode || false
         },
         token
       }
@@ -163,9 +167,33 @@ exports.login = async (req, res, next) => {
     // Update last login
     user.last_login = new Date();
     await user.save({ validateBeforeSave: false });
-    
+
     // Store userId in session for session-based auth
     req.session.userId = user._id;
+
+    // ── Auto-provision team for any user with setup not complete ───────────
+    // Covers: Super Admin-provisioned users, team-invited users, and any edge
+    // case where setup_completed is false. The setup screen is skipped entirely.
+    if (!user.setup_completed) {
+      try {
+        const existingMembership = await TeamMember.findOne({ user_id: user._id, role: 'owner' });
+        if (!existingMembership) {
+          // Use first name as the organization name
+          const firstName = user.name.trim().split(' ')[0];
+          const team      = await Team.create({ name: firstName, owner_id: user._id });
+          await TeamMember.create({ team_id: team._id, user_id: user._id, role: 'owner' });
+          user.last_team_id = team._id;
+        } else {
+          if (!user.last_team_id) user.last_team_id = existingMembership.team_id;
+        }
+        // Mark setup complete → frontend goes directly to /worklenz/home
+        user.setup_completed = true;
+        await user.save({ validateBeforeSave: false });
+      } catch (teamErr) {
+        console.error('[Auto-setup] Failed to create team:', teamErr);
+        // Non-fatal — user can still proceed
+      }
+    }
 
     // Check ownership
     const ownerMembership = await TeamMember.findOne({ user_id: user._id, role: 'owner', is_active: true });
@@ -178,6 +206,7 @@ exports.login = async (req, res, next) => {
     }
 
     sendTokenResponse(user, 200, res, 'Login successful');
+
   } catch (error) {
     console.error('Login error:', error);
     if (error.name === 'MongooseError' && error.message.includes('buffering timed out')) {
@@ -291,12 +320,22 @@ exports.verify = async (req, res, next) => {
     
     const userObj = user.toJSON();
     userObj.owner = !!ownerMembership;
+    userObj.is_super_admin = user.role === 'super_admin';
     
-    // Map last_team_id to team_id for frontend compatibility
-    if (user.last_team_id) {
+    // ── Super Admin Context Override ──────────────────────────────────
+    if (userObj.is_super_admin && user.super_admin_active_team) {
+        const targetTeam = await Team.findById(user.super_admin_active_team);
+        if (targetTeam) {
+            userObj.team_id = targetTeam._id.toString();
+            userObj.team_name = targetTeam.name; // Pass team name for frontend display
+            userObj.team_role = 'super_admin';
+            userObj.super_admin_active_team = targetTeam._id.toString();
+        }
+    } 
+    // ── Normal Team Logic ─────────────────────────────────────────────
+    else if (user.last_team_id) {
         userObj.team_id = user.last_team_id;
 
-        // Get user's TEAM-level role (not project role - that's fetched per-project)
         const teamMember = await TeamMember.findOne({
           team_id: user.last_team_id,
           user_id: user._id,
@@ -305,10 +344,22 @@ exports.verify = async (req, res, next) => {
 
         if (teamMember) {
           userObj.team_role = teamMember.role;
+          // Reflect correct admin/owner access for the ACTIVE team
+          userObj.is_admin  = teamMember.role === 'owner' || teamMember.role === 'admin';
+          userObj.owner     = teamMember.role === 'owner';
+        } else {
+          // Fallback: check if user owns any team (e.g. their personal org)
+          userObj.is_admin = !!ownerMembership;
+          userObj.owner    = !!ownerMembership;
         }
 
-        // Note: Project-specific roles are fetched via GET /api/projects/:id/role
+        // Try to get team name if not already set
+        if (!userObj.team_name) {
+          const team = await Team.findById(user.last_team_id);
+          if (team) userObj.team_name = team.name;
+        }
     }
+
 
     res.json({
       success: true,
