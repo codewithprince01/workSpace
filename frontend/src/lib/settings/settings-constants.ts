@@ -188,7 +188,10 @@ export const canAccessSetting = (
   teamRole?: TeamRoleType,
   isSuperAdmin?: boolean
 ) => {
-  // Super-admin-only items: only visible to super admins
+  // Super admins have access to all settings
+  if (isSuperAdmin) return true;
+
+  // Super-admin-only items: only visible to super admins (redundant now but kept for clarity)
   if (item.superAdminOnly) return !!isSuperAdmin;
 
   const isTeamMember = teamRole?.toLowerCase() === 'member';
