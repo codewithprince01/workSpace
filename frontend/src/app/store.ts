@@ -94,6 +94,9 @@ import taskManagementFieldsReducer from '@features/task-management/taskListField
 // Calendar
 import calendarReducer from '@features/calendar/calendarSlice';
 
+// Todo Module
+import todoReducer from '@features/todo/todoSlice';
+
 export const store = configureStore({
   middleware: getDefaultMiddleware =>
     getDefaultMiddleware({
@@ -191,6 +194,9 @@ export const store = configureStore({
 
     // Calendar
     calendarReducer: calendarReducer,
+
+    // Todo Module
+    todoReducer: todoReducer,
   },
 });
 

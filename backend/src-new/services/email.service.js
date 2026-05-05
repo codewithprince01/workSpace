@@ -3,6 +3,8 @@ const { SES, SendRawEmailCommand } = require('@aws-sdk/client-ses');
 const constants = require('../config/constants');
 const logger = require('../utils/logger');
 
+console.log('[EmailService] Loading module...');
+
 let transporter;
 
 /**
@@ -11,11 +13,12 @@ let transporter;
 const initTransporter = () => {
   if (transporter) return transporter;
 
-  const provider = constants.MAIL_PROVIDER.toLowerCase();
+  const provider = (constants.MAIL_PROVIDER || 'console').toLowerCase();
+  console.log(`[EmailService] Initializing with provider: ${provider}`);
   
   try {
     if (provider === 'ses' && process.env.AWS_ACCESS_KEY_ID) {
-      logger.info('Email Service: Initializing AWS SES transport');
+      console.log('[EmailService] Using AWS SES');
       const ses = new SES({
         region: constants.SES_REGION,
         credentials: {
@@ -27,8 +30,9 @@ const initTransporter = () => {
         SES: { ses, aws: { SendRawEmailCommand } },
       });
     } else if (provider === 'smtp' && constants.SMTP_HOST) {
-      logger.info(`Email Service: Initializing SMTP transport (${constants.SMTP_HOST})`);
-      transporter = nodemailer.createTransport({
+      console.log(`[EmailService] Using SMTP: ${constants.SMTP_HOST}:${constants.SMTP_PORT} (User: ${constants.SMTP_USER})`);
+      
+      const smtpConfig = {
         host: constants.SMTP_HOST,
         port: constants.SMTP_PORT,
         secure: constants.SMTP_PORT === 465,
@@ -36,20 +40,38 @@ const initTransporter = () => {
           user: constants.SMTP_USER,
           pass: constants.SMTP_PASS,
         },
+        // MilesWeb/cPanel often use self-signed certs, so we relax TLS validation
+        tls: {
+          rejectUnauthorized: false
+        }
+      };
+
+      transporter = nodemailer.createTransport(smtpConfig);
+      
+      // Verify connection immediately
+      transporter.verify((error, success) => {
+        if (error) {
+          console.error(`[EmailService] SMTP Verification FAILED: ${error.message}`);
+          logger.error('Email Service: SMTP Verification FAILED: %s', error.message);
+        } else {
+          console.log('[EmailService] SMTP server is READY');
+          logger.info('Email Service: SMTP server is ready to take our messages');
+        }
       });
     } else {
-      if (provider !== 'console') {
-        logger.warn(`Email Service: Provider '${provider}' not configured. Falling back to console.`);
-      }
-      transporter = null; // Signal console logging
+      console.log(`[EmailService] Falling back to CONSOLE logging (Provider: ${provider})`);
+      transporter = null;
     }
   } catch (error) {
-    logger.error('Email Service: Failed to initialize transporter: %s', error.message);
+    console.error(`[EmailService] Initialization error: ${error.message}`);
     transporter = null;
   }
 
   return transporter;
 };
+
+// Auto-initialize on load
+initTransporter();
 
 /**
  * Send email
@@ -66,20 +88,22 @@ exports.sendEmail = async ({ to, subject, html, text }) => {
   };
 
   if (!mailTransporter) {
-    logger.info('📧 [MOCK EMAIL]');
-    logger.info(`To: ${to}`);
-    logger.info(`Subject: ${subject}`);
-    logger.debug(`Body: ${html.substring(0, 100)}...`);
+    console.log('📧 [MOCK EMAIL SENT]');
+    console.log(`To: ${to}`);
+    console.log(`Subject: ${subject}`);
     return { success: true, message: 'Email logged to console' };
   }
 
   try {
+    console.log(`[EmailService] Sending email to ${to}...`);
     const info = await mailTransporter.sendMail(mailOptions);
-    logger.info(`Email sent to ${to}: ${info.messageId}`);
+    console.log(`[EmailService] SUCCESS: ${info.messageId}`);
     return { success: true, messageId: info.messageId };
   } catch (error) {
-    logger.error('Email sending failed: %s', error.message);
-    // Don't throw, just return success: false so caller can handle gracefully
+    console.error(`[EmailService] FAILED to ${to}: ${error.message}`);
+    if (error.code === 'EAUTH') {
+      console.error('[EmailService] AUTH ERROR: Check your credentials or App Password');
+    }
     return { success: false, error: error.message };
   }
 };

@@ -25,5 +25,6 @@ module.exports = {
   JobTitle: require('./JobTitle'),
   CalendarEvent: require('./CalendarEvent'),
   StoredFile: require('./StoredFile'),
-  AuditLog: require('./AuditLog')
+  AuditLog: require('./AuditLog'),
+  Todo: require('./Todo')
 };

@@ -57,7 +57,10 @@ const reportingRoutes = require('./reporting.routes');
 const reportingExportRoutes = require('./reporting-export.routes');
 const superAdminRoutes = require('./super-admin.routes');
 
+const userDirectoryRoutes = require('./user-directory.routes');
+
 // Mount core routes
+router.use('/directory', userDirectoryRoutes);
 router.use('/auth', authRoutes);
 router.use('/projects', projectsRoutes);
 router.use('/tasks', tasksRoutes);
@@ -72,7 +75,10 @@ router.use('/reporting-export', reportingExportRoutes);
 router.use('/super-admin', superAdminRoutes);
 
 const calendarRoutes = require('./calendar.routes');
+const todoRoutes = require('./todo.routes');
+
 router.use('/calendar', calendarRoutes);
+router.use('/todos', todoRoutes);
 
 router.use('/sub-tasks', subTasksRoutes);
 router.use('/task-dependencies', taskDependenciesRoutes);

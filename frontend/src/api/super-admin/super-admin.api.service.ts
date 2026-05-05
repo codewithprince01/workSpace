@@ -98,4 +98,54 @@ export const superAdminApiService = {
     const res = await apiClient.get(`${BASE}/audit-logs`, { params });
     return res.data;
   },
+
+  /**
+   * Get ALL projects across ALL organizations
+   */
+  getAllProjects: async (params?: { search?: string; team_id?: string; page?: number; limit?: number }): Promise<{
+    done: boolean; body: IGlobalProject[]; total: number; page: number;
+  }> => {
+    const res = await apiClient.get(`${BASE}/projects`, { params });
+    return res.data;
+  },
+
+  /**
+   * Get tasks for a specific project (lazy-loaded, optionally today-only)
+   */
+  getProjectTasks: async (projectId: string, today = false): Promise<{
+    done: boolean; body: IGlobalTask[];
+  }> => {
+    const res = await apiClient.get(`${BASE}/projects/${projectId}/tasks`, { params: { today } });
+    return res.data;
+  },
 };
+
+export interface IGlobalProject {
+  id: string;
+  name: string;
+  color_code: string;
+  status: string;
+  created_at: string;
+  team_id: string | null;
+  team_name: string;
+  team_color: string;
+  owner_name: string;
+  owner_email: string;
+  owner_avatar: string | null;
+  total_tasks: number;
+}
+
+export interface IGlobalTask {
+  id: string;
+  name: string;
+  status: string;
+  status_color?: string;
+  priority: string;
+  progress: number;
+  due_date: string | null;
+  start_date: string | null;
+  created_at: string;
+  completed_at: string | null;
+  assignees: { id: string; name: string; email: string; avatar?: string }[];
+  subtask_count: number;
+}

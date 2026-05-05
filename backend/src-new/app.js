@@ -180,6 +180,10 @@ const csrfProtection = (req, res, next) => {
 };
 
 // API Routes
+app.use('/api/todos', (req, res, next) => {
+  console.log(`[TodoAPI] Request: ${req.method} ${req.url}`);
+  next();
+});
 app.use('/api', csrfProtection, routes);
 app.use('/secure', csrfProtection, routes); // Legacy route support
 

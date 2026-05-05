@@ -26,6 +26,10 @@ router.put('/users/:userId/role', superAdmin.updateUserRole);
 // Audit logs
 router.get('/audit-logs', superAdmin.getAuditLogs);
 
+// Global Projects Module
+router.get('/projects', superAdmin.getAllProjects);
+router.get('/projects/:projectId/tasks', superAdmin.getProjectTasks);
+
 // ── User Directory ──────────────────────────────────────────────────────────
 const upload = multer({
   storage: multer.memoryStorage(),

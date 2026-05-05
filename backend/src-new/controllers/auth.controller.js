@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const { User, Team, TeamMember } = require('../models');
 const constants = require('../config/constants');
 const mongoose = require('mongoose');
+const emailService = require('../services/email.service');
 
 /**
  * Check if database is connected
@@ -382,15 +383,20 @@ exports.verify = async (req, res, next) => {
 exports.forgotPassword = async (req, res, next) => {
   try {
     const { email } = req.body;
-    const user = await User.findOne({ email });
+    console.log(`[ForgotPassword] Request for: ${email}`);
+    
+    const user = await User.findOne({ email: email.toLowerCase().trim() });
 
     if (!user) {
+      console.log(`[ForgotPassword] User NOT found for: ${email}`);
       // For security, don't reveal if user exists. Just return "If exists..."
       return res.json({
         success: true,
         message: 'If an account exists with that email, a reset link has been sent.'
       });
     }
+
+    console.log(`[ForgotPassword] User found: ${user.email} (${user._id})`);
 
     // Generate reset token
     const crypto = require('crypto');
@@ -404,7 +410,6 @@ exports.forgotPassword = async (req, res, next) => {
 
     // Send email
     const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
-    const emailService = require('../services/email.service');
     
     const message = `
       <div style="font-family: sans-serif; padding: 20px; color: #333; max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 8px;">
@@ -423,17 +428,25 @@ exports.forgotPassword = async (req, res, next) => {
       </div>
     `;
 
+    console.log(`[ForgotPassword] Attempting to send email to ${user.email}...`);
     const emailResult = await emailService.sendEmail({
       to: user.email,
       subject: 'Password Reset Request',
       html: message
     });
 
+    if (!emailResult.success) {
+      console.error(`[ForgotPassword] Email send FAILED: ${emailResult.error}`);
+    } else {
+      console.log(`[ForgotPassword] Email send SUCCESS: ${emailResult.messageId}`);
+    }
+
     res.json({
       success: true,
       message: 'If an account exists with that email, a reset link has been sent.'
     });
   } catch (error) {
+    console.error(`[ForgotPassword] CRITICAL ERROR:`, error);
     next(error);
   }
 };

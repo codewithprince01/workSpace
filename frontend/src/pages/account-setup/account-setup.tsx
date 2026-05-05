@@ -26,8 +26,7 @@ import { useDocumentTitle } from '@/hooks/useDoumentTItle';
 import { getUserSession, setSession } from '@/utils/session-helper';
 import { validateEmail } from '@/utils/validateEmail';
 import { sanitizeInput } from '@/utils/sanitizeInput';
-import logo from '@/assets/images/worklenz-light-mode.png';
-import logoDark from '@/assets/images/worklenz-dark-mode.png';
+const logo = '/BritannicaWorkspaceLogo.webp';
 import { useAppDispatch } from '@/hooks/useAppDispatch';
 
 import './account-setup.css';
@@ -540,9 +539,12 @@ const AccountSetup: React.FC = () => {
         </Dropdown>
       </div>
 
-      {/* Logo */}
       <div className="mb-4">
-        <img src={isDarkMode ? logoDark : logo} alt="Logo" width={235} height={50} />
+        <img 
+          src={logo} 
+          alt="Logo" 
+          style={{ width: 'auto', maxWidth: 240, maxHeight: 60, objectFit: 'contain' }} 
+        />
       </div>
       
       {/* Title */}

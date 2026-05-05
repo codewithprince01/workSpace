@@ -64,8 +64,10 @@
 }
 
 .landing-logo img {
-  height: 36px;
+  max-height: 48px;
+  max-width: 200px;
   width: auto;
+  object-fit: contain;
 }
 
 .landing-nav-links {
@@ -177,11 +179,12 @@
 
 .landing-hero h1 {
   font-family: 'Outfit', sans-serif;
-  font-size: 72px;
+  font-size: 76px;
   font-weight: 800;
-  line-height: 1.05;
-  letter-spacing: -0.04em;
-  margin-bottom: 24px;
+  line-height: 1.0;
+  letter-spacing: -0.05em;
+  margin-bottom: 28px;
+  text-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
 }
 
 .landing-hero h1 span {

@@ -62,6 +62,11 @@ const Navbar = () => {
       if (route.name === 'trash') {
         return false;
       }
+
+      // Filter out super-admin-only routes for non-super-admins
+      if (route.superAdminOnly && !isSuperAdmin) {
+        return false;
+      }
       
       // Filter out reports if user doesn't have reports access
       if (route.requiresReportsAccess && !projectRole.canAccessReports) {
@@ -77,7 +82,7 @@ const Navbar = () => {
     });
     
     setNavRoutesList(filteredRoutes);
-  }, [projectRole.canAccessReports, isOwnerOrAdmin]);
+  }, [projectRole.canAccessReports, isOwnerOrAdmin, isSuperAdmin]);
 
   useEffect(() => {
     authApiService
@@ -132,7 +137,12 @@ const Navbar = () => {
         })
         .map((route, index) => ({
           key: route.path.split('/').pop() || index,
-          label: (
+          label: route.superAdminOnly ? (
+            <Link to={route.path} style={{ fontWeight: 700, color: '#6366f1' }}>
+              <CrownFilled style={{ marginRight: 4, fontSize: 12 }} />
+              {route.name}
+            </Link>
+          ) : (
             <Link to={route.path} style={{ fontWeight: 600 }}>
               {t(route.name)}
             </Link>
@@ -201,7 +211,7 @@ const Navbar = () => {
                       currentSession?.subscription_type as ISUBSCRIPTION_TYPE
                     ) && <UpgradePlanButton />}
                   {projectRole.canInviteMembers && <InviteButton />}
-                  <Flex align="center">
+                  <Flex align="center" gap={12}>
                     {/* Super Admin: Switch Org button */}
                     {isSuperAdmin && (
                       <Tooltip title={superAdminContext?.active_team_id

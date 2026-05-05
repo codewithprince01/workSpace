@@ -123,7 +123,7 @@ router.get('/organization/admins', async (req, res) => {
 
     res.json({
       done: true,
-      body: admins.map(a => ({
+      body: admins.filter(a => a.user_id).map(a => ({
         user_id: a.user_id._id,
         name: a.user_id.name,
         email: a.user_id.email,
@@ -237,7 +237,7 @@ router.get('/organization/users', async (req, res) => {
         res.json({
             done: true,
             body: {
-                data: members.map(m => ({
+                data: members.filter(m => m.user_id).map(m => ({
                     user_id: m.user_id._id,
                     name: m.user_id.name,
                     email: m.user_id.email,

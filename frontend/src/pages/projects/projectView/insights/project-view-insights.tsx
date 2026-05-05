@@ -17,7 +17,7 @@ import {
 import { format } from 'date-fns';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
-import logo from '@/assets/images/worklenz-light-mode.png';
+const logo = '/BritannicaWorkspaceLogo.webp';
 import {
   evt_project_insights_members_visit,
   evt_project_insights_overview_visit,

@@ -162,9 +162,11 @@ const superAdminSlice = createSlice({
       .addCase(switchOrg.fulfilled, (state, action) => {
         state.switching = false;
         state.orgSwitcherOpen = false;
+        state.manageMode = true; // Default to manage mode on switch
         if (state.context) {
           state.context.active_team_id = action.payload.active_team_id;
           state.context.active_team_name = action.payload.active_team_name;
+          state.context.manage_mode = true;
         }
       })
       .addCase(switchOrg.rejected, (state, action) => {

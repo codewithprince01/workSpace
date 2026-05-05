@@ -131,6 +131,9 @@ const OrgSwitcherModal: React.FC = () => {
       .toUpperCase()
       .slice(0, 2);
 
+  const themeMode = useAppSelector(state => state.themeReducer.mode);
+  const isDark = themeMode === 'dark';
+
   return (
     <Modal
       open={orgSwitcherOpen}
@@ -147,13 +150,17 @@ const OrgSwitcherModal: React.FC = () => {
       width={560}
       styles={{
         header: {
-          borderBottom: '1px solid rgba(99,102,241,0.15)',
+          borderBottom: isDark ? '1px solid #303030' : '1px solid rgba(99,102,241,0.15)',
           paddingBottom: 12,
-          background: 'linear-gradient(135deg, #f0f0ff 0%, #fff 100%)',
+          background: isDark ? '#1f1f1f' : 'linear-gradient(135deg, #f0f0ff 0%, #fff 100%)',
         },
-        body: { padding: 0 },
+        body: { 
+          padding: 0,
+          background: isDark ? '#1f1f1f' : '#fff'
+        },
       }}
       style={{ top: 80 }}
+      className={isDark ? 'sa-modal-dark' : ''}
     >
       {/* ── View / Manage Mode Toggle ────────────────────────────────────── */}
       {context?.active_team_id && (
@@ -161,9 +168,9 @@ const OrgSwitcherModal: React.FC = () => {
           style={{
             padding: '12px 20px',
             background: manageMode
-              ? 'linear-gradient(90deg, #fff1f0 0%, #fff 100%)'
-              : 'linear-gradient(90deg, #f6ffed 0%, #fff 100%)',
-            borderBottom: '1px solid #f0f0f0',
+              ? (isDark ? '#2a1215' : 'linear-gradient(90deg, #fff1f0 0%, #fff 100%)')
+              : (isDark ? '#122312' : 'linear-gradient(90deg, #f6ffed 0%, #fff 100%)'),
+            borderBottom: isDark ? '1px solid #303030' : '1px solid #f0f0f0',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -203,17 +210,17 @@ const OrgSwitcherModal: React.FC = () => {
         <div
           style={{
             padding: '10px 20px',
-            background: '#f9f0ff',
-            borderBottom: '1px solid #f0f0f0',
+            background: isDark ? '#1a1425' : '#f9f0ff',
+            borderBottom: isDark ? '1px solid #303030' : '1px solid #f0f0f0',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
           }}
         >
           <Space>
-            <CheckCircleFilled style={{ color: '#722ed1' }} />
-            <Text style={{ color: '#722ed1' }}>
-              Currently viewing: <strong>{context.active_team_name}</strong>
+            <CheckCircleFilled style={{ color: '#9254de' }} />
+            <Text style={{ color: isDark ? '#efdbff' : '#722ed1' }}>
+              Currently viewing: <strong style={{ color: isDark ? '#fff' : 'inherit' }}>{context.active_team_name}</strong>
             </Text>
           </Space>
           <Tag
@@ -228,7 +235,7 @@ const OrgSwitcherModal: React.FC = () => {
       )}
 
       {/* ── Search ──────────────────────────────────────────────────────── */}
-      <div style={{ padding: '16px 20px 8px' }}>
+      <div style={{ padding: '16px 20px 8px', background: isDark ? '#1f1f1f' : '#fff' }}>
         <Input
           prefix={<SearchOutlined style={{ color: '#aaa' }} />}
           placeholder="Search organizations or owners…"
@@ -236,13 +243,22 @@ const OrgSwitcherModal: React.FC = () => {
           onChange={e => setSearch(e.target.value)}
           allowClear
           size="large"
-          style={{ borderRadius: 8 }}
+          style={{ 
+            borderRadius: 8,
+            background: isDark ? '#141414' : '#fff',
+            border: isDark ? '1px solid #303030' : undefined
+          }}
           autoFocus
         />
       </div>
 
       {/* ── Teams List ──────────────────────────────────────────────────── */}
-      <div style={{ maxHeight: 400, overflowY: 'auto', padding: '0 20px 16px' }}>
+      <div style={{ 
+        maxHeight: 400, 
+        overflowY: 'auto', 
+        padding: '0 20px 16px',
+        background: isDark ? '#1f1f1f' : '#fff' 
+      }}>
         {allTeamsLoading ? (
           <div style={{ textAlign: 'center', padding: 40 }}>
             <Spin size="large" />
@@ -250,7 +266,7 @@ const OrgSwitcherModal: React.FC = () => {
         ) : (
           <List
             dataSource={filtered}
-            locale={{ emptyText: 'No organizations found' }}
+            locale={{ emptyText: <Text type="secondary">No organizations found</Text> }}
             renderItem={team => {
               const active = isCurrentOrg(team);
               const loading = switchingTeamId === team.id;
@@ -264,9 +280,11 @@ const OrgSwitcherModal: React.FC = () => {
                     padding: '10px 12px',
                     marginBottom: 4,
                     background: active
-                      ? 'linear-gradient(90deg, #f9f0ff 0%, #faf5ff 100%)'
+                      ? (isDark ? '#2d1b4d' : 'linear-gradient(90deg, #f9f0ff 0%, #faf5ff 100%)')
                       : 'transparent',
-                    border: active ? '1.5px solid #d3adf7' : '1.5px solid transparent',
+                    border: active 
+                      ? (isDark ? '1.5px solid #722ed1' : '1.5px solid #d3adf7') 
+                      : '1.5px solid transparent',
                     transition: 'all 0.15s ease',
                     opacity: loading ? 0.7 : 1,
                   }}
@@ -287,7 +305,7 @@ const OrgSwitcherModal: React.FC = () => {
                     }
                     title={
                       <Space size={6}>
-                        <Text strong style={{ fontSize: 14 }}>
+                        <Text strong style={{ fontSize: 14, color: isDark ? '#fff' : 'inherit' }}>
                           {team.name}
                         </Text>
                         {active && (
@@ -299,7 +317,7 @@ const OrgSwitcherModal: React.FC = () => {
                     }
                     description={
                       <Space size={4}>
-                        <UserOutlined style={{ fontSize: 11, color: '#999' }} />
+                        <UserOutlined style={{ fontSize: 11, color: isDark ? '#888' : '#999' }} />
                         <Text type="secondary" style={{ fontSize: 12 }}>
                           {team.owner_name}
                         </Text>
@@ -326,8 +344,8 @@ const OrgSwitcherModal: React.FC = () => {
         )}
       </div>
 
-      <Divider style={{ margin: 0 }} />
-      <div style={{ padding: '10px 20px', textAlign: 'center' }}>
+      <Divider style={{ margin: 0, borderColor: isDark ? '#303030' : undefined }} />
+      <div style={{ padding: '10px 20px', textAlign: 'center', background: isDark ? '#1f1f1f' : '#fff' }}>
         <Text type="secondary" style={{ fontSize: 12 }}>
           <TeamOutlined /> {filtered.length} of {allTeams.length} organizations
         </Text>

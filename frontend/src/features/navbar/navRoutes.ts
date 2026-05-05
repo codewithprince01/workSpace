@@ -3,7 +3,8 @@ export type NavRoutesType = {
   path: string;
   adminOnly?: boolean;
   freePlanFeature?: boolean;
-  requiresReportsAccess?: boolean; // Flag for routes that require reports permission
+  requiresReportsAccess?: boolean;
+  superAdminOnly?: boolean; // Only visible to super admins
 };
 
 export const navRoutes: NavRoutesType[] = [
@@ -19,15 +20,15 @@ export const navRoutes: NavRoutesType[] = [
     adminOnly: false,
     freePlanFeature: true,
   },
-  // {
-  //   name: 'schedule',
-  //   path: '/worklenz/schedule',
-  //   adminOnly: true,
-  //   freePlanFeature: false,
-  // },
   {
     name: 'calendar',
     path: '/worklenz/calendar',
+    adminOnly: false,
+    freePlanFeature: true,
+  },
+  {
+    name: 'todo',
+    path: '/worklenz/todo',
     adminOnly: false,
     freePlanFeature: true,
   },
@@ -36,6 +37,13 @@ export const navRoutes: NavRoutesType[] = [
     path: '/worklenz/reporting/overview',
     adminOnly: false,
     freePlanFeature: false,
-    requiresReportsAccess: true,  // Only Owner/Admin can access
+    requiresReportsAccess: true,
+  },
+  {
+    name: 'Global Projects',
+    path: '/worklenz/global-projects',
+    adminOnly: false,
+    freePlanFeature: true,
+    superAdminOnly: true,
   },
 ];

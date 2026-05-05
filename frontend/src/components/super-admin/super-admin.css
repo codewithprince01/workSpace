@@ -2,10 +2,24 @@
 
 /* Org Switcher Modal - hover effect on org rows */
 .hover-org-row:hover {
-  background: linear-gradient(90deg, #f5f3ff 0%, #faf5ff 100%) !important;
-  border-color: #d3adf7 !important;
+  background: rgba(114, 46, 209, 0.05) !important;
+  border-color: #722ed1 !important;
   transform: translateX(2px);
-  box-shadow: 2px 0 8px rgba(114, 46, 209, 0.08);
+  box-shadow: 2px 0 8px rgba(114, 46, 209, 0.15);
+}
+
+/* Dark mode specific overrides for the modal content */
+.sa-modal-dark .ant-list-item-meta-title .ant-typography {
+  color: #fff !important;
+}
+
+.sa-modal-dark .ant-list-item-meta-description .ant-typography {
+  color: #8c8c8c !important;
+}
+
+.sa-modal-dark .hover-org-row:hover {
+  background: rgba(146, 84, 222, 0.15) !important;
+  border-color: #9254de !important;
 }
 
 /* Super Admin bar pulse animation when in manage mode */

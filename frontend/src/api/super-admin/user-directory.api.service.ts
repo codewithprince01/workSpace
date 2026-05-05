@@ -25,41 +25,42 @@ export interface IBulkUploadResult {
   errors: { row: any; reason: string }[];
 }
 
-const BASE = `${API_BASE_URL}/super-admin/user-directory`;
+const BASE_SHARED = `${API_BASE_URL}/directory`;
+const BASE_ADMIN  = `${API_BASE_URL}/super-admin/user-directory`;
 
 
 export const userDirectoryApiService = {
-  /** List all users with optional search/pagination */
+  /** List all users with optional search/pagination — Accessible to all team members for inviting */
   list: (page = 1, limit = 20, search = '') =>
     apiClient.get<{ done: boolean; body: IProvisionedUser[]; total: number; pages: number }>(
-      `${BASE}?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}`
+      `${BASE_SHARED}?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}`
     ),
 
-  /** Create a single user */
+  /** Create a single user — ADMIN ONLY */
   createUser: (name: string, email: string, department: string) =>
     apiClient.post<{ done: boolean; body: IProvisionedUser; message: string }>(
-      `${BASE}/single`,
+      `${BASE_ADMIN}/single`,
       { name, email, department }
     ),
 
-  /** Bulk upload via FormData with Excel/CSV file */
+  /** Bulk upload via FormData with Excel/CSV file — ADMIN ONLY */
   bulkUpload: (file: File) => {
     const form = new FormData();
     form.append('file', file);
     return apiClient.post<{ done: boolean; body: IBulkUploadResult; message: string }>(
-      `${BASE}/bulk`,
+      `${BASE_ADMIN}/bulk`,
       form,
       { headers: { 'Content-Type': 'multipart/form-data' } }
     );
   },
 
-  /** Delete a user by ID */
+  /** Delete a user by ID — ADMIN ONLY */
   deleteUser: (userId: string) =>
-    apiClient.delete<{ done: boolean; message: string }>(`${BASE}/${userId}`),
+    apiClient.delete<{ done: boolean; message: string }>(`${BASE_ADMIN}/${userId}`),
 
-  /** Search users for invite auto-suggest */
+  /** Search users for invite auto-suggest — Accessible to all team members for inviting */
   searchUsers: (q: string) =>
     apiClient.get<{ done: boolean; body: IUserSearchResult[] }>(
-      `${BASE}/search?q=${encodeURIComponent(q)}`
+      `${BASE_SHARED}/search?q=${encodeURIComponent(q)}`
     ),
 };

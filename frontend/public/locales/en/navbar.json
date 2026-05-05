@@ -1,10 +1,11 @@
 {
-  "logoAlt": "Worklenz Logo",
+  "logoAlt": "Britannica Workspace Logo",
   "home": "Home",
   "projects": "Projects",
   "schedule": "Schedule",
   "reporting": "Reporting",
   "calendar": "Calendar",
+  "todo": "Todo",
   "clients": "Clients",
   "teams": "Teams",
   "labels": "Labels",

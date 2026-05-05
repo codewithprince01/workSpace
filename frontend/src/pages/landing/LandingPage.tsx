@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import logo from '@/assets/images/worklenz-light-mode.png';
+const logo = '/BritannicaWorkspaceLogo.webp';
 import './LandingPage.css';
 
 // ─── Inline SVG Dashboard Illustration (Dark Theme Premium) ───────────────
@@ -29,42 +29,42 @@ const DashboardIllustration: React.FC = () => (
 
 const features = [
   {
-    icon: '📋',
-    title: 'Smart Tasking',
-    desc: 'Plan and prioritize with interactive boards, deadlines, and smart priority tags.',
+    icon: '🚀',
+    title: 'Mission-Critical Clarity',
+    desc: 'Break down complex projects into actionable milestones. Experience total transparency across every stage of your team’s journey.',
   },
   {
-    icon: '👥',
-    title: 'Team Sync',
-    desc: 'Seamless collaboration with real-time updates, comments, and file sharing.',
+    icon: '🌐',
+    title: 'Synchronized Expertise',
+    desc: 'Connect your global workforce in real-time. Share documents, insights, and feedback instantly to drive collective success.',
   },
   {
-    icon: '📊',
-    title: 'Visual Insights',
-    desc: 'Automated reports and performance tracking to keep your projects on course.',
+    icon: '💎',
+    title: 'Intelligence at Scale',
+    desc: 'Turn raw data into strategic decisions with an automated reporting engine that provides deep-dive operational analytics.',
   },
   {
-    icon: '📅',
-    title: 'Timeline View',
-    desc: 'Interactive Gantt charts to visualize your project schedule and dependencies.',
+    icon: '🗺️',
+    title: 'Visual Roadmap Mastery',
+    desc: 'Navigate deadlines with confidence. Interactive timelines and Gantt charts ensure your projects stay on course and on time.',
   },
   {
-    icon: '🔔',
-    title: 'Live Alerts',
-    desc: 'Real-time notifications across web and mobile to never miss a beat.',
+    icon: '🤝',
+    title: 'Client-First Transparency',
+    desc: 'Elevate your professional relationships. Dedicated portals provide clients with real-time visibility and seamless engagement.',
   },
   {
-    icon: '🔒',
-    title: 'Data Security',
-    desc: 'Enterprise-grade encryption and access controls to keep your data safe.',
+    icon: '🎭',
+    title: 'Adaptive Architecture',
+    desc: 'Your workspace, your rules. Tailor labels, statuses, and job roles to fit the unique rhythm of your organization’s workflow.',
   },
 ];
 
 const stats = [
-  { value: '10K+', label: 'Active Users' },
-  { value: '50K+', label: 'Tasks Done' },
-  { value: '99.9%', label: 'Uptime' },
-  { value: '4.9★', label: 'Rating' },
+  { value: '10K+', label: 'Global Visionaries' },
+  { value: '50K+', label: 'Milestones Reached' },
+  { value: '99.9%', label: 'Reliability Index' },
+  { value: '4.9★', label: 'Satisfaction' },
 ];
 
 const LandingPage: React.FC = () => {
@@ -85,7 +85,7 @@ const LandingPage: React.FC = () => {
       <nav className={`landing-nav ${scrolled ? 'scrolled' : ''}`}>
         <div className="landing-nav-inner">
           <a href="/" className="landing-logo">
-            <img src={logo} alt="Worklenz" />
+            <img src={logo} alt="Britannica Workspace" />
           </a>
           <div className="landing-nav-links">
             <button className="landing-nav-link" onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}>Features</button>
@@ -104,10 +104,10 @@ const LandingPage: React.FC = () => {
               The future of work is here
             </div>
             <h1 className="landing-animate-in-delay-1">
-              Manage Your Work <span>Smarter</span>
+              Empower Your Team. <span>Elevate</span> Every Project.
             </h1>
             <p className="landing-hero-subtitle landing-animate-in-delay-2">
-              The all-in-one platform to organize tasks, teams, and projects. Beautifully designed for clarity and lightning-fast execution.
+              The definitive workspace for visionary teams. Orchestrate your most complex projects with unparalleled precision and modern aesthetics.
             </p>
             <div className="landing-hero-actions landing-animate-in-delay-3">
               <button className="landing-btn landing-btn-primary landing-btn-large" onClick={goToSignup}>
@@ -156,8 +156,8 @@ const LandingPage: React.FC = () => {
 
       <section className="landing-cta">
         <div className="landing-cta-inner landing-animate-in">
-          <h2>Ready to transform your team?</h2>
-          <p>Join thousands of professionals who have simplified their workflow with Worklenz.</p>
+          <h2>Ready to lead with precision?</h2>
+          <p>Join the elite teams who have transformed their operational efficiency with Britannica Workspace.</p>
           <button className="landing-btn landing-btn-white landing-btn-large" onClick={goToSignup}>
             Start for free today
           </button>
@@ -167,7 +167,7 @@ const LandingPage: React.FC = () => {
       <footer className="landing-footer">
         <div className="landing-footer-inner">
           <div className="landing-footer-text">
-            © {new Date().getFullYear()} Worklenz. Designed for the modern team.
+            © {new Date().getFullYear()} Britannica Workspace. Designed for the modern team.
           </div>
         </div>
       </footer>

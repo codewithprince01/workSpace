@@ -24,9 +24,11 @@ const { Text } = Typography;
  */
 const SuperAdminBar: React.FC = () => {
   const dispatch = useAppDispatch();
-  const { isSuperAdmin, context, manageMode } = useAppSelector(
+  const { isSuperAdmin, context } = useAppSelector(
     state => state.superAdminReducer
   );
+  const themeMode = useAppSelector(state => state.themeReducer.mode);
+  const isDark = themeMode === 'dark';
 
   // Only render for super admins who are viewing a foreign org
   if (!isSuperAdmin) return null;
@@ -39,118 +41,72 @@ const SuperAdminBar: React.FC = () => {
     dispatch(exitOrg());
   };
 
-  const handleToggleMode = (checked: boolean) => {
-    dispatch(toggleManageMode(checked));
-  };
-
   return (
     <div
       style={{
         position: 'sticky',
         top: 64, // below the 64px navbar
         zIndex: 998,
-        background: manageMode
-          ? 'linear-gradient(90deg, #fff1f0 0%, #fff7f7 50%, #fff1f0 100%)'
-          : 'linear-gradient(90deg, #f0f4ff 0%, #f5f0ff 50%, #f0f4ff 100%)',
-        borderBottom: `2px solid ${manageMode ? '#ff7875' : '#9254de'}`,
-        padding: '5px 24px',
+        background: isDark ? '#1f1f1f' : '#f0f2f5',
+        borderBottom: `1px solid ${isDark ? '#303030' : '#d9d9d9'}`,
+        padding: '4px 20px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-        backdropFilter: 'blur(8px)',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
         gap: 12,
-        flexWrap: 'wrap',
       }}
     >
       {/* Left: Identity */}
-      <Space size={8} wrap>
-        <CrownFilled style={{ color: manageMode ? '#ff4d4f' : '#6366f1', fontSize: 15 }} />
-        <Text style={{ fontWeight: 600, fontSize: 13, color: '#333' }}>
+      <Space size={8}>
+        <CrownFilled style={{ color: '#6366f1', fontSize: 14 }} />
+        <Text strong style={{ fontSize: 12, color: isDark ? '#fff' : '#434343', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
           Super Admin
         </Text>
-        <Text type="secondary" style={{ fontSize: 13 }}>
-          Viewing:
+        <div style={{ height: 14, width: 1, background: isDark ? '#434343' : '#d9d9d9', margin: '0 4px' }} />
+        <Text style={{ fontSize: 13, color: isDark ? '#aaa' : '#8c8c8c' }}>
+          Viewing Organization:
         </Text>
         <Tag
-          color="purple"
-          style={{ borderRadius: 20, fontWeight: 700, fontSize: 12 }}
+          color="blue"
+          style={{ borderRadius: 4, fontWeight: 600, fontSize: 12, border: 'none' }}
         >
           {context.active_team_name}
         </Tag>
-
-        {/* Mode badge */}
-        {manageMode ? (
-          <Tag
-            icon={<EditOutlined />}
-            color="error"
-            style={{ borderRadius: 20, fontWeight: 600 }}
-          >
-            Manage Mode
-          </Tag>
-        ) : (
-          <Tag
-            icon={<EyeOutlined />}
-            color="success"
-            style={{ borderRadius: 20, fontWeight: 600 }}
-          >
-            View Only
-          </Tag>
-        )}
       </Space>
 
       {/* Right: Controls */}
-      <Space size={12} wrap>
-        {/* Mode toggle */}
-        <Tooltip
-          title={
-            manageMode
-              ? 'Click to switch to read-only view mode'
-              : 'Click to enable manage mode (allows editing org data)'
-          }
-        >
-          <Space size={6}>
-            <EyeOutlined style={{ color: manageMode ? '#ccc' : '#52c41a' }} />
-            <Switch
-              size="small"
-              checked={manageMode}
-              onChange={handleToggleMode}
-              style={{ backgroundColor: manageMode ? '#ff4d4f' : '#52c41a' }}
-            />
-            <EditOutlined style={{ color: manageMode ? '#ff4d4f' : '#ccc' }} />
-          </Space>
-        </Tooltip>
-
+      <Space size={12}>
         {/* Switch org */}
-        <Tooltip title="Switch to a different organization">
-          <Button
-            size="small"
-            icon={<SwapOutlined />}
-            onClick={() => dispatch(openOrgSwitcher())}
-            style={{
-              borderRadius: 20,
-              borderColor: '#6366f1',
-              color: '#6366f1',
-              fontWeight: 600,
-              fontSize: 12,
-            }}
-          >
-            Switch Org
-          </Button>
-        </Tooltip>
+        <Button
+          size="small"
+          type="text"
+          icon={<SwapOutlined />}
+          onClick={() => dispatch(openOrgSwitcher())}
+          style={{
+            fontSize: 12,
+            fontWeight: 500,
+            color: '#6366f1',
+          }}
+        >
+          Switch
+        </Button>
 
-        {/* Exit */}
-        <Tooltip title="Return to your own workspace">
+        {/* Exit Icon Only */}
+        <Tooltip title="Exit organization context">
           <Button
             size="small"
-            type="primary"
-            danger={manageMode}
-            icon={<CloseCircleOutlined />}
+            type="text"
+            icon={<CloseCircleOutlined style={{ fontSize: 18 }} />}
             onClick={handleExit}
-            style={{ borderRadius: 20, fontWeight: 600, fontSize: 12 }}
-          >
-            Exit Org
-          </Button>
+            danger
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              padding: 4
+            }}
+          />
         </Tooltip>
       </Space>
     </div>

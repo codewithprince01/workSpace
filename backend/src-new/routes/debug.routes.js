@@ -86,4 +86,31 @@ router.get('/project-data/:projectId', async (req, res) => {
   }
 });
 
+// GET /api/debug/test-email?to=email@example.com
+router.get('/test-email', async (req, res) => {
+  try {
+    const { to } = req.query;
+    if (!to) return res.status(400).json({ success: false, message: 'Recipient email (?to=...) is required' });
+
+    const emailService = require('../services/email.service');
+    const result = await emailService.sendEmail({
+      to,
+      subject: 'Worklenz SMTP Test',
+      html: `
+        <h1>SMTP Test Successful</h1>
+        <p>This email confirms that your SMTP settings for <strong>Britannica Overseas</strong> are working correctly.</p>
+        <p>Timestamp: ${new Date().toLocaleString()}</p>
+      `
+    });
+
+    if (result.success) {
+      res.json({ success: true, message: `Test email sent successfully to ${to}`, messageId: result.messageId });
+    } else {
+      res.status(500).json({ success: false, message: 'Email failed to send', error: result.error });
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 module.exports = router;

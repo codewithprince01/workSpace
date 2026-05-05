@@ -1,4 +1,4 @@
-const { Team, User, Project, AuditLog } = require('../models');
+const { Team, User, Project, AuditLog, Task } = require('../models');
 const { logSuperAdminAction } = require('../middlewares/audit.middleware');
 
 /**
@@ -57,8 +57,10 @@ exports.switchOrg = async (req, res, next) => {
     }
 
     // Update super admin's active team context (does NOT change their own team)
+    // By default, set manage_mode to true so they can edit immediately
     await User.findByIdAndUpdate(req.user._id, {
-      super_admin_active_team: team_id
+      super_admin_active_team: team_id,
+      super_admin_manage_mode: true
     });
 
     await logSuperAdminAction({
@@ -286,6 +288,120 @@ exports.updateUserRole = async (req, res, next) => {
     });
 
     res.json({ done: true, body: updated });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Get ALL projects across ALL teams (super admin global view)
+ * @route   GET /api/super-admin/projects
+ * @access  Super Admin
+ */
+exports.getAllProjects = async (req, res, next) => {
+  try {
+    const { search, team_id, page = 1, limit = 20 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    let matchQuery = {};
+    if (team_id) {
+      const mongoose = require('mongoose');
+      matchQuery.team_id = new mongoose.Types.ObjectId(team_id);
+    }
+    if (search) matchQuery.name = { $regex: search, $options: 'i' };
+
+    const [projects, total] = await Promise.all([
+      Project.find(matchQuery)
+        .populate('team_id', 'name color_code')
+        .populate('owner_id', 'name email avatar_url')   // correct field: owner_id
+        .sort({ created_at: -1 })
+        .skip(skip)
+        .limit(parseInt(limit))
+        .lean(),
+      Project.countDocuments(matchQuery)
+    ]);
+
+    // Get task counts per project
+    const projectIds = projects.map(p => p._id);
+    const taskCounts = await Task.aggregate([
+      { $match: { project_id: { $in: projectIds }, is_trashed: { $ne: true } } },
+      { $group: { _id: '$project_id', count: { $sum: 1 } } }
+    ]);
+    const taskCountMap = {};
+    taskCounts.forEach(t => { taskCountMap[t._id.toString()] = t.count; });
+
+    const formatted = projects.map(p => ({
+      id: p._id.toString(),
+      name: p.name,
+      color_code: p.color_code || '#1890ff',
+      status: p.status || 'active',
+      created_at: p.created_at,
+      team_id: p.team_id?._id?.toString() || null,
+      team_name: p.team_id?.name || 'Unknown',
+      team_color: p.team_id?.color_code || '#6366f1',
+      owner_name: p.owner_id?.name || 'Unknown',
+      owner_email: p.owner_id?.email || '',
+      owner_avatar: p.owner_id?.avatar_url || null,
+      total_tasks: taskCountMap[p._id.toString()] || 0,
+    }));
+
+    res.json({ done: true, body: formatted, total: parseInt(total), page: parseInt(page) });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Get tasks for a specific project (super admin, with optional today filter)
+ * @route   GET /api/super-admin/projects/:projectId/tasks
+ * @access  Super Admin
+ * @query   today=true  - return only tasks due today
+ */
+exports.getProjectTasks = async (req, res, next) => {
+  try {
+    const { projectId } = req.params;
+    const { today } = req.query;
+    const mongoose = require('mongoose');
+
+    let query = {
+      project_id: new mongoose.Types.ObjectId(projectId),
+      is_trashed: { $ne: true },
+    };
+
+    if (today === 'true') {
+      const start = new Date();
+      start.setHours(0, 0, 0, 0);
+      const end = new Date();
+      end.setHours(23, 59, 59, 999);
+      query.due_date = { $gte: start, $lte: end };
+    }
+
+    const tasks = await Task.find(query)
+      .populate('assignees', 'name email avatar_url')
+      .populate('status_id', 'name color_code')   // correct: status_id
+      .sort({ created_at: -1 })
+      .lean();
+
+    const formatted = tasks.map(t => ({
+      id: t._id.toString(),
+      name: t.name || 'Untitled',
+      status: t.status_id?.name || 'To Do',
+      status_color: t.status_id?.color_code || '#8c8c8c',
+      priority: t.priority || 'medium',
+      progress: t.progress || 0,
+      due_date: t.due_date || null,
+      start_date: t.start_date || null,
+      created_at: t.created_at,
+      completed_at: t.completed_at || null,
+      assignees: (t.assignees || []).map(a => ({
+        id: a._id,
+        name: a.name,
+        email: a.email,
+        avatar: a.avatar_url
+      })),
+    }));
+
+    res.json({ done: true, body: formatted });
   } catch (error) {
     next(error);
   }

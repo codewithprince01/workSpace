@@ -1,6 +1,6 @@
 {
-  "name": "Worklenz - Project Management",
-  "short_name": "Worklenz",
+  "name": "Britannica Workspace",
+  "short_name": "Britannica",
   "description": "A comprehensive project management application for teams",
   "start_url": "/",
   "display": "standalone",
@@ -12,9 +12,9 @@
   "scope": "/",
   "icons": [
     {
-      "src": "/favicon.ico",
-      "sizes": "16x16 32x32 48x48",
-      "type": "image/x-icon",
+      "src": "/favicon.png",
+      "sizes": "64x64",
+      "type": "image/png",
       "purpose": "any maskable"
     },
     {
@@ -38,8 +38,8 @@
       "url": "/worklenz",
       "icons": [
         {
-          "src": "/favicon.ico",
-          "sizes": "16x16 32x32 48x48"
+          "src": "/favicon.png",
+          "sizes": "64x64"
         }
       ]
     },
@@ -50,8 +50,8 @@
       "url": "/worklenz/tasks",
       "icons": [
         {
-          "src": "/favicon.ico",
-          "sizes": "16x16 32x32 48x48"
+          "src": "/favicon.png",
+          "sizes": "64x64"
         }
       ]
     }

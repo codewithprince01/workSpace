@@ -104,3 +104,9 @@ module.exports = {
   // Storage
   STORAGE_PROVIDER: _storageProvider,
 };
+
+console.log('[Constants] Mail Provider:', module.exports.MAIL_PROVIDER);
+console.log('[Constants] SMTP Host:', module.exports.SMTP_HOST);
+console.log('[Constants] SMTP Port:', module.exports.SMTP_PORT);
+console.log('[Constants] SMTP User:', module.exports.SMTP_USER);
+console.log('[Constants] SMTP Pass length:', module.exports.SMTP_PASS ? module.exports.SMTP_PASS.length : 0);

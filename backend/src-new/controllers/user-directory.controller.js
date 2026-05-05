@@ -156,6 +156,12 @@ exports.searchUsers = async (req, res, next) => {
       .limit(20)
       .lean();
 
-    res.json({ done: true, body: users.map(u => ({ id: u._id, name: u.name, email: u.email, department: u.department || '', avatar_url: u.avatar_url || null })) });
+    res.json({ done: true, body: users.map(u => ({ 
+      id: u._id.toString(), 
+      name: u.name, 
+      email: u.email, 
+      department: u.department || '', 
+      avatar_url: u.avatar_url || null 
+    })) });
   } catch (err) { next(err); }
 };

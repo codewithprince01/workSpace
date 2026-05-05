@@ -1,5 +1,5 @@
+import React, { useEffect, useState } from 'react';
 import { Button, Drawer, Dropdown } from '@/shared/antd-imports';
-import { useEffect, useState } from 'react';
 import { useAppDispatch } from '@/hooks/useAppDispatch';
 import { DownOutlined, EditOutlined, ImportOutlined } from '@/shared/antd-imports';
 import TemplateDrawer from '@/components/common/template-drawer/template-drawer';
@@ -134,6 +134,30 @@ const CreateProjectButton: React.FC<CreateProjectButtonProps> = ({ className }) 
         icon={<DownOutlined />}
         onClick={handleCreateProject}
         menu={{ items: dropdownItems }}
+        style={{ height: 40 }}
+        buttonsRender={([leftButton, rightButton]) => [
+          React.cloneElement(leftButton as React.ReactElement, {
+            style: {
+              borderRadius: '8px 0 0 8px',
+              height: 40,
+              background: '#1677ff',
+              border: 'none',
+              boxShadow: '0 2px 8px rgba(22,119,255,0.2)',
+              fontWeight: 600,
+            }
+          }),
+          React.cloneElement(rightButton as React.ReactElement, {
+            style: {
+              borderRadius: '0 8px 8px 0',
+              height: 40,
+              background: '#1677ff',
+              border: 'none',
+              borderLeft: '1px solid rgba(255,255,255,0.2)',
+              boxShadow: '0 2px 8px rgba(22,119,255,0.2)',
+              color: '#fff'
+            }
+          }),
+        ]}
       >
         <EditOutlined /> {t('createProject')}
       </Dropdown.Button>

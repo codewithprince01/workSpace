@@ -152,6 +152,15 @@ export const settingsItems: SettingMenuItems[] = [
     element: React.createElement(TeamsSettings),
     adminOnly: true,
   },
+  // ── Super Admin Only ───────────────────────────────────────────────────
+  {
+    key: 'user-directory',
+    name: 'user-directory',
+    endpoint: 'user-directory',
+    icon: React.createElement(DatabaseOutlined),
+    element: React.createElement(UserDirectoryPage),
+    superAdminOnly: true,
+  },
   {
     key: 'trash',
     name: 'trash',
@@ -169,25 +178,7 @@ export const settingsItems: SettingMenuItems[] = [
     element: React.createElement(AccountDeletion),
     isDangerous: true,
   },
-  // ── Super Admin Only ───────────────────────────────────────────────────
-  {
-    key: 'user-directory',
-    name: 'user-directory',
-    endpoint: 'user-directory',
-    icon: React.createElement(DatabaseOutlined),
-    element: React.createElement(UserDirectoryPage),
-    superAdminOnly: true,
-  },
 ];
-
-const MEMBER_IN_MANAGER_PROJECT_ALLOWED_SETTINGS = new Set([
-  'profile',
-  'notifications',
-  'appearance',
-  'language-and-region',
-  'trash',
-  'account-deletion',
-]);
 
 export const canAccessSetting = (
   item: SettingMenuItems,
@@ -232,3 +223,11 @@ export const getAccessibleSettings = (
   );
 };
 
+const MEMBER_IN_MANAGER_PROJECT_ALLOWED_SETTINGS = new Set([
+  'profile',
+  'notifications',
+  'appearance',
+  'language-and-region',
+  'trash',
+  'account-deletion',
+]);

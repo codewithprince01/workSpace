@@ -88,10 +88,10 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
 
   // Auth and permissions
   const isOwnerorAdmin = useAuthService().isOwnerOrAdmin();
-  // Use active team role for permission checks so switched member context is respected.
-  const canEditProjectSettings = currentSession?.team_role
+  const { isSuperAdmin } = useAppSelector(state => state.superAdminReducer);
+  const canEditProjectSettings = isSuperAdmin || (currentSession?.team_role
     ? ['owner', 'admin'].includes(currentSession.team_role)
-    : isOwnerorAdmin;
+    : isOwnerorAdmin);
 
   const normalizeProjectStatus = useCallback((status?: string) => {
     if (!status) return 'proposed';
