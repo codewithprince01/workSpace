@@ -60,6 +60,7 @@ export const reportingsItems: ReportingMenuItems[] = [
     element: React.createElement(TasksReports),
     icon: React.createElement(UnorderedListOutlined),
   },
+  /*
   {
     key: 'time-sheet',
     name: 'timeReports',
@@ -103,4 +104,5 @@ export const reportingsItems: ReportingMenuItems[] = [
       },
     ],
   },
+  */
 ];
