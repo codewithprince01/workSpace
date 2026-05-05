@@ -15,6 +15,7 @@ import { authApiService } from '@/api/auth/auth.api.service';
 import { IUserSignUpRequest } from '@/types/auth/signup.types';
 import { useAppDispatch } from '@/hooks/useAppDispatch';
 import { signUp } from '@/features/auth/authSlice';
+import { alertService } from '@/services/alerts/alertService';
 import { useMixpanelTracking } from '@/hooks/useMixpanelTracking';
 import {
   evt_signup_page_visit,
@@ -23,7 +24,6 @@ import {
 } from '@/shared/worklenz-analytics-events';
 import { useDocumentTitle } from '@/hooks/useDoumentTItle';
 import logger from '@/utils/errorLogger';
-import alertService from '@/services/alerts/alertService';
 import { WORKLENZ_REDIRECT_PROJ_KEY } from '@/shared/constants';
 
 // Define the global grecaptcha type
@@ -249,7 +249,7 @@ const SignupPage = () => {
       }
       const result = await dispatch(signUp(body)).unwrap();
       if (result?.authenticated) {
-        message.success('Successfully signed up!');
+        alertService.success('Success', 'Successfully signed up!');
         setTimeout(() => {
           window.location.href = '/worklenz/home';
         }, 1000);

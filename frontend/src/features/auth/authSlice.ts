@@ -140,6 +140,19 @@ const authSlice = createSlice({
         state.isAuthenticated = false;
       })
 
+      // SignUp cases
+      .addCase(signUp.pending, setPending)
+      .addCase(signUp.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.isAuthenticated = true;
+        state.user = (action.payload as any).data?.user || action.payload.user;
+        state.error = null;
+      })
+      .addCase(signUp.rejected, (state, action) => {
+        setRejected(state, action);
+        state.isAuthenticated = false;
+      })
+
       // Logout cases
       .addCase(logout.pending, setPending)
       .addCase(logout.fulfilled, state => {

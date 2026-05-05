@@ -105,7 +105,7 @@ const LoginPage: React.FC = () => {
 
         const result = await dispatch(login(normalizedValues)).unwrap();
         if (result.authenticated) {
-          message.success(t('successMessage'));
+          alertService.success('Success', t('successMessage'));
           const user = result.user || result.data?.user;
           const token = result.token || result.data?.token;
           if (user) {
