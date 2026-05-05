@@ -311,7 +311,8 @@ exports.verify = async (req, res, next) => {
     const user = await User.findById(decoded.id);
     
     if (!user) {
-      return res.json({
+      res.clearCookie('token');
+      return res.set('Cache-Control', 'no-store').json({
         success: true,
         authenticated: false
       });
@@ -362,7 +363,7 @@ exports.verify = async (req, res, next) => {
     }
 
 
-    res.json({
+    res.set('Cache-Control', 'no-store').json({
       success: true,
       authenticated: true,
       data: { user: userObj }

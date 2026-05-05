@@ -153,6 +153,12 @@ apiClient.interceptors.response.use(
     // Add 401 unauthorized handling - DON'T auto-redirect, let auth guard handle it
     if (error.response?.status === 401) {
       console.warn('401 Unauthorized response:', error.config?.url);
+      
+      // If it's not the verify route, redirect to login
+      if (!error.config?.url?.includes('/verify')) {
+        localStorage.removeItem('worklenz_token');
+        window.location.href = '/auth/login';
+      }
       return Promise.reject(error);
     }
 

@@ -11,58 +11,64 @@ const constants = require('../config/constants');
  */
 exports.protect = async (req, res, next) => {
   try {
-    let token;
+    const authHeader =
+      req.headers.authorization && req.headers.authorization.startsWith('Bearer')
+        ? req.headers.authorization.split(' ')[1]
+        : null;
+    const cookieToken = req.cookies && req.cookies.token ? req.cookies.token : null;
 
-    // Check for token in header
-    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-      token = req.headers.authorization.split(' ')[1];
+    const candidateTokens = [];
+    if (authHeader) candidateTokens.push(authHeader);
+    if (cookieToken && cookieToken !== authHeader) candidateTokens.push(cookieToken);
+
+    for (const token of candidateTokens) {
+      try {
+        const decoded = jwt.verify(token, constants.JWT_SECRET);
+        const user = await User.findById(decoded.id);
+        if (!user) {
+          console.warn(`[Protect] User not found for ID: ${decoded.id}`);
+          continue;
+        }
+
+        if (!user.is_active) {
+          console.warn(`[Protect] User is deactivated: ${user.email}`);
+          return res.status(401).json({
+            success: false,
+            message: 'User account is deactivated'
+          });
+        }
+
+        req.user = user;
+        _applySuperAdminContext(req);
+        return next();
+      } catch (e) {
+        console.warn(`[Protect] Token verification failed: ${e.message}`);
+        // token invalid/expired -> try next source
+      }
     }
-    // Check for token in cookies
-    else if (req.cookies && req.cookies.token) {
-      token = req.cookies.token;
-    }
-    // Check session
-    else if (req.session && req.session.userId) {
-      req.user = await User.findById(req.session.userId);
-      if (req.user) {
+
+    if (req.session && req.session.userId) {
+      const sessionUser = await User.findById(req.session.userId);
+      if (sessionUser) {
+        if (!sessionUser.is_active) {
+          return res.status(401).json({
+            success: false,
+            message: 'User account is deactivated'
+          });
+        }
+
+        req.user = sessionUser;
         _applySuperAdminContext(req);
         return next();
       }
     }
 
-    if (!token) {
-      return res.status(401).json({
-        success: false,
-        message: 'Not authorized to access this route'
-      });
-    }
+    console.warn(`[Protect] No valid authentication found. Auth Header: ${!!authHeader}, Cookie: ${!!cookieToken}, Session: ${!!req.session?.userId}`);
 
-    // Verify token
-    const decoded = jwt.verify(token, constants.JWT_SECRET);
-
-    // Always fetch fresh user from DB — super_admin_active_team changes dynamically
-    const user = await User.findById(decoded.id);
-
-    if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
-
-    if (!user.is_active) {
-      return res.status(401).json({
-        success: false,
-        message: 'User account is deactivated'
-      });
-    }
-
-    req.user = user;
-
-    // Apply super-admin org context override
-    _applySuperAdminContext(req);
-
-    next();
+    return res.status(401).json({
+      success: false,
+      message: 'Not authorized to access this route'
+    });
   } catch (error) {
     return res.status(401).json({
       success: false,
@@ -212,3 +218,4 @@ exports.hasFullTeamAccess = (req) => {
   // but let's keep it specific to super admins for now.
   return false;
 };
+

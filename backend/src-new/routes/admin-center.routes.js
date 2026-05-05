@@ -42,13 +42,24 @@ router.get('/organization', async (req, res) => {
 // PUT /api/admin-center/organization
 router.put('/organization', async (req, res) => {
   try {
-    const { Team, TeamMember } = require('../models');
-    const { name } = req.body;
+    const isSuperAdmin = req.user.role === 'super_admin';
+    const targetTeamId = req.user.last_team_id;
 
-    const membership = await TeamMember.findOne({ user_id: req.user._id, is_active: true, role: { $in: ['admin', 'owner'] } });
-    if (!membership) return res.status(403).json({ done: false, message: 'Only admins can update organization name' });
+    let teamId = targetTeamId;
+    if (!isSuperAdmin) {
+      const membership = await TeamMember.findOne({ 
+        user_id: req.user._id, 
+        team_id: targetTeamId,
+        is_active: true, 
+        role: { $in: ['admin', 'owner'] } 
+      });
+      if (!membership) return res.status(403).json({ done: false, message: 'Only admins can update organization name' });
+      teamId = membership.team_id;
+    }
 
-    const team = await Team.findByIdAndUpdate(membership.team_id, { name }, { new: true });
+    if (!teamId) return res.status(404).json({ done: false, message: 'Organization not found' });
+
+    const team = await Team.findByIdAndUpdate(teamId, { name }, { new: true });
     
     res.json({
       done: true,
@@ -66,17 +77,30 @@ router.put('/organization/logo', async (req, res) => {
     const storageService = require('../services/storage.service');
     const { file, file_name } = req.body;
 
-    const membership = await TeamMember.findOne({ user_id: req.user._id, is_active: true, role: { $in: ['admin', 'owner'] } });
-    if (!membership) return res.status(403).json({ done: false, message: 'Only admins can update organization logo' });
+    const isSuperAdmin = req.user.role === 'super_admin';
+    const targetTeamId = req.user.last_team_id;
 
+    let teamId = targetTeamId;
+    if (!isSuperAdmin) {
+      const membership = await TeamMember.findOne({ 
+        user_id: req.user._id, 
+        team_id: targetTeamId,
+        is_active: true, 
+        role: { $in: ['admin', 'owner'] } 
+      });
+      if (!membership) return res.status(403).json({ done: false, message: 'Only admins can update organization logo' });
+      teamId = membership.team_id;
+    }
+
+    if (!teamId) return res.status(404).json({ done: false, message: 'Organization not found' });
     if (!file) return res.status(400).json({ done: false, message: 'No file provided' });
 
     const extension = file_name.split('.').pop();
-    const key = `logos/${membership.team_id}_${Date.now()}.${extension}`;
+    const key = `logos/${teamId}_${Date.now()}.${extension}`;
     
     const logoUrl = await storageService.uploadBase64(key, file, file_name, req.user._id);
     
-    const team = await Team.findByIdAndUpdate(membership.team_id, { logo_url: logoUrl }, { new: true });
+    const team = await Team.findByIdAndUpdate(teamId, { logo_url: logoUrl }, { new: true });
 
     res.json({
       done: true,
