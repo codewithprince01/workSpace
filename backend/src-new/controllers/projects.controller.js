@@ -386,12 +386,26 @@ exports.getAll = async (req, res, next) => {
       { $project: { done_statuses: 0, task_count: 0, completed_count: 0, member_docs: 0, my_membership: 0, owner_doc: 0, category_doc: 0 } }
     ]);
 
-    const allMemberships = await ProjectMember.find({ user_id: req.user._id, is_active: true });
-    const allProjectIds = allMemberships.map(m => m.project_id);
-    const favProjectIds = allMemberships.filter(m => m.is_favorite).map(m => m.project_id);
+    const isSuperAdmin = req.user.role === 'super_admin';
+    const activeTeamId = isSuperAdmin ? (req.user.super_admin_active_team || req.user.last_team_id) : req.user.last_team_id;
 
-    const baseCountQuery = { _id: { $in: allProjectIds } };
-    if (team_id) baseCountQuery.team_id = team_id;
+    let baseCountQuery = {};
+    let favProjectIds = [];
+
+    if (isSuperAdmin) {
+        if (activeTeamId) baseCountQuery.team_id = new mongoose.Types.ObjectId(activeTeamId);
+        // For favorites, we still check the user's specific favorites
+        const myFavs = await ProjectMember.find({ user_id: req.user._id, is_favorite: true, is_active: true });
+        favProjectIds = myFavs.map(m => m.project_id);
+    } else {
+        const allMemberships = await ProjectMember.find({ user_id: req.user._id, is_active: true });
+        const allProjectIds = allMemberships.map(m => m.project_id);
+        favProjectIds = allMemberships.filter(m => m.is_favorite).map(m => m.project_id);
+        
+        baseCountQuery = { _id: { $in: allProjectIds } };
+        if (team_id) baseCountQuery.team_id = team_id;
+        else if (activeTeamId) baseCountQuery.team_id = activeTeamId;
+    }
 
     const [countAll, countArchived, countFavorites] = await Promise.all([
         Project.countDocuments({ ...baseCountQuery, is_archived: false }),
