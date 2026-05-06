@@ -116,6 +116,74 @@ const buildDefaultGroupsByGrouping = (grouping?: string): TaskGroup[] => {
   ];
 };
 
+const normalizeStatusLabel = (value?: string): string => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized) return 'To Do';
+  if (normalized === 'todo' || normalized === 'to do') return 'To Do';
+  if (normalized === 'doing' || normalized === 'in progress' || normalized === 'inprogress') {
+    return 'In Progress';
+  }
+  if (normalized === 'done') return 'Done';
+  return String(value);
+};
+
+const normalizePriorityLabel = (value?: string): string => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized) return 'Medium';
+  if (normalized === 'urgent') return 'Urgent';
+  if (normalized === 'high') return 'High';
+  if (normalized === 'medium') return 'Medium';
+  if (normalized === 'low') return 'Low';
+  return String(value);
+};
+
+const buildGroupsFromTasks = (tasks: Task[], grouping?: string): TaskGroup[] => {
+  const groupMap = new Map<string, TaskGroup>();
+
+  tasks.forEach(task => {
+    if (!task?.id) return;
+
+    let groupLabel = 'To Do';
+    let groupId = 'todo';
+    let color = '#75c9c0';
+
+    if (grouping === 'priority') {
+      groupLabel = normalizePriorityLabel(task.priority);
+      groupId = groupLabel.toLowerCase().replace(/\s+/g, '-');
+      if (groupLabel === 'Urgent') color = '#f50';
+      if (groupLabel === 'High') color = '#ff9800';
+      if (groupLabel === 'Medium') color = '#2db7f5';
+      if (groupLabel === 'Low') color = '#87d068';
+    } else if (grouping === 'phase') {
+      groupLabel = String(task.phase_name || task.phase || 'No Phase');
+      groupId = String(task.phase_id || groupLabel || 'no-phase');
+      color = '#cccccc';
+    } else {
+      groupLabel = normalizeStatusLabel(task.status);
+      groupId = groupLabel.toLowerCase().replace(/\s+/g, '-');
+      if (groupLabel === 'In Progress') color = '#3b7ad4';
+      if (groupLabel === 'Done') color = '#70a6f3';
+    }
+
+    const existing = groupMap.get(groupId);
+    if (!existing) {
+      groupMap.set(groupId, {
+        id: groupId,
+        title: groupLabel,
+        name: groupLabel,
+        taskIds: [task.id],
+        tasks: [],
+        color,
+        groupValue: groupId,
+      } as any);
+    } else {
+      existing.taskIds.push(task.id);
+    }
+  });
+
+  return Array.from(groupMap.values());
+};
+
 // Async thunk to fetch tasks from API
 export const fetchTasks = createAsyncThunk(
   'taskManagement/fetchTasks',
@@ -1255,10 +1323,14 @@ const taskManagementSlice = createSlice({
         tasksAdapter.setAll(state as EntityState<Task, string>, tasksWithTimers); // Ensure allTasks is an array
         state.ids = tasksWithTimers.map(task => task.id); // Also update ids
         const normalizedGrouping = grouping || state.grouping || 'status';
-        state.groups =
-          Array.isArray(groups) && groups.length > 0
-            ? groups
-            : buildDefaultGroupsByGrouping(normalizedGrouping);
+        const hasBackendGroups = Array.isArray(groups) && groups.length > 0;
+        if (hasBackendGroups) {
+          state.groups = groups;
+        } else if (tasksWithTimers.length > 0) {
+          state.groups = buildGroupsFromTasks(tasksWithTimers, normalizedGrouping);
+        } else {
+          state.groups = buildDefaultGroupsByGrouping(normalizedGrouping);
+        }
         state.grouping = normalizedGrouping;
       })
       .addCase(fetchTasksV3.rejected, (state, action) => {

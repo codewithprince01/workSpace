@@ -923,25 +923,6 @@ const TaskListV2Section: React.FC = () => {
     [urlProjectId]
   );
 
-  // Add callback for task added
-  const handleTaskAdded = useCallback((rowId: string) => {
-    // Task is now added in real-time via socket, no need to refetch
-    // The global socket handler will handle the real-time update
-    
-    // Find the group this row belongs to
-    const groupId = rowId.split('-')[2]; // Extract from rowId format: add-task-{groupId}-{index}
-    
-    // Add a new add task row to this group
-    setAddTaskRows(prev => {
-      const currentRows = prev[groupId] || [];
-      const newRowId = `add-task-${groupId}-${currentRows.length + 1}`;
-      return {
-        ...prev,
-        [groupId]: [...currentRows, newRowId]
-      };
-    });
-  }, []);
-
   // Handle scroll synchronization - disabled since header is now sticky inside content
   const handleContentScroll = useCallback(() => {
     // No longer needed since header scrolls naturally with content
@@ -1066,8 +1047,6 @@ const TaskListV2Section: React.FC = () => {
             groupValue={item.groupValue}
             projectId={urlProjectId}
             visibleColumns={orderedVisibleColumns}
-            onTaskAdded={handleTaskAdded}
-            rowId={item.rowId}
             autoFocus={item.autoFocus}
           />
         );
@@ -1090,7 +1069,6 @@ const TaskListV2Section: React.FC = () => {
       virtuosoGroups,
       orderedVisibleColumns,
       urlProjectId,
-      handleTaskAdded,
       updateTaskCustomColumnValue,
       currentGrouping,
     ]
@@ -1236,8 +1214,6 @@ const TaskListV2Section: React.FC = () => {
                       groupValue="Unmapped"
                       projectId={urlProjectId || ''}
                       visibleColumns={orderedVisibleColumns}
-                      onTaskAdded={handleTaskAdded}
-                      rowId="add-task-Unmapped-0"
                       autoFocus={false}
                     />
                   </div>

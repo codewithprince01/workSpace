@@ -21,8 +21,6 @@ interface AddTaskRowProps {
     width: string;
     isSticky?: boolean;
   }>;
-  onTaskAdded: (rowId: string) => void;
-  rowId: string; // Unique identifier for this add task row
   autoFocus?: boolean; // Whether this row should auto-focus on mount
 }
 
@@ -32,8 +30,6 @@ const AddTaskRow: React.FC<AddTaskRowProps> = memo(({
   groupValue,
   projectId, 
   visibleColumns, 
-  onTaskAdded,
-  rowId,
   autoFocus = false
 }) => {
   const [isAdding, setIsAdding] = useState(autoFocus);
@@ -99,7 +95,7 @@ const AddTaskRow: React.FC<AddTaskRowProps> = memo(({
         if (res?.done) {
           await dispatch(fetchTasksV3(projectId));
           setTaskName('');
-          onTaskAdded(rowId);
+          setIsAdding(false);
           return;
         }
         message.error('Failed to create task');
@@ -122,8 +118,6 @@ const AddTaskRow: React.FC<AddTaskRowProps> = memo(({
     socket,
     connected,
     currentSession,
-    onTaskAdded,
-    rowId,
     dispatch,
   ]);
 
