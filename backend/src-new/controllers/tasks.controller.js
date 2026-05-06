@@ -786,7 +786,8 @@ exports.getAssignees = async (req, res, next) => {
 exports.getTaskListV3 = async (req, res, next) => {
   try {
     const { projectId } = req.params;
-    const { group, search, archived, parent_task, members, labels, priorities, statusFilter, field, order } = req.query;
+    const { search, archived, parent_task, members, labels, priorities, statusFilter, field, order } = req.query;
+    const group = req.query.group || req.query.group_by || 'status';
     const mongoose = require('mongoose');
     const projectMeta = await Project.findById(projectId).select('key').lean();
     const projectKeyPrefix =

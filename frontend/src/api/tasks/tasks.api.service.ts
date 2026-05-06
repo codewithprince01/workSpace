@@ -196,7 +196,11 @@ export const tasksApiService = {
   getTaskListV3: async (
     config: ITaskListConfigV2
   ): Promise<IServerResponse<ITaskListV3Response>> => {
-    const q = toQueryString({ ...config, include_empty: 'true' });
+    const q = toQueryString({
+      ...config,
+      group_by: config.group || 'status',
+      include_empty: 'true',
+    });
     const silentErrorConfig = { skipErrorAlert: true } as any;
 
     const normalizeTask = (task: any) => {

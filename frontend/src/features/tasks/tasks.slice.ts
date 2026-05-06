@@ -113,6 +113,89 @@ const initialState: ITaskState = {
   totalTasks: 0,
 };
 
+const buildDefaultStatusGroups = (): ITaskListGroup[] => [
+  {
+    id: 'default-status-todo',
+    title: 'To Do',
+    groupType: 'status',
+    groupValue: 'todo',
+    collapsed: false,
+    tasks: [],
+    taskIds: [],
+    color: '#75c9c0',
+    name: 'To Do',
+  } as ITaskListGroup,
+  {
+    id: 'default-status-doing',
+    title: 'In Progress',
+    groupType: 'status',
+    groupValue: 'doing',
+    collapsed: false,
+    tasks: [],
+    taskIds: [],
+    color: '#3b7ad4',
+    name: 'In Progress',
+  } as ITaskListGroup,
+  {
+    id: 'default-status-done',
+    title: 'Done',
+    groupType: 'status',
+    groupValue: 'done',
+    collapsed: false,
+    tasks: [],
+    taskIds: [],
+    color: '#70a6f3',
+    name: 'Done',
+  } as ITaskListGroup,
+];
+
+const buildDefaultPriorityGroups = (): ITaskListGroup[] => [
+  {
+    id: 'urgent',
+    title: 'Urgent',
+    groupType: 'priority',
+    groupValue: 'urgent',
+    collapsed: false,
+    tasks: [],
+    taskIds: [],
+    color: '#f50',
+    name: 'Urgent',
+  } as ITaskListGroup,
+  {
+    id: 'high',
+    title: 'High',
+    groupType: 'priority',
+    groupValue: 'high',
+    collapsed: false,
+    tasks: [],
+    taskIds: [],
+    color: '#ff9800',
+    name: 'High',
+  } as ITaskListGroup,
+  {
+    id: 'medium',
+    title: 'Medium',
+    groupType: 'priority',
+    groupValue: 'medium',
+    collapsed: false,
+    tasks: [],
+    taskIds: [],
+    color: '#2db7f5',
+    name: 'Medium',
+  } as ITaskListGroup,
+  {
+    id: 'low',
+    title: 'Low',
+    groupType: 'priority',
+    groupValue: 'low',
+    collapsed: false,
+    tasks: [],
+    taskIds: [],
+    color: '#87d068',
+    name: 'Low',
+  } as ITaskListGroup,
+];
+
 export const COLUMN_KEYS = {
   KEY: 'KEY',
   NAME: 'NAME',
@@ -1165,7 +1248,18 @@ const taskSlice = createSlice({
       })
       .addCase(fetchTaskGroups.fulfilled, (state, action) => {
         state.loadingGroups = false;
-        state.taskGroups = action.payload && action.payload.groups ? action.payload.groups : [];
+        const incomingGroups = action.payload && action.payload.groups ? action.payload.groups : [];
+        if (incomingGroups.length === 0) {
+          if (state.groupBy === GROUP_BY_STATUS_VALUE) {
+            state.taskGroups = buildDefaultStatusGroups();
+          } else if (state.groupBy === GROUP_BY_PRIORITY_VALUE) {
+            state.taskGroups = buildDefaultPriorityGroups();
+          } else {
+            state.taskGroups = incomingGroups;
+          }
+        } else {
+          state.taskGroups = incomingGroups;
+        }
         state.allTasks = action.payload && action.payload.allTasks ? action.payload.allTasks : [];
         state.grouping = action.payload && action.payload.grouping ? action.payload.grouping : '';
         state.totalTasks =
