@@ -340,7 +340,28 @@ export const fetchTasksV3 = createAsyncThunk(
         customColumns: true,
       };
 
-      const response = await tasksApiService.getTaskListV3(config);
+      let response = await tasksApiService.getTaskListV3(config);
+
+      // Live hardening:
+      // If stale/invalid filters (from old state/session) hide all tasks,
+      // retry once without member/label/priority filters so newly created
+      // tasks are always visible.
+      const hasAnyFilter =
+        Boolean(selectedLabels?.trim()) ||
+        Boolean(selectedAssignees?.trim()) ||
+        Boolean(selectedPriorities?.trim());
+      const isEmptyResponse =
+        !response?.body?.allTasks?.length &&
+        !response?.body?.groups?.some((g: any) => Array.isArray(g?.tasks) && g.tasks.length > 0);
+
+      if (hasAnyFilter && isEmptyResponse) {
+        response = await tasksApiService.getTaskListV3({
+          ...config,
+          members: '',
+          labels: '',
+          priorities: '',
+        });
+      }
 
       const groups = Array.isArray(response.body.groups) ? response.body.groups : [];
       const groupedTasksFlat = groups.flatMap((group: any) =>
