@@ -78,11 +78,10 @@ $RECYCLE.BIN/
 # TypeScript
 *.tsbuildinfo
 
-# Docker & SSL
+# SSL certs & backups
 nginx/ssl/
 backups/
 *.bak
-*.tmp
 nginx/conf.d/*.bak
 
 # AI/Agent generated analysis & temp files
