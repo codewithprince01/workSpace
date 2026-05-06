@@ -13,7 +13,7 @@ const VerifyResetEmailPage = lazy(() => import('@/pages/auth/VerifyResetEmailPag
 
 const authRoutes = [
   {
-    path: '/reset-password',
+    path: '/workspace/reset-password',
     element: <AuthLayout />,
     children: [
       {

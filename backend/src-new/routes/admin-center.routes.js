@@ -78,18 +78,10 @@ router.put('/organization/logo', async (req, res) => {
     const { file, file_name } = req.body;
 
     const isSuperAdmin = req.user.role === 'super_admin';
-    const targetTeamId = req.user.last_team_id;
+    const teamId = req.user.last_team_id;
 
-    let teamId = targetTeamId;
     if (!isSuperAdmin) {
-      const membership = await TeamMember.findOne({ 
-        user_id: req.user._id, 
-        team_id: targetTeamId,
-        is_active: true, 
-        role: { $in: ['admin', 'owner'] } 
-      });
-      if (!membership) return res.status(403).json({ done: false, message: 'Only admins can update organization logo' });
-      teamId = membership.team_id;
+      return res.status(403).json({ done: false, message: 'Only super admins can update organization logo' });
     }
 
     if (!teamId) return res.status(404).json({ done: false, message: 'Organization not found' });

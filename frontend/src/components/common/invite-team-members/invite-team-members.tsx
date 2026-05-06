@@ -1,4 +1,4 @@
-import { AutoComplete, Button, Flex, Form, Modal, Select, Spin, Typography, Avatar } from '@/shared/antd-imports';
+import { AutoComplete, Button, Flex, Form, Modal, Select, Spin, Typography } from '@/shared/antd-imports';
 import { notification } from 'antd';
 import { useAppSelector } from '@/hooks/useAppSelector';
 import { useAppDispatch } from '@/hooks/useAppDispatch';
@@ -12,8 +12,8 @@ import { jobTitlesApiService } from '@/api/settings/job-titles/job-titles.api.se
 import { IJobTitle } from '@/types/job.types';
 import { teamMembersApiService } from '@/api/team-members/teamMembers.api.service';
 import { ITeamMemberCreateRequest } from '@/types/teamMembers/team-member-create-request';
-import { UserOutlined } from '@ant-design/icons';
 import axios from 'axios';
+import Avatar from '@/components/Avatar';
 import { userDirectoryApiService, IUserSearchResult } from '@/api/super-admin/user-directory.api.service';
 import { theme } from 'antd';
 
@@ -137,11 +137,9 @@ const InviteTeamMembers = () => {
         <Avatar
           size={24}
           src={u.avatar_url}
-          icon={<UserOutlined />}
-          style={{ background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', flexShrink: 0, fontSize: 10 }}
-        >
-          {!u.avatar_url && u.name?.[0]?.toUpperCase()}
-        </Avatar>
+          name={u.name || ''}
+          style={{ flexShrink: 0 }}
+        />
         <div style={{ lineHeight: 1.3, minWidth: 0 }}>
           <div style={{ fontWeight: 600, fontSize: 12, color: token.colorText, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {u.name}

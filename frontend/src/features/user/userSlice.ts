@@ -13,6 +13,7 @@ const initialState: ILocalSession = {
   is_admin: sessionData?.is_admin,
   team_id: sessionData?.team_id,
   team_name: sessionData?.team_name,
+  team_logo_url: sessionData?.team_logo_url,
 };
 
 const userSlice = createSlice({
@@ -32,6 +33,7 @@ const userSlice = createSlice({
       state.is_admin = action.payload.is_admin;
       state.team_id = action.payload.team_id;
       state.team_name = action.payload.team_name;
+      state.team_logo_url = action.payload.team_logo_url;
     },
   },
 });

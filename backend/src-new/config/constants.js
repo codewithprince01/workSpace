@@ -33,7 +33,7 @@ if (!['db'].includes(_storageProvider)) {
 
 module.exports = {
   // Application
-  APP_NAME: 'Worklenz',
+  APP_NAME: 'Workspace',
   APP_VERSION: '1.4.16',
 
   // JWT — value validated above, never falls back to a public default
@@ -41,7 +41,7 @@ module.exports = {
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '30d',
 
   // Session — value validated above
-  SESSION_NAME: process.env.SESSION_NAME || 'worklenz.sid',
+  SESSION_NAME: process.env.SESSION_NAME || 'workspace.sid',
   SESSION_SECRET: _sessionSecret,
   SESSION_MAX_AGE: 30 * 24 * 60 * 60 * 1000, // 30 days
 
@@ -90,7 +90,7 @@ module.exports = {
   
   // Mail
   MAIL_PROVIDER: process.env.MAIL_PROVIDER || 'console', // console, smtp, ses
-  MAIL_FROM: process.env.MAIL_FROM || 'Worklenz <noreply@worklenz.com>',
+  MAIL_FROM: process.env.MAIL_FROM || 'Workspace <noreply@worklenz.com>',
   
   // SMTP Config
   SMTP_HOST: process.env.SMTP_HOST || 'smtp.mailtrap.io',

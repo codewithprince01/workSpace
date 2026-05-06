@@ -175,10 +175,10 @@ const StaticLicenseExpired = memo(() => {
         }}
       >
         <h1 style={{ fontSize: '24px', color: '#faad14', marginBottom: '16px' }}>
-          Your Worklenz trial has expired!
+          Your Workspace trial has expired!
         </h1>
         <p style={{ fontSize: '16px', color: '#555', marginBottom: '24px' }}>
-          Please upgrade now to continue using Worklenz.
+          Please upgrade now to continue using Workspace.
         </p>
         <button
           style={{

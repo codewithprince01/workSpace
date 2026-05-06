@@ -61,7 +61,7 @@ export const signUp = createAsyncThunk(
         const user = authorizeResponse.user || (authorizeResponse as any).data?.user;
         const token = (authorizeResponse as any).token || (authorizeResponse as any).data?.token;
         if (user) {
-          localStorage.setItem('session', JSON.stringify(user));
+          setSession(user);
         }
         if (token) {
           localStorage.setItem('worklenz_token', token);

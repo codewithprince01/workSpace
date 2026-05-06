@@ -13,6 +13,7 @@ import { theme } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
+import Avatar from '@/components/Avatar';
 
 import { useAppSelector } from '@/hooks/useAppSelector';
 import { useAppDispatch } from '@/hooks/useAppDispatch';
@@ -223,11 +224,30 @@ const ProjectMemberDrawer = () => {
                 }
               }}
               filterOption={false}
+              optionLabelProp="label"
               options={availableMembers.map(member => ({
                 key: member.id,
                 value: member.id,
-                label: `${member.name} (${member.email})`,
+                label: member.name,
+                label_display: (
+                  <Flex align="center" gap={8}>
+                    <Avatar
+                      name={member.name || ''}
+                      src={member.avatar_url}
+                      size={24}
+                    />
+                    <Flex vertical>
+                      <Typography.Text style={{ fontSize: 13, fontWeight: 500 }}>
+                        {member.name}
+                      </Typography.Text>
+                      <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+                        {member.email}
+                      </Typography.Text>
+                    </Flex>
+                  </Flex>
+                ),
               }))}
+              optionRender={(option) => (option.data as any).label_display}
             />
             <Button type="primary" onClick={handleInvite} loading={isInviting}>
               {t('invite')}

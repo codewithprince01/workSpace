@@ -105,7 +105,7 @@ exports.inviteMember = async (projectId, email, role, inviterId, inviterName) =>
   });
 
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-  const inviteLink = `${frontendUrl}/worklenz/invite/project/${token}`;
+  const inviteLink = `${frontendUrl}/workspace/invite/project/${token}`;
 
   await emailService.sendProjectInviteEmail(email, inviterName, project.name, inviteLink, role);
 

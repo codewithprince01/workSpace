@@ -1,11 +1,11 @@
-import { Button, Form, Modal, Select, Avatar, Typography, Tag, Spin, theme, notification } from 'antd';
+import { Button, Form, Modal, Select, Typography, Tag, Spin, theme, notification } from 'antd';
 import { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { projectsApiService } from '@/api/projects/projects.api.service';
 import { useParams } from 'react-router-dom';
 import { userDirectoryApiService, IUserSearchResult } from '@/api/super-admin/user-directory.api.service';
-import { UserOutlined } from '@ant-design/icons';
 import axios from 'axios';
+import Avatar from '@/components/Avatar';
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -96,11 +96,9 @@ const InviteProjectMember = ({ open, onClose, onSuccess }: InviteProjectMemberPr
         <Avatar
           size={26}
           src={u.avatar_url}
-          icon={<UserOutlined />}
-          style={{ background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', flexShrink: 0, fontSize: 11 }}
-        >
-          {!u.avatar_url && u.name?.[0]?.toUpperCase()}
-        </Avatar>
+          name={u.name || ''}
+          style={{ flexShrink: 0 }}
+        />
         <div style={{ lineHeight: 1.35, minWidth: 0 }}>
           <div style={{ fontWeight: 600, fontSize: 13, color: token.colorText, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {u.name}

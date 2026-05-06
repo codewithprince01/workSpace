@@ -1,4 +1,4 @@
-const { User } = require('../models');
+const { User, Team, Project, TeamMember, ProjectMember } = require('../models');
 const XLSX = require('xlsx');
 const mongoose = require('mongoose');
 
@@ -138,8 +138,25 @@ exports.deleteUser = async (req, res, next) => {
     if (!user) return res.status(404).json({ done: false, message: 'User not found' });
     if (user.role === 'super_admin') return res.status(403).json({ done: false, message: 'Cannot delete a super admin' });
 
-    await User.findByIdAndDelete(userId);
-    res.json({ done: true, message: 'User deleted successfully' });
+    // Cascading cleanup: deactivate owned teams and remove memberships
+    await Promise.all([
+      // Deactivate all teams owned by this user
+      Team.updateMany({ owner_id: userId }, { is_active: false }),
+      
+      // Remove user from all team memberships
+      TeamMember.deleteMany({ user_id: userId }),
+      
+      // Remove user from all project memberships
+      ProjectMember.deleteMany({ user_id: userId }),
+
+      // Archive all projects owned by this user
+      Project.updateMany({ owner_id: userId }, { is_archived: true }),
+
+      // Delete the user themselves
+      User.findByIdAndDelete(userId)
+    ]);
+
+    res.json({ done: true, message: 'User and their related data cleaned up successfully' });
   } catch (err) { next(err); }
 };
 

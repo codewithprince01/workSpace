@@ -10,11 +10,12 @@ const cacheService = require('../services/cache.service');
  */
 exports.getInfo = async (req, res, next) => {
   try {
-    // Return basic info - organization name can be added later if needed
+    const user = await User.findById(req.user._id).populate('last_team_id', 'name');
+    
     res.json({
       done: true,
       body: {
-        organization_name: ''
+        organization_name: user?.last_team_id?.name || ''
       }
     });
   } catch (error) {

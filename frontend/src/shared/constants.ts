@@ -44,32 +44,32 @@ export const avatarNamesMap: { [x: string]: string } = {
 };
 
 export const AvatarNamesMap: { [x: string]: string } = {
-  A: '#154c9b',
-  B: '#3b7ad4',
-  C: '#70a6f3',
-  D: '#7781ca',
-  E: '#9877ca',
-  F: '#c178c9',
-  G: '#ee87c5',
-  H: '#ca7881',
-  I: '#75c9c0',
-  J: '#75c997',
-  K: '#80ca79',
-  L: '#aacb78',
-  M: '#cbbc78',
-  N: '#cb9878',
-  O: '#bb774c',
-  P: '#905b39',
-  Q: '#903737',
-  R: '#bf4949',
-  S: '#f37070',
-  T: '#ff9c3c',
-  U: '#fbc84c',
-  V: '#cbc8a1',
+  A: '#f56565', // Red
+  B: '#4299e1', // Blue
+  C: '#48bb78', // Green
+  D: '#ed8936', // Orange
+  E: '#9f7aea', // Purple
+  F: '#ed64a6', // Pink
+  G: '#667eea', // Indigo
+  H: '#38b2ac', // Teal
+  I: '#f6ad55', // Amber
+  J: '#4fd1c7', // Cyan
+  K: '#e53e3e', // Dark Red
+  L: '#3182ce', // Dark Blue
+  M: '#38a169', // Dark Green
+  N: '#dd6b20', // Dark Orange
+  O: '#805ad5', // Dark Purple
+  P: '#d53f8c', // Dark Pink
+  Q: '#5a67d8', // Dark Indigo
+  R: '#319795', // Dark Teal
+  S: '#d69e2e', // Dark Amber
+  T: '#319795', // Cyan
+  U: '#f56565',
+  V: '#4299e1',
   W: '#1890ff',
   X: '#767676',
-  Y: '#cb9878',
-  Z: '#903737',
+  Y: '#ed8936',
+  Z: '#9f7aea',
   '+': '#9e9e9e',
 };
 

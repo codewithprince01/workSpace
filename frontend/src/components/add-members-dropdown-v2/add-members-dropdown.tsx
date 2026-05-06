@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Avatar, Button, Checkbox, Dropdown, Input, Menu, Typography, theme } from '@/shared/antd-imports';
+import { Button, Checkbox, Dropdown, Input, Menu, Typography, theme } from '@/shared/antd-imports';
 import { UserAddOutlined, UsergroupAddOutlined } from '@/shared/antd-imports';
 import './add-members-dropdown.css';
-import { AvatarNamesMap } from '@/shared/constants';
+import Avatar from '@/components/Avatar';
 
 const AddMembersDropdown: React.FC = () => {
   const [checkedMembers, setCheckedMembers] = useState<string[]>([]);
@@ -27,15 +27,12 @@ const AddMembersDropdown: React.FC = () => {
         >
           <div style={{ display: 'flex', alignItems: 'center' }}>
             <Avatar
+              name="Raveesha Dilanka"
+              size={28}
               style={{
-                backgroundColor: AvatarNamesMap['R'],
-                width: '28px',
-                height: '28px',
                 marginRight: '0.5rem',
               }}
-            >
-              R
-            </Avatar>
+            />
             <div style={{ lineHeight: '15px', display: 'flex', flexDirection: 'column' }}>
               <Typography.Text>Raveesha Dilanka</Typography.Text>
               <Typography.Text type="secondary" style={{ fontSize: '80%' }}>

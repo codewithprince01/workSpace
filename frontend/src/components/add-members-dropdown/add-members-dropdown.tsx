@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Avatar, Button, Checkbox, Dropdown, Input, Menu, Typography } from '@/shared/antd-imports';
+import { Button, Checkbox, Dropdown, Input, Menu, Typography } from '@/shared/antd-imports';
 import { PlusOutlined, UsergroupAddOutlined } from '@/shared/antd-imports';
 import './add-members-dropdown.css';
-import { AvatarNamesMap } from '../../shared/constants';
+import Avatar from '@/components/Avatar';
 import { useAppDispatch } from '@/hooks/useAppDispatch';
 import { useAppSelector } from '@/hooks/useAppSelector';
 
@@ -36,15 +36,12 @@ const AddMembersDropdown: React.FC = () => {
             }}
           >
             <Avatar
+              name="Raveesha Dilanka"
+              size={28}
               style={{
-                backgroundColor: AvatarNamesMap['R'],
-                width: '28px',
-                height: '28px',
                 marginRight: '0.5rem',
               }}
-            >
-              R
-            </Avatar>
+            />
             <div
               style={{
                 lineHeight: '15px',

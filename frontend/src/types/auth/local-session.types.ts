@@ -8,6 +8,7 @@ export interface IWorklenzAlert {
 export interface ILocalSession extends IUserType {
   team_id?: string;
   team_name?: string;
+  team_logo_url?: string;
   team_role?: 'owner' | 'admin' | 'member'; // User's role in current team
   role?: 'user' | 'super_admin';             // System-level role
   owner?: boolean;

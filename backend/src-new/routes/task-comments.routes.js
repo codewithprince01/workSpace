@@ -214,10 +214,10 @@ router.post('/', async (req, res) => {
                         if (recipient.email) {
                             const subject = `${senderName} added a comment on ${task.name} (${senderName})`;
                             const appBaseUrl = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '');
-                            const logoUrl = `${appBaseUrl}/worklenz-logo.png`;
+                            const logoUrl = `${appBaseUrl}/BritannicaWorkspaceLogo_Blue.png`;
                             const projectId = task?.project_id?._id?.toString?.() || task?.project_id?.toString?.() || '';
                             const taskId = task?._id?.toString?.() || '';
-                            const taskUrl = `${appBaseUrl}/worklenz/projects/${projectId}?tab=tasks-list&pinned_tab=tasks-list&task=${taskId}`;
+                            const taskUrl = `${appBaseUrl}/workspace/projects/${projectId}?tab=tasks-list&pinned_tab=tasks-list&task=${taskId}`;
                             const safeComment = String(
                                 normalizedContent || (hasAttachments ? 'Attachment added' : '')
                             )
@@ -239,7 +239,7 @@ router.post('/', async (req, res) => {
                               <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="max-width:640px; margin:0 auto;">
                                 <tr>
                                   <td style="padding-bottom:8px;">
-                                    <img src="${logoUrl}" alt="Worklenz" width="30" height="30" style="display:block; width:30px; height:30px; object-fit:contain;" />
+                                    <img src="${logoUrl}" alt="Workspace" width="30" height="30" style="display:block; width:30px; height:30px; object-fit:contain;" />
                                   </td>
                                 </tr>
                                 <tr>
@@ -272,7 +272,7 @@ router.post('/', async (req, res) => {
                                 <tr>
                                   <td style="border-top:1px solid #e5e7eb; padding-top:12px; font-size:12px; color:#6b7280;">
                                     This email sending to you because you have enabled email notifications.
-                                    <a href="${appBaseUrl}/worklenz/settings/notifications" style="color:#4b5563; text-decoration:underline; margin-left:4px;">
+                                    <a href="${appBaseUrl}/workspace/settings/notifications" style="color:#4b5563; text-decoration:underline; margin-left:4px;">
                                       Stop sending it to me.
                                     </a>
                                   </td>

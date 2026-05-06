@@ -63,7 +63,7 @@ router.get('/', async (req, res) => {
         message: n.message,
         project: n.project_id?.name || n.meta?.project_name || '',
         color: n.project_id?.color_code || '#1890ff',
-        url: projectId ? `/worklenz/projects/${projectId}` : '',
+        url: projectId ? `/workspace/projects/${projectId}` : '',
         task_id: taskId || '',
         params: {
           tab: 'tasks-list',

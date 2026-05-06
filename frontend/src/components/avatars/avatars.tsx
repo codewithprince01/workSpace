@@ -1,7 +1,7 @@
-import { Avatar, Tooltip } from '@/shared/antd-imports';
+import { Avatar as AntdAvatar, Tooltip } from '@/shared/antd-imports';
 import React, { useCallback, useMemo } from 'react';
 import { InlineMember } from '@/types/teamMembers/inlineMember.types';
-import { AvatarNamesMap } from '@/shared/constants';
+import Avatar from '@/components/Avatar';
 
 interface AvatarsProps {
   members: InlineMember[];
@@ -19,27 +19,14 @@ const Avatars: React.FC<AvatarsProps> = React.memo(({ members, maxCount }) => {
         key={member.team_member_id || index}
         title={member.end && member.names ? member.names.join(', ') : member.name}
       >
-        {member.avatar_url ? (
-          <span onClick={stopPropagation}>
-            <Avatar src={member.avatar_url} size={28} key={member.team_member_id || index} />
-          </span>
-        ) : (
-          <span onClick={stopPropagation}>
-            <Avatar
-              size={28}
-              key={member.team_member_id || index}
-              style={{
-                backgroundColor:
-                  member.color_code ||
-                  AvatarNamesMap[(member.name || '?').charAt(0).toUpperCase()] ||
-                  '#1890ff',
-                fontSize: '14px',
-              }}
-            >
-              {member.end && member.names ? member.name : member.name?.charAt(0).toUpperCase()}
-            </Avatar>
-          </span>
-        )}
+        <span onClick={stopPropagation} style={{ display: 'inline-block' }}>
+          <Avatar
+            src={member.avatar_url}
+            name={member.name || ''}
+            size={28}
+            backgroundColor={member.color_code}
+          />
+        </span>
       </Tooltip>
     ),
     [stopPropagation]
@@ -56,7 +43,7 @@ const Avatars: React.FC<AvatarsProps> = React.memo(({ members, maxCount }) => {
 
   return (
     <div onClick={stopPropagation}>
-      <Avatar.Group>{avatarElements}</Avatar.Group>
+      <AntdAvatar.Group>{avatarElements}</AntdAvatar.Group>
     </div>
   );
 });

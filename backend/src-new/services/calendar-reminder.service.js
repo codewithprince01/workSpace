@@ -111,7 +111,7 @@ async function sendNotification(event, minutes) {
           </div>
           ${event.description ? `<p><strong>Description:</strong><br/>${event.description}</p>` : ''}
           <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;" />
-          <p style="color: #9eadb6; font-size: 12px;">Sent by Worklenz Calendar System</p>
+          <p style="color: #9eadb6; font-size: 12px;">Sent by Workspace Calendar System</p>
         </div>
       `;
       

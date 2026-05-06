@@ -13,6 +13,7 @@ import logger from '@/utils/errorLogger';
 import { useMixpanelTracking } from '@/hooks/useMixpanelTracking';
 import { evt_admin_center_overview_visit } from '@/shared/worklenz-analytics-events';
 import { themeWiseColor } from '@/utils/themeWiseColor';
+import Avatar from '@/components/Avatar';
 
 const { Text } = Typography;
 
@@ -23,6 +24,7 @@ const Overview: React.FC = () => {
   const { trackMixpanelEvent } = useMixpanelTracking();
 
   const themeMode = useAppSelector((state: RootState) => state.themeReducer.mode);
+  const isSuperAdmin = useAppSelector((state: RootState) => state.superAdminReducer.isSuperAdmin);
   const { t } = useTranslation('admin-center/overview');
 
   const getOrganizationDetails = async () => {
@@ -131,47 +133,49 @@ const Overview: React.FC = () => {
         
         <div style={{ display: 'flex', gap: '80px', alignItems: 'flex-start' }}>
           {/* Logo Column */}
-          <div style={{ flex: '0 0 240px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 20 }}>
-              <span style={{ color: themeWiseColor('#595959', '#8c8c8c', themeMode), fontSize: 14, fontWeight: 500 }}>Logo</span>
-              <Tooltip title="Organization logo used in navbar and billing">
-                <InfoCircleOutlined style={{ color: themeWiseColor('#8c8c8c', '#8c8c8c', themeMode), fontSize: 14 }} />
-              </Tooltip>
+          {isSuperAdmin && (
+            <div style={{ flex: '0 0 240px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 20 }}>
+                <span style={{ color: themeWiseColor('#595959', '#8c8c8c', themeMode), fontSize: 14, fontWeight: 500 }}>Logo</span>
+                <Tooltip title="Organization logo used in navbar and billing">
+                  <InfoCircleOutlined style={{ color: themeWiseColor('#8c8c8c', '#8c8c8c', themeMode), fontSize: 14 }} />
+                </Tooltip>
+              </div>
+              
+              <Upload.Dragger
+                style={{
+                  width: '240px',
+                  height: '120px',
+                  borderRadius: '8px',
+                  border: `1px dashed ${themeWiseColor('#d9d9d9', '#434343', themeMode)}`,
+                  background: themeWiseColor('#fafafa', 'transparent', themeMode),
+                  overflow: 'hidden'
+                }}
+                showUploadList={false}
+                customRequest={handleLogoUpload}
+                accept="image/*"
+              >
+                {organization?.logo_url ? (
+                  <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: themeWiseColor('#fff', '#000', themeMode) }}>
+                    <img src={organization.logo_url} alt="Logo" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                  </div>
+                ) : (
+                  <div style={{ padding: '24px 0' }}>
+                      <PlusOutlined style={{ fontSize: '28px', color: themeWiseColor('#bfbfbf', '#8c8c8c', themeMode), marginBottom: 8 }} />
+                      <div style={{ color: themeWiseColor('#8c8c8c', '#8c8c8c', themeMode), fontSize: '14px', fontWeight: 500 }}>Upload Logo</div>
+                      <div style={{ fontSize: '10px', color: themeWiseColor('#bfbfbf', '#595959', themeMode), marginTop: 2 }}>PNG, JPG, WEBP</div>
+                  </div>
+                )}
+              </Upload.Dragger>
+              
+              <div style={{ ...smallTextStyle, marginTop: 20 }}>
+                Recommended: PNG format, 400×120px (landscape),<br /> under 500KB
+              </div>
+              <div style={{ ...smallTextStyle, marginTop: 16, opacity: 0.7 }}>
+                 Used in navbar and synced to client portal
+              </div>
             </div>
-            
-            <Upload.Dragger
-              style={{
-                width: '240px',
-                height: '120px',
-                borderRadius: '8px',
-                border: `1px dashed ${themeWiseColor('#d9d9d9', '#434343', themeMode)}`,
-                background: themeWiseColor('#fafafa', 'transparent', themeMode),
-                overflow: 'hidden'
-              }}
-              showUploadList={false}
-              customRequest={handleLogoUpload}
-              accept="image/*"
-            >
-              {organization?.logo_url ? (
-                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: themeWiseColor('#fff', '#000', themeMode) }}>
-                  <img src={organization.logo_url} alt="Logo" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
-                </div>
-              ) : (
-                <div style={{ padding: '24px 0' }}>
-                    <PlusOutlined style={{ fontSize: '28px', color: themeWiseColor('#bfbfbf', '#8c8c8c', themeMode), marginBottom: 8 }} />
-                    <div style={{ color: themeWiseColor('#8c8c8c', '#8c8c8c', themeMode), fontSize: '14px', fontWeight: 500 }}>Upload Logo</div>
-                    <div style={{ fontSize: '10px', color: themeWiseColor('#bfbfbf', '#595959', themeMode), marginTop: 2 }}>PNG, JPG, WEBP</div>
-                </div>
-              )}
-            </Upload.Dragger>
-            
-            <div style={{ ...smallTextStyle, marginTop: 20 }}>
-              Recommended: PNG format, 400×120px (landscape),<br /> under 500KB
-            </div>
-            <div style={{ ...smallTextStyle, marginTop: 16, opacity: 0.7 }}>
-               Used in navbar and synced to client portal
-            </div>
-          </div>
+          )}
 
           {/* Organization Name Column */}
           <div style={{ flex: '0 0 240px' }}>
@@ -191,7 +195,12 @@ const Overview: React.FC = () => {
           <div style={{ flex: '1' }}>
             <div style={{ ...sectionLabelStyle, color: themeWiseColor('#595959', '#8c8c8c', themeMode), marginBottom: 20 }}>Organization Owner</div>
             <div style={{ marginTop: 8 }}>
-                <div style={{ marginBottom: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                    <Avatar 
+                        name={organization?.owner_name || ''} 
+                        size={40} 
+                        isDarkMode={themeMode === 'dark'} 
+                    />
                     <Text style={{ fontSize: 16, color: themeWiseColor('#262626', '#fff', themeMode), fontWeight: 500 }}>{organization?.owner_name || '-'}</Text>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

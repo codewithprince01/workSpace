@@ -69,7 +69,7 @@ const NotificationItem = ({
         }}
       >
         <BankOutlined style={{ fontSize: '14px' }} />
-        <span>{notification.team || 'Worklenz'}</span>
+        <span>{notification.team || 'Workspace'}</span>
       </div>
 
       {/* Message */}

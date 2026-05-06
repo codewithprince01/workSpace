@@ -65,7 +65,16 @@ const Avatar: React.FC<AvatarProps> = ({
   ];
 
   const colors = isDarkMode ? darkColors : lightColors;
-  const colorIndex = name.charCodeAt(0) % colors.length;
+
+  const getHashCode = (str: string) => {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return hash;
+  };
+
+  const colorIndex = Math.abs(getHashCode(name || '')) % colors.length;
   const defaultBgColor = backgroundColor || colors[colorIndex];
 
   const handleClick = (e: React.MouseEvent) => {

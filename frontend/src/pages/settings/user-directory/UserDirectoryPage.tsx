@@ -10,6 +10,7 @@ import {
 import type { UploadProps } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { userDirectoryApiService, IProvisionedUser } from '@/api/super-admin/user-directory.api.service';
+import Avatar from '@/components/Avatar';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -113,12 +114,12 @@ const UserDirectoryPage: React.FC = () => {
       dataIndex: 'name',
       render: (name, row) => (
         <Space>
-          <span style={{
-            width: 32, height: 32, borderRadius: '50%',
-            background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            color: '#fff', fontWeight: 700, fontSize: 13, flexShrink: 0
-          }}>{name?.[0]?.toUpperCase()}</span>
+          <Avatar
+            name={name || ''}
+            size={32}
+            isDarkMode={isDark}
+            style={{ flexShrink: 0 }}
+          />
           <div>
             <div style={{ fontWeight: 500, color: token.colorText }}>{name}</div>
             <div style={{ fontSize: 12, color: token.colorTextTertiary }}>{row.department || '—'}</div>

@@ -66,7 +66,9 @@ export class CacheCleanup {
         console.log('CacheCleanup: Service Worker not supported');
       }
 
-      // Clear localStorage and sessionStorage
+      // Clear localStorage and sessionStorage (preserve theme)
+      const themeMode = localStorage.getItem('theme');
+      
       const localStorageKeys = Object.keys(localStorage);
       const sessionStorageKeys = Object.keys(sessionStorage);
       
@@ -75,7 +77,13 @@ export class CacheCleanup {
       
       localStorage.clear();
       sessionStorage.clear();
-      console.log('CacheCleanup: Local storage cleared');
+      
+      // Restore theme preference
+      if (themeMode) {
+        localStorage.setItem('theme', themeMode);
+      }
+      
+      console.log('CacheCleanup: Local storage cleared (theme preserved)');
 
       console.log('CacheCleanup: Cache clearing process completed successfully');
 

@@ -1,28 +1,24 @@
-import { AvatarNamesMap } from '@/shared/constants';
-import { Avatar, Flex, Space } from '@/shared/antd-imports';
+import React from 'react';
+import Avatar from '@/components/Avatar';
+import { Flex } from '@/shared/antd-imports';
 
 interface SingleAvatarProps {
   avatarUrl?: string;
   name?: string;
   email?: string;
+  size?: number;
 }
 
-const SingleAvatar: React.FC<SingleAvatarProps> = ({ avatarUrl, name, email = null }) => {
-  const firstChar = (name?.charAt(0) || '').toUpperCase();
-  const avatarColor = AvatarNamesMap[firstChar] || '#1890ff';
-
+const SingleAvatar: React.FC<SingleAvatarProps> = ({ avatarUrl, name, email = null, size = 28 }) => {
   return (
     <Avatar
       src={avatarUrl}
-      size={28}
+      name={name || ''}
+      size={size}
       style={{
-        backgroundColor: avatarUrl ? 'transparent' : avatarColor,
-        border: avatarUrl ? 'none' : `1px solid ${avatarColor}`,
         marginRight: '8px',
       }}
-    >
-      {firstChar}
-    </Avatar>
+    />
   );
 };
 

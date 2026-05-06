@@ -1,4 +1,4 @@
-import { ConfigProvider, Flex, Layout } from '@/shared/antd-imports';
+import { ConfigProvider, Flex, Layout, theme } from '@/shared/antd-imports';
 import React from 'react';
 import { Outlet } from 'react-router-dom';
 import { useAppSelector } from '../hooks/useAppSelector';
@@ -10,6 +10,7 @@ const AuthLayout = () => {
   return (
     <ConfigProvider
       theme={{
+        algorithm: themeMode === 'dark' ? theme.darkAlgorithm : theme.defaultAlgorithm,
         components: {
           Layout: {
             colorBgLayout: themeMode === 'dark' ? colors.darkGray : '#fafafa',

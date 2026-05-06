@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Avatar,
   Button,
   Drawer,
   Flex,
@@ -12,6 +11,7 @@ import {
   Tooltip,
   Typography,
 } from '@/shared/antd-imports';
+import Avatar from '@/components/Avatar';
 import { useAppDispatch } from '@/hooks/useAppDispatch';
 import { useAppSelector } from '@/hooks/useAppSelector';
 import { useAuthService } from '@/hooks/useAuth';
@@ -193,7 +193,7 @@ const UpdateMemberDrawer = ({ selectedMemberId, onMemberUpdate }: UpdateMemberDr
     <Drawer
       title={
         <Flex gap={8} align="center">
-          <Avatar src={teamMember?.avatar_url}>{teamMember?.name?.charAt(0).toUpperCase()}</Avatar>
+          <Avatar src={teamMember?.avatar_url} name={teamMember?.name || ''} size={32} />
           <Flex vertical gap={4}>
             <Typography.Text
               style={{
@@ -278,9 +278,7 @@ const UpdateMemberDrawer = ({ selectedMemberId, onMemberUpdate }: UpdateMemberDr
                     {potentialManagers.map(m => (
                       <Select.Option key={m.id} value={m.id} label={m.name}>
                         <Flex align="center" gap={8}>
-                          <Avatar size="small" src={m.avatar_url}>
-                            {m.name?.charAt(0).toUpperCase()}
-                          </Avatar>
+                      <Avatar size={24} src={m.avatar_url} name={m.name || ''} />
                           {m.name}
                         </Flex>
                       </Select.Option>

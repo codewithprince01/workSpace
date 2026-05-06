@@ -2,6 +2,7 @@ import { Table, TableProps, Typography } from '@/shared/antd-imports';
 import React, { useMemo } from 'react';
 import { IOrganizationAdmin } from '@/types/admin-center/admin-center.types';
 import { themeWiseColor } from '@/utils/themeWiseColor';
+import Avatar from '@/components/Avatar';
 
 interface OrganizationAdminsTableProps {
   organizationAdmins: IOrganizationAdmin[] | null;
@@ -23,7 +24,13 @@ const OrganizationAdminsTable: React.FC<OrganizationAdminsTableProps> = ({
         dataIndex: 'name',
         key: 'name',
         render: (text, record) => (
-          <div style={{ padding: '8px 0' }}>
+          <div style={{ padding: '8px 0', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <Avatar 
+              src={record.avatar_url} 
+              name={text} 
+              size={32} 
+              isDarkMode={themeMode === 'dark'} 
+            />
             <Text style={{ color: themeWiseColor('#262626', '#fafafa', themeMode), fontWeight: 500 }}>
               {text}
               {record.is_owner && <Text style={{ color: '#1890ff', marginLeft: 8 }}>(Owner)</Text>}

@@ -114,15 +114,15 @@ exports.sendEmail = async ({ to, subject, html, text }) => {
 exports.sendProjectInviteEmail = async (toEmail, inviterName, projectName, inviteLink, role) => {
   const safeInviter = inviterName || 'A teammate';
   const safeProjectName = projectName || 'a project';
-  const subject = `${safeInviter} has invited you to work with ${safeInviter} in Worklenz`;
+  const subject = `${safeInviter} has invited you to work with ${safeInviter} in Workspace`;
   
   const html = `
     <div style="font-family: Arial, Helvetica, sans-serif; background:#ffffff; color:#111827; max-width:620px; margin:0 auto; border:1px solid #e5e7eb; border-radius:12px; overflow:hidden;">
       <div style="padding:24px;">
-        <h2 style="margin:0 0 10px 0; font-size:22px; color:#111827;">Join your team on Worklenz</h2>
+        <h2 style="margin:0 0 10px 0; font-size:22px; color:#111827;">Join your team on Workspace</h2>
         <p style="margin:0 0 14px 0; font-size:14px; color:#4b5563;">Hi,</p>
         <p style="margin:0 0 12px 0; font-size:15px; line-height:1.5;">
-          <strong>${safeInviter}</strong> has invited you to work with <strong>${safeInviter}</strong> in Worklenz.
+          <strong>${safeInviter}</strong> has invited you to work with <strong>${safeInviter}</strong> in Workspace.
         </p>
         <p style="margin:0 0 6px 0; font-size:14px; color:#374151;">
           Project: <strong>${safeProjectName}</strong>
@@ -133,7 +133,7 @@ exports.sendProjectInviteEmail = async (toEmail, inviterName, projectName, invit
 
         <div style="margin: 24px 0; text-align: left;">
           <a href="${inviteLink}" style="background-color:#1890ff; color:#ffffff; padding:12px 22px; text-decoration:none; border-radius:8px; font-weight:700; display:inline-block;">
-            Join Worklenz
+            Join Workspace
           </a>
         </div>
 
@@ -164,7 +164,7 @@ exports.sendProjectAdditionEmail = async (toEmail, inviterName, projectName, rol
   const subject = `You have been added to ${safeProjectName} by ${safeInviter}`;
   
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-  const projectLink = `${frontendUrl}/worklenz/projects`;
+  const projectLink = `${frontendUrl}/workspace/projects`;
 
   const html = `
     <div style="font-family: Arial, Helvetica, sans-serif; background:#ffffff; color:#111827; max-width:620px; margin:0 auto; border:1px solid #e5e7eb; border-radius:12px; overflow:hidden;">
@@ -172,7 +172,7 @@ exports.sendProjectAdditionEmail = async (toEmail, inviterName, projectName, rol
         <h2 style="margin:0 0 10px 0; font-size:22px; color:#111827;">You've been added to a new project</h2>
         <p style="margin:0 0 14px 0; font-size:14px; color:#4b5563;">Hi,</p>
         <p style="margin:0 0 12px 0; font-size:15px; line-height:1.5;">
-          <strong>${safeInviter}</strong> has added you to the project <strong>${safeProjectName}</strong> in Worklenz.
+          <strong>${safeInviter}</strong> has added you to the project <strong>${safeProjectName}</strong> in Workspace.
         </p>
         <p style="margin:0 0 18px 0; font-size:14px; color:#374151;">
           Role: <strong style="text-transform:capitalize;">${role || 'member'}</strong>
@@ -185,7 +185,7 @@ exports.sendProjectAdditionEmail = async (toEmail, inviterName, projectName, rol
         </div>
       </div>
       <div style="border-top:1px solid #e5e7eb; padding:14px 24px; font-size:12px; color:#6b7280;">
-        Worklenz Team
+        Workspace Team
       </div>
     </div>
   `;
@@ -203,7 +203,7 @@ exports.sendProjectAdditionEmail = async (toEmail, inviterName, projectName, rol
 exports.sendTeamInviteEmail = async (toEmail, inviterName, teamName, inviteLink, role) => {
   const safeInviter = inviterName || 'A teammate';
   const safeTeamName = teamName || 'a team';
-  const subject = `${safeInviter} has invited you to join ${safeTeamName} on Worklenz`;
+  const subject = `${safeInviter} has invited you to join ${safeTeamName} on Workspace`;
   
   const html = `
     <div style="font-family: Arial, Helvetica, sans-serif; background:#ffffff; color:#111827; max-width:620px; margin:0 auto; border:1px solid #e5e7eb; border-radius:12px; overflow:hidden;">
@@ -211,7 +211,7 @@ exports.sendTeamInviteEmail = async (toEmail, inviterName, teamName, inviteLink,
         <h2 style="margin:0 0 10px 0; font-size:22px; color:#111827;">You've been invited!</h2>
         <p style="margin:0 0 14px 0; font-size:14px; color:#4b5563;">Hi,</p>
         <p style="margin:0 0 12px 0; font-size:15px; line-height:1.5;">
-          <strong>${safeInviter}</strong> has invited you to join the team <strong>${safeTeamName}</strong> on Worklenz.
+          <strong>${safeInviter}</strong> has invited you to join the team <strong>${safeTeamName}</strong> on Workspace.
         </p>
         <p style="margin:0 0 18px 0; font-size:14px; color:#374151;">
           Role: <strong style="text-transform:capitalize;">${role || 'member'}</strong>
@@ -229,7 +229,7 @@ exports.sendTeamInviteEmail = async (toEmail, inviterName, teamName, inviteLink,
         </p>
       </div>
       <div style="border-top:1px solid #e5e7eb; padding:14px 24px; font-size:12px; color:#6b7280;">
-        Worklenz Team
+        Workspace Team
       </div>
     </div>
   `;

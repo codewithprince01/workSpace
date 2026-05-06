@@ -23,7 +23,7 @@ const generateToken = (userId) => {
 /**
  * Send token response
  */
-const sendTokenResponse = (user, statusCode, res, message = null) => {
+const sendTokenResponse = async (user, statusCode, res, message = null) => {
   const token = generateToken(user._id);
   
   const cookieOptions = {
@@ -33,6 +33,12 @@ const sendTokenResponse = (user, statusCode, res, message = null) => {
     sameSite: process.env.NODE_ENV === 'production' ? 'lax' : 'lax',
     path: '/'
   };
+
+  let teamLogoUrl = null;
+  if (user.last_team_id) {
+    const team = await Team.findById(user.last_team_id);
+    if (team) teamLogoUrl = team.logo_url;
+  }
   
   res
     .status(statusCode)
@@ -52,6 +58,7 @@ const sendTokenResponse = (user, statusCode, res, message = null) => {
           is_super_admin: user.role === 'super_admin',
           owner: user.owner || false,
           team_id: user.last_team_id,
+          team_logo_url: teamLogoUrl,
           setup_completed: user.setup_completed || false,
           super_admin_active_team: user.super_admin_active_team || null,
           super_admin_manage_mode: user.super_admin_manage_mode || false
@@ -116,7 +123,7 @@ exports.signup = async (req, res, next) => {
     user.last_team_id = team._id;
     await user.save({ validateBeforeSave: false });
     
-    sendTokenResponse(user, 201, res, 'Account created successfully');
+    await sendTokenResponse(user, 201, res, 'Account created successfully');
   } catch (error) {
     console.error('Signup error:', error);
     if (error.name === 'MongooseError' && error.message.includes('buffering timed out')) {
@@ -187,7 +194,7 @@ exports.login = async (req, res, next) => {
         } else {
           if (!user.last_team_id) user.last_team_id = existingMembership.team_id;
         }
-        // Mark setup complete → frontend goes directly to /worklenz/home
+        // Mark setup complete → frontend goes directly to /workspace/home
         user.setup_completed = true;
         await user.save({ validateBeforeSave: false });
       } catch (teamErr) {
@@ -206,7 +213,7 @@ exports.login = async (req, res, next) => {
       await user.save({ validateBeforeSave: false });
     }
 
-    sendTokenResponse(user, 200, res, 'Login successful');
+    await sendTokenResponse(user, 200, res, 'Login successful');
 
   } catch (error) {
     console.error('Login error:', error);
@@ -330,6 +337,7 @@ exports.verify = async (req, res, next) => {
         if (targetTeam) {
             userObj.team_id = targetTeam._id.toString();
             userObj.team_name = targetTeam.name; // Pass team name for frontend display
+            userObj.team_logo_url = targetTeam.logo_url;
             userObj.team_role = 'super_admin';
             userObj.super_admin_active_team = targetTeam._id.toString();
         }
@@ -344,6 +352,12 @@ exports.verify = async (req, res, next) => {
           is_active: true
         });
 
+        const team = await Team.findById(user.last_team_id);
+        if (team) {
+          userObj.team_name = team.name;
+          userObj.team_logo_url = team.logo_url;
+        }
+
         if (teamMember) {
           userObj.team_role = teamMember.role;
           // Reflect correct admin/owner access for the ACTIVE team
@@ -353,12 +367,6 @@ exports.verify = async (req, res, next) => {
           // Fallback: check if user owns any team (e.g. their personal org)
           userObj.is_admin = !!ownerMembership;
           userObj.owner    = !!ownerMembership;
-        }
-
-        // Try to get team name if not already set
-        if (!userObj.team_name) {
-          const team = await Team.findById(user.last_team_id);
-          if (team) userObj.team_name = team.name;
         }
     }
 
@@ -410,7 +418,7 @@ exports.forgotPassword = async (req, res, next) => {
     await user.save({ validateBeforeSave: false });
 
     // Send email
-    const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
+    const resetUrl = `${process.env.FRONTEND_URL}/workspace/reset-password?token=${resetToken}`;
     
     const message = `
       <div style="font-family: sans-serif; padding: 20px; color: #333; max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 8px;">
@@ -425,7 +433,7 @@ exports.forgotPassword = async (req, res, next) => {
         <p>If you did not request this, please ignore this email and your password will remain unchanged.</p>
         
         <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;" />
-        <p style="color: #9eadb6; font-size: 12px;">Worklenz Security Team</p>
+        <p style="color: #9eadb6; font-size: 12px;">Workspace Security Team</p>
       </div>
     `;
 
@@ -482,7 +490,7 @@ exports.resetPassword = async (req, res, next) => {
     
     await user.save();
 
-    sendTokenResponse(user, 200, res, 'Password updated successfully');
+    await sendTokenResponse(user, 200, res, 'Password updated successfully');
   } catch (error) {
     next(error);
   }
@@ -533,7 +541,7 @@ exports.updatePassword = async (req, res, next) => {
     user.password = new_password;
     await user.save();
     
-    sendTokenResponse(user, 200, res, 'Password updated successfully');
+    await sendTokenResponse(user, 200, res, 'Password updated successfully');
   } catch (error) {
     console.error('Update password error:', error);
     next(error);

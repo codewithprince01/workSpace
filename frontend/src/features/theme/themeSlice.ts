@@ -9,8 +9,16 @@ interface ThemeState {
 
 const isBrowser = typeof window !== 'undefined';
 
-const getPreloadedTheme = (): ThemeType =>
-  !isBrowser ? 'light' : (window as any).__THEME_STATE__ || 'light';
+const getPreloadedTheme = (): ThemeType => {
+  if (!isBrowser) return 'light';
+  try {
+    const saved = localStorage.getItem('theme') as ThemeType;
+    if (saved === 'dark' || saved === 'light') return saved;
+  } catch (error) {
+    // ignore
+  }
+  return (window as any).__THEME_STATE__ || 'light';
+};
 
 const getSystemTheme = (): ThemeType =>
   !isBrowser
@@ -22,7 +30,8 @@ const getSystemTheme = (): ThemeType =>
 const getThemeModeFromLocalStorage = (): ThemeType => {
   if (!isBrowser) return 'light';
   try {
-    return (localStorage.getItem('theme') as ThemeType) || getSystemTheme();
+    // Default to 'light' instead of system theme as per user request
+    return (localStorage.getItem('theme') as ThemeType) || 'light';
   } catch {
     return 'light';
   }

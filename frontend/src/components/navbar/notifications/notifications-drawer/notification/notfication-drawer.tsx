@@ -83,7 +83,7 @@ const NotificationDrawer = () => {
     dispatch(fetchInvitations());
 
     if (isPushEnabled()) {
-      const title = notification.team ? `${notification.team} | Worklenz` : 'Worklenz';
+      const title = notification.team ? `${notification.team} | Workspace` : 'Workspace';
       let url = notification.url;
       if (url && notification.params && Object.keys(notification.params).length) {
         const q = toQueryString(notification.params);

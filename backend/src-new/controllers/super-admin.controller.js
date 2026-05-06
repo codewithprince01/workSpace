@@ -13,15 +13,17 @@ exports.getAllTeams = async (req, res, next) => {
       .sort({ created_at: -1 })
       .lean();
 
-    const formatted = teams.map(t => ({
-      id: t._id.toString(),
-      name: t.name,
-      color_code: t.color_code,
-      created_at: t.created_at,
-      owner_name: t.owner_id?.name || 'Unknown',
-      owner_email: t.owner_id?.email || '',
-      owner_avatar: t.owner_id?.avatar_url || null,
-    }));
+    const formatted = teams
+      .filter(t => t.owner_id) // Skip teams with deleted owners
+      .map(t => ({
+        id: t._id.toString(),
+        name: t.name,
+        color_code: t.color_code,
+        created_at: t.created_at,
+        owner_name: t.owner_id?.name || 'Unknown',
+        owner_email: t.owner_id?.email || '',
+        owner_avatar: t.owner_id?.avatar_url || null,
+      }));
 
     // Log access
     await logSuperAdminAction({
@@ -330,20 +332,22 @@ exports.getAllProjects = async (req, res, next) => {
     const taskCountMap = {};
     taskCounts.forEach(t => { taskCountMap[t._id.toString()] = t.count; });
 
-    const formatted = projects.map(p => ({
-      id: p._id.toString(),
-      name: p.name,
-      color_code: p.color_code || '#1890ff',
-      status: p.status || 'active',
-      created_at: p.created_at,
-      team_id: p.team_id?._id?.toString() || null,
-      team_name: p.team_id?.name || 'Unknown',
-      team_color: p.team_id?.color_code || '#6366f1',
-      owner_name: p.owner_id?.name || 'Unknown',
-      owner_email: p.owner_id?.email || '',
-      owner_avatar: p.owner_id?.avatar_url || null,
-      total_tasks: taskCountMap[p._id.toString()] || 0,
-    }));
+    const formatted = projects
+      .filter(p => p.owner_id) // Skip projects with deleted owners
+      .map(p => ({
+        id: p._id.toString(),
+        name: p.name,
+        color_code: p.color_code || '#1890ff',
+        status: p.status || 'active',
+        created_at: p.created_at,
+        team_id: p.team_id?._id?.toString() || null,
+        team_name: p.team_id?.name || 'Unknown',
+        team_color: p.team_id?.color_code || '#6366f1',
+        owner_name: p.owner_id?.name || 'Unknown',
+        owner_email: p.owner_id?.email || '',
+        owner_avatar: p.owner_id?.avatar_url || null,
+        total_tasks: taskCountMap[p._id.toString()] || 0,
+      }));
 
     res.json({ done: true, body: formatted, total: parseInt(total), page: parseInt(page) });
   } catch (error) {

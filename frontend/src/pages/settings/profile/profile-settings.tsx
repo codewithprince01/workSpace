@@ -151,8 +151,11 @@ const ProfileSettings = () => {
         // Refresh user session to get updated data
         const authorizeResponse = await authApiService.verify();
         if (authorizeResponse.authenticated) {
-          setSession(authorizeResponse.user);
-          dispatch(setUser(authorizeResponse.user));
+          const user = (authorizeResponse as any).data?.user || authorizeResponse.user;
+          if (user) {
+            setSession(user);
+            dispatch(setUser(user));
+          }
         }
       }
     } catch (error) {

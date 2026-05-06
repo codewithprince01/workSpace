@@ -204,7 +204,7 @@ exports.invite = async (req, res, next) => {
 
     const project = await Project.findById(project_id);
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    const inviteLink = `${frontendUrl}/worklenz/invite/project/${token}`;
+    const inviteLink = `${frontendUrl}/workspace/invite/project/${token}`;
 
     try {
       await emailService.sendProjectInviteEmail(

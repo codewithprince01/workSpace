@@ -1,8 +1,6 @@
 import React from 'react';
-import Tooltip from 'antd/es/tooltip';
-import Avatar from 'antd/es/avatar';
-
-import { AvatarNamesMap } from '../shared/constants';
+import { Tooltip } from '@/shared/antd-imports';
+import Avatar from '@/components/Avatar';
 
 interface CustomAvatarProps {
   avatarName: string;
@@ -11,22 +9,13 @@ interface CustomAvatarProps {
 
 const CustomAvatar = React.forwardRef<HTMLDivElement, CustomAvatarProps>(
   ({ avatarName, size = 32 }, ref) => {
-    const avatarCharacter = avatarName[0].toUpperCase();
-
     return (
       <Tooltip title={avatarName}>
         <div ref={ref} style={{ display: 'inline-block' }}>
           <Avatar
-            style={{
-              backgroundColor: AvatarNamesMap[avatarCharacter],
-              verticalAlign: 'middle',
-              width: size,
-              height: size,
-            }}
-            shape="circle"
-          >
-            {avatarCharacter}
-          </Avatar>
+            name={avatarName}
+            size={size}
+          />
         </div>
       </Tooltip>
     );
