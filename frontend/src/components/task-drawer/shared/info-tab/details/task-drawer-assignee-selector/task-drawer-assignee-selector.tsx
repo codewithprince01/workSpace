@@ -22,6 +22,7 @@ import { useSocket } from '@/socket/socketContext';
 import { SocketEvents } from '@/shared/socket-events';
 import { ITaskViewModel } from '@/types/tasks/task.types';
 import { ITaskAssigneesUpdateResponse } from '@/types/tasks/task-assignee-update-response';
+import { IProjectTask } from '@/types/project/projectTasksViewModel.types';
 import { setTaskAssignee } from '@/features/task-drawer/task-drawer.slice';
 import { fetchTaskAssignees } from '@/features/tasks/tasks.slice';
 import { updateEnhancedKanbanTaskAssignees } from '@/features/enhanced-kanban/enhanced-kanban.slice';
@@ -104,7 +105,24 @@ const TaskDrawerAssigneeSelector = ({ task }: TaskDrawerAssigneeSelectorProps) =
       const effectiveTaskId = String(task?.id || selectedTaskId || '');
       if (!data || String((data as any).id || '') !== effectiveTaskId) return;
 
-      dispatch(setTaskAssignee(data));
+      const drawerAssigneePayload: IProjectTask = {
+        id: String(data.id || effectiveTaskId),
+        manual_progress: task?.manual_progress ?? false,
+        assignees: (data.assignees || []).map(a => ({
+          team_member_id: String(a?.team_member_id || a?.id || ''),
+          id: String(a?.id || a?.team_member_id || ''),
+          project_member_id: '',
+          name: a?.name || '',
+        })),
+        names: (data.names || data.assignees || []).map(a => ({
+          team_member_id: String((a as any)?.team_member_id || (a as any)?.id || ''),
+          id: String((a as any)?.id || (a as any)?.team_member_id || ''),
+          name: (a as any)?.name || '',
+          avatar_url: (a as any)?.avatar_url || '',
+        })),
+      };
+
+      dispatch(setTaskAssignee(drawerAssigneePayload));
       dispatch(
         updateTaskManagementAssignees({
           taskId: String(data.id || effectiveTaskId),
