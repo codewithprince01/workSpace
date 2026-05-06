@@ -13,7 +13,7 @@ declare global {
 }
 
 export const getApiUrl = (): string => {
-  // First check runtime-injected environment variables
+  // First check runtime-injected environment variables (set in public/env-config.js)
   if (window.VITE_API_URL) {
     return window.VITE_API_URL;
   }
@@ -23,7 +23,7 @@ export const getApiUrl = (): string => {
     return import.meta.env.VITE_API_URL;
   }
 
-  // Default for development: avoid relying solely on Vite proxy
+  // On local development: hit backend directly (Vite dev server also proxies /api/)
   if (typeof window !== 'undefined') {
     const host = window.location.hostname;
     if (host === 'localhost' || host === '127.0.0.1') {
@@ -31,6 +31,8 @@ export const getApiUrl = (): string => {
     }
   }
 
+  // On production (live VPS): return '' so axios uses relative URLs like /api/tasks/...
+  // Nginx will proxy /api/ and /socket.io/ to http://127.0.0.1:3000
   return '';
 };
 

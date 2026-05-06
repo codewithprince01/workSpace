@@ -568,7 +568,7 @@ export const tasksApiService = {
     };
 
     const fetchV3 = async () => {
-      const response = await apiClient.get(`/tasks/list/v3/${config.id}${q}`, silentErrorConfig);
+      const response = await apiClient.get(`${rootUrl}/list/v3/${config.id}${q}`, silentErrorConfig);
       const data = response.data as IServerResponse<ITaskListV3Response>;
       const groups = Array.isArray(data?.body?.groups)
         ? data.body.groups.map((group: any) => {
