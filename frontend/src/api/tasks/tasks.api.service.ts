@@ -55,10 +55,49 @@ export interface ITaskListV3Response {
 export const tasksApiService = {
   getTaskList: async (config: ITaskListConfigV2): Promise<IServerResponse<ITaskListGroup[]>> => {
     const response = await tasksApiService.getTaskListV3(config);
-    const groups = (response?.body?.groups || []).map((group: any) => ({
+    let groups = (response?.body?.groups || []).map((group: any) => ({
       ...group,
       name: group?.title || group?.name || '',
     }));
+
+    // Live-safe fallback: always show default status groups if backend returns empty status groups.
+    if ((!groups || groups.length === 0) && (config.group || 'status') === 'status') {
+      groups = [
+        {
+          id: 'default-status-todo',
+          title: 'To Do',
+          name: 'To Do',
+          groupType: 'status',
+          groupValue: 'todo',
+          collapsed: false,
+          tasks: [],
+          taskIds: [],
+          color: '#75c9c0',
+        },
+        {
+          id: 'default-status-doing',
+          title: 'In Progress',
+          name: 'In Progress',
+          groupType: 'status',
+          groupValue: 'doing',
+          collapsed: false,
+          tasks: [],
+          taskIds: [],
+          color: '#3b7ad4',
+        },
+        {
+          id: 'default-status-done',
+          title: 'Done',
+          name: 'Done',
+          groupType: 'status',
+          groupValue: 'done',
+          collapsed: false,
+          tasks: [],
+          taskIds: [],
+          color: '#70a6f3',
+        },
+      ] as any;
+    }
 
     return {
       done: Boolean(response?.done ?? true),
