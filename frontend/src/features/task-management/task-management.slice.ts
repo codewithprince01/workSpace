@@ -92,6 +92,30 @@ const initialState: TaskManagementState = {
   sortOrder: 'ASC',
 };
 
+const buildDefaultGroupsByGrouping = (grouping?: string): TaskGroup[] => {
+  if (grouping === 'priority') {
+    return [
+      { id: 'urgent', title: 'Urgent', name: 'Urgent', taskIds: [], tasks: [], color: '#f50' } as any,
+      { id: 'high', title: 'High', name: 'High', taskIds: [], tasks: [], color: '#ff9800' } as any,
+      { id: 'medium', title: 'Medium', name: 'Medium', taskIds: [], tasks: [], color: '#2db7f5' } as any,
+      { id: 'low', title: 'Low', name: 'Low', taskIds: [], tasks: [], color: '#87d068' } as any,
+    ];
+  }
+
+  if (grouping === 'phase') {
+    return [
+      { id: 'no-phase', title: 'No Phase', name: 'No Phase', taskIds: [], tasks: [], color: '#cccccc' } as any,
+    ];
+  }
+
+  // Default: status
+  return [
+    { id: 'todo', title: 'To Do', name: 'To Do', taskIds: [], tasks: [], color: '#75c9c0' } as any,
+    { id: 'doing', title: 'In Progress', name: 'In Progress', taskIds: [], tasks: [], color: '#3b7ad4' } as any,
+    { id: 'done', title: 'Done', name: 'Done', taskIds: [], tasks: [], color: '#70a6f3' } as any,
+  ];
+};
+
 // Async thunk to fetch tasks from API
 export const fetchTasks = createAsyncThunk(
   'taskManagement/fetchTasks',
@@ -1209,8 +1233,12 @@ const taskManagementSlice = createSlice({
         
         tasksAdapter.setAll(state as EntityState<Task, string>, tasksWithTimers); // Ensure allTasks is an array
         state.ids = tasksWithTimers.map(task => task.id); // Also update ids
-        state.groups = groups;
-        state.grouping = grouping;
+        const normalizedGrouping = grouping || state.grouping || 'status';
+        state.groups =
+          Array.isArray(groups) && groups.length > 0
+            ? groups
+            : buildDefaultGroupsByGrouping(normalizedGrouping);
+        state.grouping = normalizedGrouping;
       })
       .addCase(fetchTasksV3.rejected, (state, action) => {
         state.loading = false;
