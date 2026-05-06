@@ -28,7 +28,7 @@ const AdminCenterSidebar: React.FC = () => {
                 {item.icon}
             </span>
             <Link 
-                to={`/worklenz/admin-center/${item.endpoint}`}
+                to={`/workspace/admin-center/${item.endpoint}`}
                 style={{ color: themeWiseColor('#262626', '#d1d1d1', themeMode), fontSize: '14px', fontWeight: 500 }}
             >
                 {t(item.name)}
@@ -57,7 +57,7 @@ const AdminCenterSidebar: React.FC = () => {
     >
       <Menu
         items={items}
-        selectedKeys={[location.pathname.split('/worklenz/admin-center/')[1] || '']}
+        selectedKeys={[location.pathname.split('/workspace/admin-center/')[1] || '']}
         mode="vertical"
         style={{ border: 'none', width: '100%', backgroundColor: 'transparent' }}
       />

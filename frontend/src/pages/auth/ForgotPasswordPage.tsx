@@ -52,7 +52,7 @@ const ForgotPasswordPage = () => {
           if (user) {
             setSession(user);
             dispatch(setUser(user));
-            navigate('/worklenz/home');
+            navigate('/workspace/home');
           }
         }
       } catch (error) {

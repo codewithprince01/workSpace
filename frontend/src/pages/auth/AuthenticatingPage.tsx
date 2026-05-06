@@ -21,11 +21,11 @@ const AuthenticatingPage: React.FC = () => {
     const project = localStorage.getItem(WORKLENZ_REDIRECT_PROJ_KEY);
     if (project) {
       localStorage.removeItem(WORKLENZ_REDIRECT_PROJ_KEY);
-      window.location.href = `/worklenz/projects/${project}?tab=tasks-list`;
+      window.location.href = `/workspace/projects/${project}?tab=tasks-list`;
       return;
     }
 
-    navigate('/worklenz/home');
+    navigate('/workspace/home');
   };
 
   useEffect(() => {
@@ -47,7 +47,7 @@ const AuthenticatingPage: React.FC = () => {
         dispatch(setUser(user));
 
         // Always redirect to home — setup flow is disabled
-        window.location.href = '/worklenz/home';
+        window.location.href = '/workspace/home';
         return;
       } catch (error) {
         logger.error('Authentication verification failed:', error);

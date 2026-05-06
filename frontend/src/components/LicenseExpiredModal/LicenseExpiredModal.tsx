@@ -153,7 +153,7 @@ export const LicenseExpiredModal = ({ open, subscriptionType = ISUBSCRIPTION_TYP
         setIsContactingSupport(false);
       }
     } else {
-      navigate('/worklenz/admin-center/billing');
+      navigate('/workspace/admin-center/billing');
     }
   };
 

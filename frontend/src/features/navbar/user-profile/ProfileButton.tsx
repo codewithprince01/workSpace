@@ -110,17 +110,17 @@ const ProfileButton = ({ isOwnerOrAdmin }: ProfileButtonProps) => {
           style={{ width: 230 }}
         >
           {!isLicenseExpired && roleInfo.canAccessSettings && (
-            <Link to="/worklenz/admin-center/overview" style={getLinkStyle()}>
+            <Link to="/workspace/admin-center/overview" style={getLinkStyle()}>
               {t('adminCenter')}
             </Link>
           )}
           {!isLicenseExpired && (
-            <Link to="/worklenz/settings/profile" style={getLinkStyle()}>
+            <Link to="/workspace/settings/profile" style={getLinkStyle()}>
               {t('settings')}
             </Link>
           )}
           {isLicenseExpired && (
-            <Link to="/worklenz/settings/account-deletion" style={getDangerLinkStyle()}>
+            <Link to="/workspace/settings/account-deletion" style={getDangerLinkStyle()}>
               {t('deleteAccount')}
             </Link>
           )}

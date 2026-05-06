@@ -52,7 +52,7 @@ export const AdminGuard = memo(({ children }: GuardProps) => {
   }
 
   // if (!isAdmin) {
-  //   return <Navigate to="/worklenz/unauthorized" />;
+  //   return <Navigate to="/workspace/unauthorized" />;
   // }
 
   return <>{children}</>;
@@ -64,8 +64,8 @@ export const LicenseExpiryGuard = memo(({ children }: GuardProps) => {
   const { isLicenseExpired, location } = useAuthStatus();
   const authService = useAuthService();
 
-  const isAdminCenterRoute = location.pathname.includes('/worklenz/admin-center');
-  const isAccountDeletionRoute = location.pathname.includes('/worklenz/settings/account-deletion');
+  const isAdminCenterRoute = location.pathname.includes('/workspace/admin-center');
+  const isAccountDeletionRoute = location.pathname.includes('/workspace/settings/account-deletion');
 
   // Show modal instead of redirecting, but not on admin center routes or account deletion
   const showModal = isLicenseExpired && !isAdminCenterRoute && !isAccountDeletionRoute;
@@ -100,7 +100,7 @@ export const SetupGuard = memo(({ children }: GuardProps) => {
 
   // Setup is now handled automatically by the backend on login —
   // provisioned/invited users get a team auto-created and setup_completed=true.
-  // Do NOT redirect to /worklenz/setup to avoid blocking those users.
+  // Do NOT redirect to /workspace/setup to avoid blocking those users.
 
   return <>{children}</>;
 });
@@ -190,7 +190,7 @@ const StaticLicenseExpired = memo(() => {
             fontSize: '16px',
             cursor: 'pointer',
           }}
-          onClick={() => (window.location.href = '/worklenz/admin-center/billing')}
+          onClick={() => (window.location.href = '/workspace/admin-center/billing')}
         >
           Upgrade now
         </button>

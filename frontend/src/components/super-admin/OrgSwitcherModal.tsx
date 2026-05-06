@@ -81,7 +81,7 @@ const OrgSwitcherModal: React.FC = () => {
    *    From that point every API request's protect() middleware will override
    *    req.user.last_team_id → target team, so ALL data queries filter correctly.
    * 2. Store team_id in localStorage so the Navbar shows the right org on reload.
-   * 3. Hard redirect to /worklenz/home — this destroys all in-memory state
+   * 3. Hard redirect to /workspace/home — this destroys all in-memory state
    *    (Redux, RTK Query cache, component state) and the app boots fresh with
    *    the target org's data already flowing from the backend.
    */
@@ -94,7 +94,7 @@ const OrgSwitcherModal: React.FC = () => {
       if (switchOrg.fulfilled.match(result)) {
         localStorage.setItem(SUPER_ADMIN_ACTIVE_TEAM_KEY, team.id);
         // Full page navigation wipes all cached state and forces clean boot
-        window.location.href = '/worklenz/home';
+        window.location.href = '/workspace/home';
       }
     } finally {
       setSwitchingTeamId(null);
@@ -112,7 +112,7 @@ const OrgSwitcherModal: React.FC = () => {
       const result = await dispatch(exitOrg());
       if (exitOrg.fulfilled.match(result)) {
         localStorage.removeItem(SUPER_ADMIN_ACTIVE_TEAM_KEY);
-        window.location.href = '/worklenz/home';
+        window.location.href = '/workspace/home';
       }
     } finally {
       setExiting(false);

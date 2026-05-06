@@ -339,7 +339,7 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
         if (!editMode) {
           trackMixpanelEvent(evt_projects_create);
           navigate(
-            `/worklenz/projects/${response.data.body.id}?tab=tasks-list&pinned_tab=tasks-list`
+            `/workspace/projects/${response.data.body.id}?tab=tasks-list&pinned_tab=tasks-list`
           );
         }
         refetchProjects();
@@ -426,7 +426,7 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
         dispatch(setProjectData({} as IProjectViewModel));
         dispatch(setProjectId(null));
         dispatch(toggleProjectDrawer());
-        navigate('/worklenz/projects');
+        navigate('/workspace/projects');
         refetchProjects();
         window.location.reload(); // Refresh the page
       } else {

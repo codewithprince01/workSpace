@@ -30,7 +30,7 @@ const SettingsGuard = ({
 
 
   if (!hasAccess) {
-    return <Navigate to="/worklenz/settings/profile" replace />;
+    return <Navigate to="/workspace/settings/profile" replace />;
   }
 
   return <>{children}</>;

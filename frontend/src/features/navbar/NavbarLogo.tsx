@@ -7,7 +7,7 @@ const NavbarLogo = () => {
   const { t } = useTranslation('navbar');
 
   return (
-    <Link to={'/worklenz/home'}>
+    <Link to={'/workspace/home'}>
       <div style={{ position: 'relative', display: 'flex', alignItems: 'center', marginRight: 16 }}>
         <img
           src={logo}

@@ -166,7 +166,7 @@ const ProjectView = React.memo(() => {
     const currentPath = location.pathname;
 
     // If we're not on a project view path, clean up
-    if (!currentPath.includes('/worklenz/projects/') || currentPath === '/worklenz/projects') {
+    if (!currentPath.includes('/workspace/projects/') || currentPath === '/workspace/projects') {
       resetAllProjectData();
     }
   }, [location.pathname, resetAllProjectData]);
@@ -211,7 +211,7 @@ const ProjectView = React.memo(() => {
         if (cancelled) return;
 
         if (projectResult.status === 'fulfilled' && !projectResult.value.payload) {
-          navigate('/worklenz/projects');
+          navigate('/workspace/projects');
           return;
         }
 
@@ -267,7 +267,7 @@ const ProjectView = React.memo(() => {
       } catch (error) {
         if (cancelled) return;
         console.error('❌ [PROJECT-SWITCH] Error loading project data:', error);
-        navigate('/worklenz/projects');
+        navigate('/workspace/projects');
       }
     };
 
@@ -309,7 +309,7 @@ const ProjectView = React.memo(() => {
 
           navigate(
             {
-              pathname: `/worklenz/projects/${projectId}`,
+              pathname: `/workspace/projects/${projectId}`,
               search: new URLSearchParams({
                 tab: activeTab,
                 pinned_tab: itemKey,

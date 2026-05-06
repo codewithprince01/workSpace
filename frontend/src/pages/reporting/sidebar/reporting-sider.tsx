@@ -22,14 +22,14 @@ const ReportingSider = () => {
           type: 'group',
           children: item.children.map(child => ({
             key: child.key,
-            label: <Link to={`/worklenz/reporting/${child.endpoint}`}>{t(`${child.name}`)}</Link>,
+            label: <Link to={`/workspace/reporting/${child.endpoint}`}>{t(`${child.name}`)}</Link>,
             icon: child.icon,
           })),
         });
       } else {
         items.push({
           key: item.key,
-          label: <Link to={`/worklenz/reporting/${item.endpoint}`}>{t(`${item.name}`)}</Link>,
+          label: <Link to={`/workspace/reporting/${item.endpoint}`}>{t(`${item.name}`)}</Link>,
           icon: item.icon,
         });
       }
@@ -40,7 +40,7 @@ const ReportingSider = () => {
 
   // Memoize the active key calculation
   const activeKey = useMemo(() => {
-    const afterWorklenzString = location.pathname?.split('/worklenz/reporting/')[1];
+    const afterWorklenzString = location.pathname?.split('/workspace/reporting/')[1];
     return afterWorklenzString?.split('/')[0];
   }, [location.pathname]);
 

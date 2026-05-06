@@ -251,7 +251,7 @@ const SignupPage = () => {
       if (result?.authenticated) {
         alertService.success('Success', 'Successfully signed up!');
         setTimeout(() => {
-          window.location.href = '/worklenz/home';
+          window.location.href = '/workspace/home';
         }, 1000);
       }
     } catch (error: any) {

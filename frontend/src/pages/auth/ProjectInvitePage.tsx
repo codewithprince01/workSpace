@@ -62,7 +62,7 @@ const ProjectInvitePage = () => {
       const msg = err?.response?.data?.message || '';
       // If user is not logged in, redirect to login with return URL
       if (err?.response?.status === 401) {
-        navigate(`/auth/login?redirect=/worklenz/invite/project/${token}`);
+        navigate(`/auth/login?redirect=/workspace/invite/project/${token}`);
         return;
       }
       setError(msg || 'Failed to accept invite. Please try again.');
@@ -105,7 +105,7 @@ const ProjectInvitePage = () => {
           title="You've joined the project!"
           subTitle={`You now have access to "${info?.project_name}". Redirecting...`}
           extra={
-            <Button type="primary" onClick={() => navigate('/worklenz/home')}>
+            <Button type="primary" onClick={() => navigate('/workspace/home')}>
               Go to Home
             </Button>
           }
@@ -246,7 +246,7 @@ const ProjectInvitePage = () => {
 
         {/* Actions */}
         <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-          <Button size="large" onClick={() => navigate('/worklenz/home')}>
+          <Button size="large" onClick={() => navigate('/workspace/home')}>
             Decline
           </Button>
           <Button

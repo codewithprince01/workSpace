@@ -167,7 +167,7 @@ const ProjectTasksExpand: React.FC<{ projectId: string; projectName: string }> =
           type="primary"
           size="small"
           icon={<ArrowRightOutlined />}
-          onClick={() => navigate(`/worklenz/projects/${projectId}?tab=tasks-list&pinned_tab=tasks-list`)}
+          onClick={() => navigate(`/workspace/projects/${projectId}?tab=tasks-list&pinned_tab=tasks-list`)}
         >
           Open Full Project
         </Button>
@@ -271,7 +271,7 @@ const GlobalProjectsPage: React.FC = () => {
           <Button
             type="link"
             style={{ padding: 0, fontWeight: 600, fontSize: 14, color: isDark ? '#4096ff' : '#1677ff' }}
-            onClick={() => navigate(`/worklenz/projects/${record.id}?tab=tasks-list&pinned_tab=tasks-list`)}
+            onClick={() => navigate(`/workspace/projects/${record.id}?tab=tasks-list&pinned_tab=tasks-list`)}
           >
             {name}
           </Button>
@@ -366,7 +366,7 @@ const GlobalProjectsPage: React.FC = () => {
               type="primary"
               size="small"
               icon={<FolderOpenOutlined />}
-              onClick={() => navigate(`/worklenz/projects/${record.id}?tab=tasks-list&pinned_tab=tasks-list`)}
+              onClick={() => navigate(`/workspace/projects/${record.id}?tab=tasks-list&pinned_tab=tasks-list`)}
             >
               Open
             </Button>

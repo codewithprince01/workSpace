@@ -72,7 +72,7 @@ const LoginPage: React.FC = () => {
         if (user) {
           setSession(user);
           dispatch(setUser(user));
-          navigate('/worklenz/home');
+          navigate('/workspace/home');
         }
       }
     } catch (error) {
@@ -82,7 +82,7 @@ const LoginPage: React.FC = () => {
 
   useEffect(() => {
     trackMixpanelEvent(evt_login_page_visit);
-    // Setup is handled by the backend on login — do NOT redirect to /worklenz/setup
+    // Setup is handled by the backend on login — do NOT redirect to /workspace/setup
     // from a stale session check. Just verify auth and go to home if already logged in.
     void verifyAuthStatus();
   }, [dispatch, navigate, trackMixpanelEvent]);

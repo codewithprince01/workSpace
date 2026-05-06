@@ -41,7 +41,7 @@ const AdminGuard = ({ children }: { children: React.ReactNode }) => {
     }
 
     // if (!authService.isOwnerOrAdmin()) {
-    //   return <Navigate to="/worklenz/unauthorized" replace />;
+    //   return <Navigate to="/workspace/unauthorized" replace />;
     // }
 
     return <>{children}</>;
@@ -54,7 +54,7 @@ const AdminGuard = ({ children }: { children: React.ReactNode }) => {
 
 const mainRoutes: RouteObject[] = [
   {
-    path: '/worklenz',
+    path: '/workspace',
     element: <MainLayout />,
     children: [
       { index: true, element: <Navigate to="home" replace /> },

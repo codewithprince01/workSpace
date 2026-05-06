@@ -146,7 +146,7 @@ const AccountSetup: React.FC = () => {
           const user = response.user || response.data?.user;
           if (user?.setup_completed) {
             console.log('Setup already completed, redirecting to home');
-            window.location.replace('/worklenz/home');
+            window.location.replace('/workspace/home');
             return;
           }
         }
@@ -212,11 +212,11 @@ const AccountSetup: React.FC = () => {
       }
       
       // Now redirect to home after session is updated
-      window.location.replace('/worklenz/home');
+      window.location.replace('/workspace/home');
     } catch (error) {
       console.error('Setup failed, but redirecting to home:', error);
       // Force redirect even on error
-      window.location.replace('/worklenz/home');
+      window.location.replace('/workspace/home');
     }
   };
 
@@ -266,12 +266,12 @@ const AccountSetup: React.FC = () => {
           logger.error('Failed to refresh user session after template setup completion', error);
         }
         
-        window.location.replace('/worklenz/home');
+        window.location.replace('/workspace/home');
       }
     } catch (error) {
       logger.error('completeAccountSetupWithTemplate', error);
       // Still redirect to home even if API fails to avoid being stuck
-      window.location.replace('/worklenz/home');
+      window.location.replace('/workspace/home');
     }
   };
 
