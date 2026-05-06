@@ -52,8 +52,16 @@ const TaskDrawerEstimation = ({ t, task, form }: TaskDrawerEstimationProps) => {
     if (!connected || !task?.id) return;
 
     // Get current form values
-    const currentHours = form.getFieldValue('hours') || 0;
-    const currentMinutes = form.getFieldValue('minutes') || 0;
+    const rawHours = Number(form.getFieldValue('hours') || 0);
+    const rawMinutes = Number(form.getFieldValue('minutes') || 0);
+    const currentHours = Math.max(0, Math.min(8, Number.isFinite(rawHours) ? rawHours : 0));
+    const currentMinutes = Math.max(0, Math.min(59, Number.isFinite(rawMinutes) ? rawMinutes : 0));
+
+    // Keep form in sync with clamped values
+    form.setFieldsValue({
+      hours: currentHours,
+      minutes: currentMinutes,
+    });
 
     socket?.emit(
       SocketEvents.TASK_TIME_ESTIMATION_CHANGE.toString(),
@@ -82,7 +90,7 @@ const TaskDrawerEstimation = ({ t, task, form }: TaskDrawerEstimationProps) => {
         >
           <InputNumber
             min={0}
-            max={24}
+            max={8}
             placeholder={t('taskInfoTab.details.hours')}
             onBlur={handleTimeEstimationBlur}
           />
@@ -100,7 +108,7 @@ const TaskDrawerEstimation = ({ t, task, form }: TaskDrawerEstimationProps) => {
         >
           <InputNumber
             min={0}
-            max={60}
+            max={59}
             placeholder={t('taskInfoTab.details.minutes')}
             onBlur={handleTimeEstimationBlur}
           />

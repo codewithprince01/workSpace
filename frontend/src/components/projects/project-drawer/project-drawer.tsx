@@ -86,7 +86,6 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
   const [updateProject, { isLoading: isUpdatingProject }] = useUpdateProjectMutation();
   const [createProject, { isLoading: isCreatingProject }] = useCreateProjectMutation();
 
-  // Auth and permissions
   const isOwnerorAdmin = useAuthService().isOwnerOrAdmin();
   const { isSuperAdmin } = useAppSelector(state => state.superAdminReducer);
   const canEditProjectSettings = isSuperAdmin || (currentSession?.team_role
@@ -118,7 +117,8 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
       category_id: project?.category_id || null,
       working_days: project?.working_days || 0,
       man_days: project?.man_days || 0,
-      hours_per_day: project?.hours_per_day || 8,
+      hours_per_day_h: Math.floor(project?.hours_per_day || 8),
+      hours_per_day_m: Math.round(((project?.hours_per_day || 8) % 1) * 60),
       use_manual_progress: project?.use_manual_progress || false,
       use_weighted_progress: project?.use_weighted_progress || false,
       use_time_progress: project?.use_time_progress || false,
@@ -185,6 +185,8 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
           client_name: mappedClientName,
           start_date: project.start_date ? dayjs(project.start_date) : null,
           end_date: project.end_date ? dayjs(project.end_date) : null,
+          hours_per_day_h: Math.floor(project.hours_per_day || 0),
+          hours_per_day_m: Math.round(((project.hours_per_day || 0) % 1) * 60),
           working_days: project.working_days || 0,
           use_manual_progress: project.use_manual_progress || false,
           use_weighted_progress: project.use_weighted_progress || false,
@@ -301,7 +303,7 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
         end_date: values.end_date,
         working_days: parseInt(values.working_days),
         man_days: parseInt(values.man_days),
-        hours_per_day: parseInt(values.hours_per_day),
+        hours_per_day: (parseInt(values.hours_per_day_h) || 0) + (parseInt(values.hours_per_day_m) || 0) / 60,
         project_manager: selectedProjectManager,
         use_manual_progress: values.use_manual_progress || false,
         use_weighted_progress: values.use_weighted_progress || false,
@@ -438,16 +440,19 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
 
   const disabledStartDate = useCallback(
     (current: dayjs.Dayjs) => {
+      if (!current) return false;
+      const isPast = current.isBefore(dayjs().startOf('day'));
       const endDate = form.getFieldValue('end_date');
-      return current && endDate ? current > dayjs(endDate) : false;
+      return isPast || (endDate ? current.isAfter(dayjs(endDate)) : false);
     },
     [form]
   );
 
   const disabledEndDate = useCallback(
     (current: dayjs.Dayjs) => {
+      if (!current) return false;
       const startDate = form.getFieldValue('start_date');
-      return current && startDate ? current < dayjs(startDate) : false;
+      return startDate ? current.isBefore(dayjs(startDate)) : current.isBefore(dayjs().startOf('day'));
     },
     [form]
   );
@@ -455,49 +460,6 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
   const handleFieldsChange = (_: any, allFields: any[]) => {
     const isValid = allFields.every(field => field.errors.length === 0);
     setIsFormValid(isValid);
-  };
-
-  // Progress calculation method handlers
-  const handleManualProgressChange = (checked: boolean) => {
-    if (checked) {
-      form.setFieldsValue({
-        use_manual_progress: true,
-        use_weighted_progress: false,
-        use_time_progress: false,
-      });
-    } else {
-      form.setFieldsValue({
-        use_manual_progress: false,
-      });
-    }
-  };
-
-  const handleWeightedProgressChange = (checked: boolean) => {
-    if (checked) {
-      form.setFieldsValue({
-        use_manual_progress: false,
-        use_weighted_progress: true,
-        use_time_progress: false,
-      });
-    } else {
-      form.setFieldsValue({
-        use_weighted_progress: false,
-      });
-    }
-  };
-
-  const handleTimeProgressChange = (checked: boolean) => {
-    if (checked) {
-      form.setFieldsValue({
-        use_manual_progress: false,
-        use_weighted_progress: false,
-        use_time_progress: true,
-      });
-    } else {
-      form.setFieldsValue({
-        use_time_progress: false,
-      });
-    }
   };
 
   return (
@@ -585,15 +547,6 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
             />
           </Form.Item>
 
-          {/* <ProjectClientSection
-            clients={clients}
-            form={form}
-            t={t}
-            project={project}
-            loadingClients={loadingClients}
-            disabled={!canEditProjectSettings}
-          /> */}
-
           <Form.Item name="project_manager" label={t('projectManager')} layout="horizontal">
             <ProjectManagerDropdown
               selectedProjectManager={selectedProjectManager}
@@ -604,10 +557,13 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
 
           <Form.Item name="date" layout="horizontal">
             <Flex gap={8}>
-              <Form.Item name="start_date" label={t('startDate')}>
+              <Form.Item name="start_date" label={t('startDate')} style={{ flex: 1 }}>
                 <DatePicker
+                  showTime={{ format: 'hh:mm A', use12Hours: true }}
+                  format="YYYY-MM-DD hh:mm A"
                   disabledDate={disabledStartDate}
                   disabled={!canEditProjectSettings}
+                  style={{ width: '100%' }}
                   onChange={date => {
                     const endDate = form.getFieldValue('end_date');
                     if (date && endDate) {
@@ -617,10 +573,13 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
                   }}
                 />
               </Form.Item>
-              <Form.Item name="end_date" label={t('endDate')}>
+              <Form.Item name="end_date" label={t('endDate')} style={{ flex: 1 }}>
                 <DatePicker
+                  showTime={{ format: 'hh:mm A', use12Hours: true }}
+                  format="YYYY-MM-DD hh:mm A"
                   disabledDate={disabledEndDate}
                   disabled={!canEditProjectSettings}
+                  style={{ width: '100%' }}
                   onChange={date => {
                     const startDate = form.getFieldValue('start_date');
                     if (startDate && date) {
@@ -650,86 +609,66 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
             <Input type="number" min={0} disabled={!canEditProjectSettings} />
           </Form.Item>
 
-          {/* <Form.Item
-            name="man_days"
-            label={t('estimateManDays')}
-            rules={[
-              {
-                validator: (_, value) => {
-                  if (value === undefined || value >= 0) {
-                    return Promise.resolve();
-                  }
-                  return Promise.reject(new Error(t('manDaysValidationMessage', { min: 0 })));
-                },
-              },
-            ]}
-          >
-            <Input
-              type="number"
-              min={0}
-              disabled={!canEditProjectSettings}
-              onBlur={e => {
-                const value = parseInt(e.target.value, 10);
-                if (value < 0) {
-                  form.setFieldsValue({ man_days: 0 });
-                }
-              }}
-            />
-          </Form.Item> */}
-
-          <Form.Item
-            name="hours_per_day"
-            label={t('hoursPerDay')}
-            rules={[
-              {
-                validator: (_, value) => {
-                  if (value === undefined || value === null || value === '' || (value >= 1 && value <= 8)) {
-                    return Promise.resolve();
-                  }
-                  return Promise.reject(
-                    new Error(t('hoursPerDayValidationMessage', { min: 1, max: 8 }))
-                  );
-                },
-              },
-            ]}
-          >
-            <Input
-              type="number"
-              min={1}
-              max={8}
-              disabled={!canEditProjectSettings}
-              onChange={e => {
-                const raw = e.target.value;
-                if (raw === '') {
-                  form.setFieldsValue({ hours_per_day: '' });
-                  return;
-                }
-                const value = parseInt(raw, 10);
-                if (Number.isNaN(value)) {
-                  form.setFieldsValue({ hours_per_day: 1 });
-                  return;
-                }
-                if (value < 1) {
-                  form.setFieldsValue({ hours_per_day: 1 });
-                  return;
-                }
-                if (value > 8) {
-                  form.setFieldsValue({ hours_per_day: 8 });
-                  return;
-                }
-                form.setFieldsValue({ hours_per_day: value });
-              }}
-              onBlur={e => {
-                const value = parseInt(e.target.value, 10);
-                if (Number.isNaN(value) || value < 1) {
-                  form.setFieldsValue({ hours_per_day: 1 });
-                } else if (value > 8) {
-                  form.setFieldsValue({ hours_per_day: 8 });
-                }
-              }}
-            />
+          <Form.Item label={t('hoursPerDay')}>
+            <Flex gap={8}>
+              <Form.Item
+                name="hours_per_day_h"
+                noStyle
+                rules={[
+                  {
+                    validator: (_, value) => {
+                      if (value === undefined || value === null || value === '' || value >= 0) {
+                        return Promise.resolve();
+                      }
+                      return Promise.reject(new Error(t('workingDaysValidationMessage', { min: 0 })));
+                    },
+                  },
+                ]}
+              >
+                <Input
+                  type="number"
+                  min={0}
+                  placeholder={t('hours')}
+                  disabled={!canEditProjectSettings}
+                  style={{ width: '100%' }}
+                  onChange={e => {
+                    let value = parseInt(e.target.value);
+                    if (value < 0) value = 0;
+                    form.setFieldsValue({ hours_per_day_h: value });
+                  }}
+                />
+              </Form.Item>
+              <Form.Item
+                name="hours_per_day_m"
+                noStyle
+                rules={[
+                  {
+                    validator: (_, value) => {
+                      if (value === undefined || value === null || value === '' || (value >= 0 && value <= 59)) {
+                        return Promise.resolve();
+                      }
+                      return Promise.reject(new Error(t('maxMinutesValidationMessage')));
+                    },
+                  },
+                ]}
+              >
+                <Input
+                  type="number"
+                  min={0}
+                  max={59}
+                  placeholder={t('minutes')}
+                  disabled={!canEditProjectSettings}
+                  style={{ width: '100%' }}
+                  onChange={e => {
+                    let value = parseInt(e.target.value);
+                    if (value > 59) value = 59;
+                    if (value < 0) value = 0;
+                    form.setFieldsValue({ hours_per_day_m: value });
+                  }}
+                />
+              </Form.Item>
+            </Flex>
           </Form.Item>
-
           {/* <Divider orientation="left">{t('progressSettings')}</Divider>
 
           <Form.Item

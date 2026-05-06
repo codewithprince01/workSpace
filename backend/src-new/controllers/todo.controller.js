@@ -1,5 +1,28 @@
-const { Todo, User, TeamMember } = require('../models');
+const { Todo, User, TeamMember, TodoComment } = require('../models');
 const mongoose = require('mongoose');
+
+/**
+ * @desc    Get todos with advanced filtering
+ * @route   GET /api/todos
+ */
+const formatTodo = (todo) => {
+  const t = todo.toObject({ virtuals: true });
+  
+  let performance = null;
+  if (t.status === 'completed' && t.due_date && t.completed_at) {
+    const onTime = new Date(t.completed_at) <= new Date(t.due_date);
+    const daysToComplete = Math.ceil((new Date(t.completed_at) - new Date(t.created_at)) / (1000 * 60 * 60 * 24));
+    const overdueDays = onTime ? 0 : Math.ceil((new Date(t.completed_at) - new Date(t.due_date)) / (1000 * 60 * 60 * 24));
+    
+    performance = {
+      on_time: onTime,
+      days_taken: daysToComplete,
+      overdue_days: overdueDays
+    };
+  }
+
+  return { ...t, performance };
+};
 
 /**
  * @desc    Get todos with advanced filtering
@@ -33,24 +56,7 @@ exports.getTodos = async (req, res, next) => {
       .sort({ updated_at: -1 });
 
     // Transform for performance tracking (Feature 8)
-    const formatted = todos.map(todo => {
-      const t = todo.toObject({ virtuals: true });
-      
-      let performance = null;
-      if (t.status === 'completed' && t.due_date && t.completed_at) {
-        const onTime = new Date(t.completed_at) <= new Date(t.due_date);
-        const daysToComplete = Math.ceil((new Date(t.completed_at) - new Date(t.created_at)) / (1000 * 60 * 60 * 24));
-        const overdueDays = onTime ? 0 : Math.ceil((new Date(t.completed_at) - new Date(t.due_date)) / (1000 * 60 * 60 * 24));
-        
-        performance = {
-          on_time: onTime,
-          days_taken: daysToComplete,
-          overdue_days: overdueDays
-        };
-      }
-
-      return { ...t, performance };
-    });
+    const formatted = todos.map(todo => formatTodo(todo));
 
     res.json({ done: true, body: formatted });
   } catch (error) {
@@ -82,7 +88,7 @@ exports.createTodo = async (req, res, next) => {
       .populate('created_by', 'name email avatar_url')
       .populate('assigned_to', 'name email avatar_url');
 
-    res.status(201).json({ done: true, body: populated });
+    res.status(201).json({ done: true, body: formatTodo(populated) });
   } catch (error) {
     next(error);
   }
@@ -97,12 +103,14 @@ exports.updateTodo = async (req, res, next) => {
     const { id } = req.params;
     const updates = req.body;
 
+    console.log(`[TodoAPI] updateTodo - ID: ${id} | Updates:`, updates);
+
     // Feature 5: Progress & Status logic
     if (updates.status === 'completed' || updates.progress === 100) {
       updates.status = 'completed';
       updates.progress = 100;
       updates.completed_at = updates.completed_at || new Date();
-    } else {
+    } else if (updates.status || updates.progress !== undefined) {
       // If moving away from completed, reset completed_at
       updates.completed_at = null;
       // If status changed to in-progress but progress is still 100, reset progress to a reasonable value or 0
@@ -126,8 +134,11 @@ exports.updateTodo = async (req, res, next) => {
 
     if (!todo) return res.status(404).json({ done: false, message: 'Todo not found or unauthorized' });
 
-    res.json({ done: true, body: todo });
+    console.log(`[TodoAPI] updateTodo Success - New due_date: ${todo.due_date}`);
+
+    res.json({ done: true, body: formatTodo(todo) });
   } catch (error) {
+    console.error(`[TodoAPI] updateTodo Error:`, error);
     next(error);
   }
 };
@@ -252,6 +263,65 @@ exports.memberSearch = async (req, res, next) => {
       body: users,
       _timestamp: Date.now() // Force body change to break ETag if still present
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Get comments for a todo
+ * @route   GET /api/todos/:id/comments
+ */
+exports.getComments = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const comments = await TodoComment.find({ todo_id: id })
+      .populate('author', 'name email avatar_url')
+      .sort({ created_at: 1 });
+    res.json({ done: true, body: comments });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Add a comment to a todo
+ * @route   POST /api/todos/:id/comments
+ */
+exports.addComment = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { content } = req.body;
+    if (!content || !content.trim()) {
+      return res.status(400).json({ done: false, message: 'Comment content is required' });
+    }
+    const comment = await TodoComment.create({
+      todo_id: id,
+      author: req.user._id,
+      content: content.trim()
+    });
+    const populated = await TodoComment.findById(comment._id)
+      .populate('author', 'name email avatar_url');
+    res.status(201).json({ done: true, body: populated });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Delete a comment
+ * @route   DELETE /api/todos/:todoId/comments/:commentId
+ */
+exports.deleteComment = async (req, res, next) => {
+  try {
+    const { commentId } = req.params;
+    let filter = { _id: commentId };
+    if (!req.user.is_super_admin) {
+      filter.author = req.user._id;
+    }
+    const comment = await TodoComment.findOneAndDelete(filter);
+    if (!comment) return res.status(404).json({ done: false, message: 'Comment not found or unauthorized' });
+    res.json({ done: true, message: 'Comment deleted' });
   } catch (error) {
     next(error);
   }

@@ -15,4 +15,9 @@ router.post('/bulk-update', todoController.bulkUpdate);
 router.put('/:id', todoController.updateTodo);
 router.delete('/:id', todoController.deleteTodo);
 
+// Comment routes
+router.get('/:id/comments', todoController.getComments);
+router.post('/:id/comments', todoController.addComment);
+router.delete('/:todoId/comments/:commentId', todoController.deleteComment);
+
 module.exports = router;

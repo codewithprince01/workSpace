@@ -4,7 +4,7 @@ import { useAppDispatch } from '@/hooks/useAppDispatch';
 import { useAppSelector } from '@/hooks/useAppSelector';
 import { createTodo, updateTodo, searchAssignableUsers } from './todoSlice';
 import { ITodo, ITodoUser } from '@/api/todo/todo.api.service';
-import moment from 'moment';
+import dayjs from 'dayjs';
 
 const { Option } = Select;
 
@@ -38,36 +38,61 @@ const TodoFormModal: React.FC<Props> = ({ open, todo, onClose }) => {
   useEffect(() => {
     if (open) {
       dispatch(searchAssignableUsers());
+      form.resetFields();
       if (todo) {
+        console.log('[TodoFormModal] Populating with todo:', todo);
         form.setFieldsValue({
           ...todo,
-          due_date: todo.due_date ? moment(todo.due_date) : null,
-          assigned_to: todo.assigned_to.map(u => u._id)
+          due_date: todo.due_date ? dayjs(todo.due_date) : null,
+          assigned_to: (todo.assigned_to || []).map(u => u._id)
         });
-      } else {
-        form.resetFields();
       }
     }
   }, [open, todo, form, dispatch]);
 
   const handleSubmit = async (values: any) => {
     setSubmitting(true);
+    console.log('[TodoFormModal] handleSubmit values:', values);
     try {
+      let dueDateValue = null;
+      if (values.due_date) {
+        // Robust check for dayjs/moment/string
+        if (typeof values.due_date.toISOString === 'function') {
+            dueDateValue = values.due_date.toISOString();
+        } else if (typeof values.due_date === 'string' && values.due_date.trim() !== '') {
+            dueDateValue = dayjs(values.due_date).toISOString();
+        }
+      }
+
       const payload = {
         ...values,
-        due_date: values.due_date ? values.due_date.toISOString() : null,
+        due_date: dueDateValue,
       };
 
+      console.log('[TodoFormModal] Sending payload:', payload);
+
       if (todo) {
-        await dispatch(updateTodo({ id: todo._id, data: payload })).unwrap();
-        message.success('Todo updated successfully');
+        const resultAction = await dispatch(updateTodo({ id: todo._id, data: payload }));
+        if (updateTodo.fulfilled.match(resultAction)) {
+            message.success('Todo updated successfully');
+            onClose();
+        } else {
+            const errorMsg = resultAction.payload as string || 'Update failed';
+            message.error(errorMsg);
+        }
       } else {
-        await dispatch(createTodo(payload)).unwrap();
-        message.success('Todo created successfully');
+        const resultAction = await dispatch(createTodo(payload));
+        if (createTodo.fulfilled.match(resultAction)) {
+            message.success('Todo created successfully');
+            onClose();
+        } else {
+            const errorMsg = resultAction.payload as string || 'Creation failed';
+            message.error(errorMsg);
+        }
       }
-      onClose();
     } catch (err: any) {
-      message.error(err || 'Operation failed');
+      console.error('[TodoFormModal] Submit error:', err);
+      message.error(err.message || 'Operation failed');
     } finally {
       setSubmitting(false);
     }
@@ -76,6 +101,7 @@ const TodoFormModal: React.FC<Props> = ({ open, todo, onClose }) => {
   return (
     <>
     <Modal
+      key={todo?._id || 'new'}
       title={todo ? 'Edit Todo' : 'Create New Todo'}
       open={open}
       onCancel={onClose}
@@ -153,7 +179,12 @@ const TodoFormModal: React.FC<Props> = ({ open, todo, onClose }) => {
         </Form.Item>
 
         <Form.Item name="due_date" label="Due Date">
-          <DatePicker style={{ width: '100%' }} />
+          <DatePicker 
+            showTime={{ format: 'hh:mm A', use12Hours: true }}
+            format="YYYY-MM-DD hh:mm A"
+            disabledDate={(current) => current && current < dayjs().startOf('day')}
+            style={{ width: '100%' }} 
+          />
         </Form.Item>
 
         <Form.Item style={{ marginBottom: 0, textAlign: 'right', marginTop: 24 }}>

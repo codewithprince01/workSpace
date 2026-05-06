@@ -17,7 +17,9 @@ import {
   Select,
   Dropdown,
   Popover,
-  Checkbox
+  Checkbox,
+  DatePicker,
+  Spin
 } from 'antd';
 import { 
   PlusOutlined, 
@@ -41,14 +43,19 @@ import {
   MinusOutlined,
   CaretUpFilled,
   CalendarOutlined,
-  FilterOutlined
+  FilterOutlined,
+  CommentOutlined,
+  SendOutlined
 } from '@ant-design/icons';
 import { useAppDispatch } from '@/hooks/useAppDispatch';
 import { useAppSelector } from '@/hooks/useAppSelector';
 import { fetchTodos, updateTodo, deleteTodo, setActiveView, bulkUpdateTodos, bulkDeleteTodos } from './todoSlice';
-import { todoApiService, ITodo } from '@/api/todo/todo.api.service';
+import { todoApiService, ITodo, ITodoComment } from '@/api/todo/todo.api.service';
 import TodoFormModal from './TodoFormModal';
-import moment from 'moment';
+import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
+
+dayjs.extend(relativeTime);
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -197,6 +204,184 @@ const MemberAssigneePopover: React.FC<{
     );
 };
 
+// ─── Comment Section Component ─────────────────────────────────────────────
+const TodoCommentSection: React.FC<{ todoId: string; isDark: boolean }> = ({ todoId, isDark }) => {
+  const [comments, setComments] = useState<ITodoComment[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [newComment, setNewComment] = useState('');
+
+  useEffect(() => {
+    if (!todoId) return;
+    setLoading(true);
+    todoApiService.getComments(todoId)
+      .then(res => { if (res.done) setComments(res.body); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [todoId]);
+
+  const handleSubmit = async () => {
+    const text = newComment.trim();
+    if (!text) return;
+    setSubmitting(true);
+    try {
+      const res = await todoApiService.addComment(todoId, text);
+      if (res.done) {
+        setComments(prev => [...prev, res.body]);
+        setNewComment('');
+      }
+    } catch {
+      message.error('Failed to add comment');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (commentId: string) => {
+    try {
+      const res = await todoApiService.deleteComment(todoId, commentId);
+      if (res.done) setComments(prev => prev.filter(c => c._id !== commentId));
+    } catch {
+      message.error('Failed to delete comment');
+    }
+  };
+
+  const border = isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid #f0f0f0';
+  const bg = isDark ? 'rgba(255,255,255,0.03)' : '#f8f9fb';
+  const textColor = isDark ? '#e0e0e0' : '#262626';
+  const secondaryColor = isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.45)';
+  const inputBg = isDark ? 'rgba(255,255,255,0.06)' : '#fff';
+  const inputBorder = isDark ? '1px solid rgba(255,255,255,0.15)' : '1px solid #d9d9d9';
+
+  return (
+    <div style={{ marginTop: 24, borderTop: border, paddingTop: 20 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+        <CommentOutlined style={{ color: '#1890ff', fontSize: 16 }} />
+        <Typography.Text strong style={{ color: textColor, fontSize: 14, letterSpacing: '0.05em' }}>
+          COMMENTS
+        </Typography.Text>
+        {comments.length > 0 && (
+          <span style={{
+            background: '#1890ff',
+            color: '#fff',
+            borderRadius: 10,
+            padding: '1px 8px',
+            fontSize: 11,
+            fontWeight: 700
+          }}>{comments.length}</span>
+        )}
+      </div>
+
+      {/* Comment List */}
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: '16px 0' }}><Spin size="small" /></div>
+      ) : comments.length === 0 ? (
+        <div style={{
+          textAlign: 'center',
+          padding: '20px 0',
+          background: bg,
+          borderRadius: 8,
+          border,
+          marginBottom: 16
+        }}>
+          <CommentOutlined style={{ fontSize: 24, color: secondaryColor, display: 'block', marginBottom: 6 }} />
+          <Typography.Text style={{ color: secondaryColor, fontSize: 12 }}>No comments yet. Be the first!</Typography.Text>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
+          {comments.map(c => (
+            <div key={c._id} style={{
+              display: 'flex',
+              gap: 10,
+              background: bg,
+              borderRadius: 10,
+              padding: '10px 14px',
+              border,
+              position: 'relative'
+            }}>
+              <Avatar
+                size={32}
+                src={c.author?.avatar_url}
+                style={{ background: '#1890ff', flexShrink: 0, fontWeight: 700, fontSize: 13 }}
+              >
+                {(c.author?.name || 'U')[0].toUpperCase()}
+              </Avatar>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                  <Typography.Text strong style={{ color: textColor, fontSize: 13 }}>
+                    {c.author?.name || 'Unknown'}
+                  </Typography.Text>
+                  <Typography.Text style={{ color: secondaryColor, fontSize: 11 }}>
+                    {dayjs(c.created_at).fromNow()}
+                  </Typography.Text>
+                </div>
+                <Typography.Paragraph style={{
+                  margin: 0,
+                  color: textColor,
+                  fontSize: 13,
+                  lineHeight: '1.6',
+                  wordBreak: 'break-word'
+                }}>
+                  {c.content}
+                </Typography.Paragraph>
+              </div>
+              <Popconfirm
+                title="Delete this comment?"
+                onConfirm={() => handleDelete(c._id)}
+                okText="Yes"
+                cancelText="No"
+                placement="left"
+              >
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<DeleteOutlined />}
+                  style={{ color: '#ff4d4f', opacity: 0.6, position: 'absolute', top: 8, right: 8 }}
+                  className="comment-delete-btn"
+                />
+              </Popconfirm>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Add Comment Input */}
+      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+        <Input.TextArea
+          value={newComment}
+          onChange={e => setNewComment(e.target.value)}
+          placeholder="Write a comment…"
+          autoSize={{ minRows: 1, maxRows: 4 }}
+          onPressEnter={e => { if (!e.shiftKey) { e.preventDefault(); handleSubmit(); } }}
+          style={{
+            background: inputBg,
+            border: inputBorder,
+            color: textColor,
+            borderRadius: 8,
+            resize: 'none',
+            flex: 1
+          }}
+        />
+        <Button
+          type="primary"
+          icon={<SendOutlined />}
+          onClick={handleSubmit}
+          loading={submitting}
+          disabled={!newComment.trim()}
+          style={{ borderRadius: 8, height: 36, minWidth: 64 }}
+        >
+          Post
+        </Button>
+      </div>
+      <Typography.Text style={{ color: secondaryColor, fontSize: 11, marginTop: 6, display: 'block' }}>
+        Press Enter to post · Shift+Enter for new line
+      </Typography.Text>
+    </div>
+  );
+};
+// ────────────────────────────────────────────────────────────────────────────
+
 const TodoPage: React.FC = () => {
   const dispatch = useAppDispatch();
   const { todos, loading, activeView } = useAppSelector(state => state.todoReducer);
@@ -265,20 +450,23 @@ const TodoPage: React.FC = () => {
       dataIndex: 'title',
       key: 'title',
       width: 300,
-      fixed: 'left' as const,
       render: (text: string, record: ITodo) => (
-        <div onClick={() => handleEdit(record)} style={{ cursor: 'pointer' }}>
-            <Text 
-              strong 
-              style={{ 
-                  fontSize: 14, 
-                  color: record.status === 'completed' ? '#8c8c8c' : (isDark ? '#fff' : '#262626'),
-                  textDecoration: record.status === 'completed' ? 'line-through' : 'none'
-              }}
-            >
-              {text}
-            </Text>
-        </div>
+        <Tooltip title={text} placement="topLeft" mouseEnterDelay={0.5}>
+            <div onClick={() => handleEdit(record)} style={{ cursor: 'pointer' }}>
+                <Text 
+                  strong 
+                  ellipsis={{ tooltip: false }}
+                  style={{ 
+                      fontSize: 14, 
+                      color: record.status === 'completed' ? '#8c8c8c' : (isDark ? '#fff' : '#262626'),
+                      textDecoration: record.status === 'completed' ? 'line-through' : 'none',
+                      display: 'block'
+                  }}
+                >
+                  {text}
+                </Text>
+            </div>
+        </Tooltip>
       ),
     },
     {
@@ -287,11 +475,17 @@ const TodoPage: React.FC = () => {
         key: 'description',
         width: 300,
         render: (text: string, record: ITodo) => (
-            <div onClick={() => handleEdit(record)} style={{ cursor: 'pointer' }}>
-                <Text type="secondary" ellipsis={{ tooltip: text }} style={{ fontSize: 12 }}>
-                    {text || '—'}
-                </Text>
-            </div>
+            <Tooltip title={text} placement="topLeft" mouseEnterDelay={0.5}>
+                <div onClick={() => handleEdit(record)} style={{ cursor: 'pointer' }}>
+                    <Text 
+                        type="secondary" 
+                        ellipsis={{ tooltip: false }} 
+                        style={{ fontSize: 12, display: 'block' }}
+                    >
+                        {text || '—'}
+                    </Text>
+                </div>
+            </Tooltip>
         )
     },
     {
@@ -326,7 +520,6 @@ const TodoPage: React.FC = () => {
         return (order[a.status || 'pending'] || 0) - (order[b.status || 'pending'] || 0);
       },
       render: (status: string, record: ITodo) => {
-        // ... (render logic remains the same)
         const s = status || 'pending';
         const statusMap: any = {
           pending: { label: 'To Do', color: '#8c8c8c', key: 'pending', bg: 'rgba(255,255,255,0.1)' },
@@ -335,48 +528,34 @@ const TodoPage: React.FC = () => {
         };
         const current = statusMap[s] || statusMap.pending;
 
-        const menu = (
-          <div style={{ 
-              background: isDark ? '#1d2633' : '#fff', 
-              padding: '8px 0', 
-              borderRadius: 8, 
-              border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'}`,
-              minWidth: 160,
-              boxShadow: isDark ? '0 4px 12px rgba(0,0,0,0.5)' : '0 4px 12px rgba(0,0,0,0.1)'
-          }}>
-            {Object.values(statusMap).map((item: any) => (
-              <div 
-                key={item.key}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const newProgress = item.key === 'completed' ? 100 : (record.status === 'completed' ? 0 : record.progress);
-                  dispatch(updateTodo({ id: record._id, data: { status: item.key, progress: newProgress } }));
-                }}
-                style={{ 
-                    padding: '8px 16px', 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'space-between',
-                    cursor: 'pointer',
-                    color: '#fff',
-                    transition: 'background 0.2s'
-                }}
-                className="status-menu-item"
-              >
-                <Space size={12}>
-                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: item.color }} />
-                  <Text style={{ color: isDark ? '#fff' : '#262626' }}>{item.label}</Text>
-                </Space>
-                {s === item.key && (
-                  <Text style={{ color: '#2f80ed', fontSize: 12, fontWeight: 600 }}>● Current</Text>
-                )}
-              </div>
-            ))}
-          </div>
-        );
+        const menuItems = Object.values(statusMap).map((item: any) => ({
+          key: item.key,
+          label: (
+            <div 
+              style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'space-between',
+                  minWidth: 140
+              }}
+            >
+              <Space size={12}>
+                <div style={{ width: 10, height: 10, borderRadius: '50%', background: item.color }} />
+                <Text style={{ color: isDark ? '#fff' : '#262626' }}>{item.label}</Text>
+              </Space>
+              {s === item.key && (
+                <Text style={{ color: '#2f80ed', fontSize: 12, fontWeight: 600 }}>●</Text>
+              )}
+            </div>
+          ),
+          onClick: () => {
+            const newProgress = item.key === 'completed' ? 100 : (record.status === 'completed' ? 0 : record.progress);
+            dispatch(updateTodo({ id: record._id, data: { status: item.key, progress: newProgress } }));
+          }
+        }));
 
         return (
-          <Dropdown overlay={menu} trigger={['click']} placement="bottomCenter">
+          <Dropdown menu={{ items: menuItems }} trigger={['click']} placement="bottomCenter">
             <div style={{ 
                 background: current.bg, 
                 border: s === 'pending' ? `1px solid ${isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'}` : 'none',
@@ -468,7 +647,6 @@ const TodoPage: React.FC = () => {
         return (order[a.priority || 'medium'] || 0) - (order[b.priority || 'medium'] || 0);
       },
       render: (priority: string, record: ITodo) => {
-        // ... (render logic)
         const p = priority || 'medium';
         const priorityMap: any = {
           low: { label: 'Low', color: '#52c41a', key: 'low', icon: <MinusOutlined />, bg: '#52c41a' },
@@ -478,34 +656,11 @@ const TodoPage: React.FC = () => {
         };
         const current = priorityMap[p] || priorityMap.medium;
 
-        const menu = (
-          <div style={{ 
-              background: isDark ? '#1d2633' : '#fff', 
-              padding: '8px 0', 
-              borderRadius: 8, 
-              border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'}`,
-              minWidth: 160,
-              boxShadow: isDark ? '0 4px 12px rgba(0,0,0,0.5)' : '0 4px 12px rgba(0,0,0,0.1)'
-          }}>
-            {Object.values(priorityMap).map((item: any) => (
-              <div 
-                key={item.key}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  dispatch(updateTodo({ id: record._id, data: { priority: item.key } }));
-                }}
-                style={{ 
-                    padding: '8px 16px', 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    gap: 12,
-                    cursor: 'pointer',
-                    color: '#fff',
-                    transition: 'background 0.2s'
-                }}
-                className="status-menu-item"
-              >
-                <div style={{ width: 20, display: 'flex', justifyContent: 'center', color: 'rgba(255,255,255,0.6)' }}>
+        const priorityMenuItems = Object.values(priorityMap).map((item: any) => ({
+          key: item.key,
+          label: (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 140 }}>
+                <div style={{ width: 20, display: 'flex', justifyContent: 'center', color: isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.45)' }}>
                     {item.icon}
                 </div>
                 <div style={{ width: 10, height: 10, borderRadius: '50%', background: item.color }} />
@@ -513,13 +668,15 @@ const TodoPage: React.FC = () => {
                 {p === item.key && (
                   <Text style={{ color: '#2f80ed', fontSize: 11 }}>●</Text>
                 )}
-              </div>
-            ))}
-          </div>
-        );
+            </div>
+          ),
+          onClick: () => {
+            dispatch(updateTodo({ id: record._id, data: { priority: item.key } }));
+          }
+        }));
 
         return (
-          <Dropdown overlay={menu} trigger={['click']} placement="bottomCenter">
+          <Dropdown menu={{ items: priorityMenuItems }} trigger={['click']} placement="bottomCenter">
             <div style={{ 
                 background: current.bg, 
                 borderRadius: 20,
@@ -577,22 +734,39 @@ const TodoPage: React.FC = () => {
       key: 'due_date',
       width: 150,
       sorter: (a: ITodo, b: ITodo) => {
-          const dA = a.due_date ? new Date(a.due_date).getTime() : 0;
-          const dB = b.due_date ? new Date(b.due_date).getTime() : 0;
+          const dA = a.due_date ? dayjs(a.due_date).valueOf() : 0;
+          const dB = b.due_date ? dayjs(b.due_date).valueOf() : 0;
           return dA - dB;
       },
       render: (date: string, record: ITodo) => {
-        // ...
-          if (!date) return <Text type="secondary" onClick={() => handleEdit(record)} style={{ cursor: 'pointer' }}>No date</Text>;
-          const isOverdue = moment(date).isBefore(moment(), 'day') && record.status !== 'completed';
+          const isOverdue = date && dayjs(date).isBefore(dayjs(), 'day') && record.status !== 'completed';
+          const tooltipTitle = date 
+            ? `Deadline: ${dayjs(date).format('dddd, MMMM D, YYYY [at] hh:mm A')} (Created: ${dayjs(record.created_at).format('MMM DD')})`
+            : 'No deadline set';
+
           return (
-              <div onClick={() => handleEdit(record)} style={{ cursor: 'pointer' }}>
-                  <Text style={{ 
-                      color: isOverdue ? '#ff4d4f' : (isDark ? '#d9d9d9' : '#595959'), 
-                      fontWeight: isOverdue ? 600 : 400 
-                  }}>
-                      {moment(date).format('MMM DD, YYYY')}
-                  </Text>
+              <div onClick={(e) => e.stopPropagation()}>
+                <Tooltip title={tooltipTitle} placement="top">
+                  <DatePicker 
+                    value={date ? dayjs(date) : null}
+                    onChange={(val) => {
+                        const newDate = val ? val.toISOString() : null;
+                        dispatch(updateTodo({ id: record._id, data: { due_date: newDate } }));
+                    }}
+                    showTime={{ format: 'hh:mm A', use12Hours: true }}
+                    format="MMM DD, YYYY hh:mm A"
+                    disabledDate={(current) => current && current < dayjs().startOf('day')}
+                    bordered={false}
+                    placeholder="No date"
+                    style={{ 
+                        padding: 0,
+                        color: isOverdue ? '#ff4d4f' : (isDark ? '#d9d9d9' : '#595959'),
+                        fontWeight: isOverdue ? 600 : 400,
+                        width: '100%'
+                    }}
+                    className={`inline-date-picker ${isDark ? 'dark' : ''}`}
+                  />
+                </Tooltip>
               </div>
           );
       }
@@ -602,10 +776,41 @@ const TodoPage: React.FC = () => {
         key: 'performance',
         width: 140,
         render: (_: any, record: ITodo) => {
-          if (record.status === 'completed' && record.performance) {
-            const { on_time, overdue_days } = record.performance;
-            return <Tag color={on_time ? 'success' : 'error'} style={{ borderRadius: 12 }}>{on_time ? 'ON TIME' : `LATE (${overdue_days}d)`}</Tag>;
+          const dueDate = record.due_date ? dayjs(record.due_date) : null;
+          
+          const formatDuration = (start: dayjs.Dayjs, end: dayjs.Dayjs) => {
+              const totalMinutes = Math.abs(end.diff(start, 'minute'));
+              const days = Math.floor(totalMinutes / (24 * 60));
+              const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
+              const mins = totalMinutes % 60;
+
+              if (days > 0) return `${days}d ${hours}h`;
+              if (hours > 0) return `${hours}h ${mins}m`;
+              return `${mins}m`;
+          };
+
+          if (record.status === 'completed') {
+            const completedAt = record.completed_at ? dayjs(record.completed_at) : null;
+            if (!completedAt || !dueDate) return <Text type="secondary">—</Text>;
+
+            const onTime = completedAt.isBefore(dueDate) || completedAt.isSame(dueDate);
+            
+            return (
+              <Tag color={onTime ? 'success' : '#f5222d'} style={{ borderRadius: 12, fontWeight: 600 }}>
+                {onTime ? 'ON TIME' : `LATE (${formatDuration(dueDate, completedAt)})`}
+              </Tag>
+            );
           }
+
+          // Check if pending but already past due
+          if (dueDate && dueDate.isBefore(dayjs()) && record.status !== 'completed') {
+            return (
+                <Tag color="#f5222d" style={{ borderRadius: 12, fontWeight: 600 }}>
+                  OVERDUE ({formatDuration(dueDate, dayjs())})
+                </Tag>
+            );
+          }
+
           return <Text type="secondary">—</Text>;
         }
     },
@@ -619,7 +824,7 @@ const TodoPage: React.FC = () => {
             const dB = b.completed_at ? new Date(b.completed_at).getTime() : 0;
             return dA - dB;
         },
-        render: (date: string) => date ? <Text type="secondary" style={{ fontSize: 12 }}>{moment(date).format('MMM DD, HH:mm')}</Text> : <Text type="secondary">—</Text>
+        render: (date: string) => date ? <Text type="secondary" style={{ fontSize: 12 }}>{dayjs(date).format('MMM DD, HH:mm')}</Text> : <Text type="secondary">—</Text>
     },
     {
       title: 'Last Updated',
@@ -627,7 +832,7 @@ const TodoPage: React.FC = () => {
       key: 'updated_at',
       width: 150,
       sorter: (a: ITodo, b: ITodo) => new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime(),
-      render: (date: string) => <Text type="secondary" style={{ fontSize: 11 }}>{moment(date).fromNow()}</Text>
+      render: (date: string) => <Text type="secondary" style={{ fontSize: 11 }}>{dayjs(date).fromNow()}</Text>
     },
     {
         title: 'Created By',
@@ -810,19 +1015,85 @@ const TodoPage: React.FC = () => {
         
         <Table 
           rowSelection={rowSelection}
-          columns={columns} 
+          columns={columns.filter(c => ['title', 'status', 'priority', 'assigned_to', 'due_date', 'performance'].includes(c.key as string))} 
           dataSource={todos} 
           loading={loading}
           rowKey="_id"
           pagination={{ pageSize: 15, showSizeChanger: true }}
-          scroll={{ x: 2200 }}
+          expandable={{
+            expandedRowRender: (record: ITodo) => (
+              <div style={{ 
+                padding: '16px 24px', 
+                background: isDark ? 'rgba(255,255,255,0.02)' : '#fafafa',
+                borderRadius: 8,
+                margin: '8px 16px',
+                borderLeft: `4px solid ${isDark ? '#2f80ed' : '#1890ff'}`
+              }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+                  <div>
+                    <Text strong style={{ display: 'block', marginBottom: 8, color: isDark ? '#fff' : '#262626' }}>DESCRIPTION</Text>
+                    <Text type="secondary" style={{ fontSize: 13, lineHeight: '1.6' }}>
+                      {record.description || 'No description provided.'}
+                    </Text>
+                    
+                    <div style={{ marginTop: 24 }}>
+                      <Text strong style={{ display: 'block', marginBottom: 12, color: isDark ? '#fff' : '#262626' }}>PROGRESS</Text>
+                      <div style={{ maxWidth: 300 }}>
+                        <Progress 
+                          percent={record.progress} 
+                          size="small" 
+                          status={record.status === 'completed' ? 'success' : 'active'} 
+                          strokeColor={record.status === 'completed' ? '#52c41a' : '#1890ff'}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div style={{ borderLeft: isDark ? '1px solid #303030' : '1px solid #f0f0f0', paddingLeft: 24 }}>
+                    <Text strong style={{ display: 'block', marginBottom: 16, color: isDark ? '#fff' : '#262626' }}>TASK METADATA</Text>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Text type="secondary">Completed At:</Text>
+                        <Text style={{ color: isDark ? '#ddd' : '#595959' }}>
+                          {record.completed_at ? dayjs(record.completed_at).format('MMM DD, YYYY hh:mm A') : '—'}
+                        </Text>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Text type="secondary">Created By:</Text>
+                        {columns.find(c => c.key === 'created_by')?.render?.(record.created_by, record, 0)}
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Text type="secondary">Last Updated:</Text>
+                        <Text type="secondary" style={{ fontSize: 11 }}>{dayjs(record.updated_at).fromNow()}</Text>
+                      </div>
+                    </div>
+                    
+                    <div style={{ marginTop: 24, textAlign: 'right' }}>
+                      <Button 
+                        type="link" 
+                        icon={<EditOutlined />} 
+                        onClick={() => handleEdit(record)}
+                        style={{ padding: 0 }}
+                      >
+                        Edit Full Details
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── Comments Section ── */}
+                <TodoCommentSection todoId={record._id} isDark={isDark} />
+              </div>
+            ),
+            expandRowByClick: false,
+          }}
           rowClassName={(record) => {
             const classes = [];
             if (record.is_overdue) classes.push(isDark ? 'todo-row-overdue-dark' : 'todo-row-overdue');
             if (record.status === 'completed') classes.push('todo-row-completed');
             return classes.join(' ');
           }}
-          style={{ cursor: 'default' }}
+          style={{ cursor: 'pointer' }}
         />
       </Card>
       </div>
@@ -980,6 +1251,13 @@ const TodoPage: React.FC = () => {
         .ant-table-tbody > tr:hover > td {
           background: ${isDark ? '#262626' : '#f0f5ff'} !important;
         }
+        .comment-delete-btn {
+          opacity: 0 !important;
+          transition: opacity 0.2s !important;
+        }
+        div:hover > .comment-delete-btn, div:has(> .comment-delete-btn):hover .comment-delete-btn {
+          opacity: 0.7 !important;
+        }
       `}</style>
       <style>{`
         .status-menu-item:hover {
@@ -989,6 +1267,21 @@ const TodoPage: React.FC = () => {
             padding: 0 !important;
         }
       `}</style>
+    <style>{`
+        .inline-date-picker input {
+            cursor: pointer !important;
+            color: inherit !important;
+        }
+        .inline-date-picker.dark .ant-picker-suffix {
+            color: rgba(255,255,255,0.3) !important;
+        }
+        .inline-date-picker:hover {
+            background: rgba(0,0,0,0.02);
+        }
+        .dark .inline-date-picker:hover {
+            background: rgba(255,255,255,0.05);
+        }
+    `}</style>
     </div>
   );
 };

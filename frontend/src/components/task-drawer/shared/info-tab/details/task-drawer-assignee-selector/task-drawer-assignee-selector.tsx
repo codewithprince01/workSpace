@@ -16,7 +16,6 @@ import { PlusOutlined } from '@/shared/antd-imports';
 import { useTranslation } from 'react-i18next';
 import SingleAvatar from '@/components/common/single-avatar/single-avatar';
 import { CheckboxChangeEvent } from 'antd/es/checkbox';
-import { ITeamMembersViewModel } from '@/types/teamMembers/teamMembersViewModel.types';
 import { sortTeamMembers } from '@/utils/sort-team-members';
 import { useAuthService } from '@/hooks/useAuth';
 import { useSocket } from '@/socket/socketContext';
@@ -24,8 +23,10 @@ import { SocketEvents } from '@/shared/socket-events';
 import { ITaskViewModel } from '@/types/tasks/task.types';
 import { ITaskAssigneesUpdateResponse } from '@/types/tasks/task-assignee-update-response';
 import { setTaskAssignee } from '@/features/task-drawer/task-drawer.slice';
+import { fetchTaskAssignees } from '@/features/tasks/tasks.slice';
 import { updateEnhancedKanbanTaskAssignees } from '@/features/enhanced-kanban/enhanced-kanban.slice';
 import { updateTaskAssignees as updateTaskManagementAssignees } from '@/features/task-management/task-management.slice';
+
 interface TaskDrawerAssigneeSelectorProps {
   task: ITaskViewModel;
 }
@@ -33,14 +34,14 @@ interface TaskDrawerAssigneeSelectorProps {
 const TaskDrawerAssigneeSelector = ({ task }: TaskDrawerAssigneeSelectorProps) => {
   const membersInputRef = useRef<InputRef>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [teamMembers, setTeamMembers] = useState<ITeamMembersViewModel>({ data: [], total: 0 });
+  const [teamMembers, setTeamMembers] = useState<{ data: any[], total: number }>({ data: [], total: 0 });
   const { projectId } = useAppSelector(state => state.projectReducer);
   const currentSession = useAuthService().getCurrentSession();
   const { socket } = useSocket();
   const themeMode = useAppSelector(state => state.themeReducer.mode);
   const { t } = useTranslation('task-list-table');
   const dispatch = useAppDispatch();
-  const members = useAppSelector(state => state.teamMembersReducer.teamMembers);
+  const taskAssignees = useAppSelector(state => state.taskReducer.taskAssignees);
   const selectedTaskId = useAppSelector(state => state.taskDrawerReducer.selectedTaskId);
   const [optimisticSelectedIds, setOptimisticSelectedIds] = useState<string[]>([]);
 
@@ -48,6 +49,13 @@ const TaskDrawerAssigneeSelector = ({ task }: TaskDrawerAssigneeSelectorProps) =
   const normalizeEmail = (value: unknown) => String(value || '').trim().toLowerCase();
   const resolveMemberId = (member: any) =>
     normalizeId(member?.team_member_id || member?.id || member?._id);
+  const resolveProjectId = () =>
+    normalizeId(
+      projectId ||
+        task?.project_id ||
+        (task as any)?.project?.id ||
+        (task as any)?.project?._id
+    );
 
   const getCandidateKeys = (value: any) => {
     if (!value) return [];
@@ -137,28 +145,32 @@ const TaskDrawerAssigneeSelector = ({ task }: TaskDrawerAssigneeSelectorProps) =
     return Array.from(memberIds).some(id => selectedIdPool.has(id));
   };
 
+  useEffect(() => {
+    const membersData = (taskAssignees || []).map(member => ({
+      ...member,
+      selected: isAssigneeSelected(member),
+    }));
+    let sortedMembers = sortTeamMembers(membersData);
+    setTeamMembers({ data: sortedMembers, total: taskAssignees?.length || 0 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taskAssignees, optimisticSelectedIds, task?.id]);
+
   const handleMembersDropdownOpen = (open: boolean) => {
-    if (open) {
-      const membersData = (members?.data || []).map(member => ({
-        ...member,
-        selected: isAssigneeSelected(member),
-      }));
-      let sortedMembers = sortTeamMembers(membersData);
-
-      setTeamMembers({ data: sortedMembers });
-
+    const effectiveProjectId = resolveProjectId();
+    if (open && effectiveProjectId) {
+      dispatch(fetchTaskAssignees(effectiveProjectId));
+      
       setTimeout(() => {
         membersInputRef.current?.focus();
       }, 0);
-    } else {
-      setTeamMembers(members || { data: [] });
     }
   };
 
   const handleMemberChange = (e: CheckboxChangeEvent | null, member: any) => {
-    const memberId = resolveMemberId(member);
+    const memberId = normalizeId(member?.team_member_id || member?.teamMemberId);
     const effectiveTaskId = String(task?.id || selectedTaskId || '');
-    if (!memberId || !projectId || !effectiveTaskId) return;
+    const effectiveProjectId = resolveProjectId();
+    if (!effectiveTaskId || !effectiveProjectId) return;
     try {
       const checked =
         e?.target.checked ??
@@ -176,8 +188,8 @@ const TaskDrawerAssigneeSelector = ({ task }: TaskDrawerAssigneeSelectorProps) =
       });
 
       const body = {
-        team_member_id: memberId,
-        project_id: projectId,
+        team_member_id: memberId || resolveMemberId(member),
+        project_id: effectiveProjectId,
         task_id: effectiveTaskId,
         reporter_id: currentSession?.id || undefined,
         mode: checked ? 0 : 1,

@@ -1,5 +1,6 @@
 const { Task, TaskStatus, TaskComment, TaskAttachment, Project, ProjectMember, TeamMember, TaskPhase, TaskLabel, ActivityLog, TimeLog, RunningTimer, TaskDependency } = require('../models');
 const taskService = require('../services/task.service');
+const projectService = require('../services/project.service');
 const notificationService = require('../services/notification.service');
 const logger = require('../utils/logger');
 const calendarSyncService = require('../services/calendar-sync.service');
@@ -756,7 +757,8 @@ exports.getAssignees = async (req, res, next) => {
   try {
     const { projectId } = req.params;
     const projectMembers = await ProjectMember.find({ project_id: projectId, is_active: true })
-      .populate('user_id', 'name email avatar_url');
+      .populate('user_id', 'name email avatar_url')
+      .populate('team_member_id');
     
     const assignees = projectMembers.map(m => {
       if (!m.user_id) return null;
@@ -765,7 +767,8 @@ exports.getAssignees = async (req, res, next) => {
         name: m.user_id.name,
         email: m.user_id.email,
         avatar_url: m.user_id.avatar_url,
-        project_member_id: m._id
+        project_member_id: m._id,
+        team_member_id: m.team_member_id?._id || m.team_member_id
       };
     }).filter(Boolean);
 
@@ -1093,7 +1096,15 @@ exports.getTaskListV3 = async (req, res, next) => {
     // Grouping logic
     let groups = [];
     if (group === 'status') {
-        const statuses = await TaskStatus.find({ project_id: projectId }).sort({ sort_order: 1 });
+        let statuses = await TaskStatus.find({ project_id: projectId }).sort({ sort_order: 1 });
+
+        // Robust Auto-heal: If no statuses exist for this project, create default ones
+        // This solves the "No task groups found" issue for newly created or legacy projects
+        if (statuses.length === 0) {
+            await projectService.createDefaultStatuses(projectId);
+            statuses = await TaskStatus.find({ project_id: projectId }).sort({ sort_order: 1 });
+        }
+
         const statusIdSet = new Set(statuses.map(s => s._id.toString()));
 
         // Auto-heal: move tasks with deleted/missing status to a valid status

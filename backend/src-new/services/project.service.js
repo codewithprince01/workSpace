@@ -59,6 +59,16 @@ exports.createProject = async (data, ownerId) => {
   });
 
   // 4. Create default task statuses
+  await exports.createDefaultStatuses(project._id);
+
+  return project;
+};
+
+/**
+ * @desc    Create default task statuses for a project
+ * @param   {String} projectId
+ */
+exports.createDefaultStatuses = async (projectId) => {
   const defaultStatuses = [
     { name: 'To Do', category: 'todo', color_code: '#75c9c0', sort_order: 0, is_default: true },
     { name: 'In Progress', category: 'doing', color_code: '#3b7ad4', sort_order: 1 },
@@ -68,11 +78,9 @@ exports.createProject = async (data, ownerId) => {
   for (const statusObj of defaultStatuses) {
     await TaskStatus.create({
       ...statusObj,
-      project_id: project._id
+      project_id: projectId
     });
   }
-
-  return project;
 };
 
 /**

@@ -32,6 +32,15 @@ export interface ITodo {
   };
 }
 
+export interface ITodoComment {
+  _id: string;
+  todo_id: string;
+  author: ITodoUser;
+  content: string;
+  created_at: string;
+  updated_at: string;
+}
+
 const BASE = `${API_BASE_URL}/todos`;
 
 export const todoApiService = {
@@ -69,6 +78,22 @@ export const todoApiService = {
     const res = await apiClient.get(`${BASE}/member-search`, { 
       params: { q, _t: Date.now(), v: 'force-fresh' } 
     });
+    return res.data;
+  },
+
+  // Comment API methods
+  getComments: async (todoId: string): Promise<{ done: boolean; body: ITodoComment[] }> => {
+    const res = await apiClient.get(`${BASE}/${todoId}/comments`);
+    return res.data;
+  },
+
+  addComment: async (todoId: string, content: string): Promise<{ done: boolean; body: ITodoComment }> => {
+    const res = await apiClient.post(`${BASE}/${todoId}/comments`, { content });
+    return res.data;
+  },
+
+  deleteComment: async (todoId: string, commentId: string): Promise<{ done: boolean; message: string }> => {
+    const res = await apiClient.delete(`${BASE}/${todoId}/comments/${commentId}`);
     return res.data;
   }
 };

@@ -311,8 +311,23 @@ const initializeSocket = (server) => {
          const data = JSON.parse(jsonString);
          const { task_id, team_member_id, project_id, mode } = data;
          
-         const teamMember = await TeamMember.findById(team_member_id).populate('user_id', 'name email avatar_url');
-         if (!teamMember) return;
+         let teamMember = await TeamMember.findById(team_member_id).populate('user_id', 'name email avatar_url');
+         
+         if (!teamMember) {
+           const project = await Project.findById(project_id).select('team_id');
+           if (project?.team_id) {
+             teamMember = await TeamMember.findOne({ user_id: team_member_id, team_id: project.team_id })
+               .populate('user_id', 'name email avatar_url');
+           }
+         }
+
+         // Final fallback: if project_id is missing or mismatched, still try by user_id.
+         if (!teamMember) {
+           teamMember = await TeamMember.findOne({ user_id: team_member_id, is_active: true })
+             .populate('user_id', 'name email avatar_url');
+         }
+
+         if (!teamMember || !teamMember.user_id) return;
 
          const userId = teamMember.user_id._id;
          let task;

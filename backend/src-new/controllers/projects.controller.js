@@ -174,6 +174,7 @@ exports.acceptInvite = async (req, res, next) => {
  */
 exports.create = async (req, res, next) => {
   try {
+    const { Team } = require('../models');
     let team_id = req.body.team_id;
     if (!team_id) {
         // If super admin has switched context, use that team
@@ -181,8 +182,21 @@ exports.create = async (req, res, next) => {
             team_id = req.user.super_admin_active_team;
         } else {
             const membership = await TeamMember.findOne({ user_id: req.user._id, is_active: true });
-            if (!membership) return res.status(400).json({ success: false, message: 'No team found.' });
-            team_id = membership.team_id;
+            if (membership?.team_id) {
+              team_id = membership.team_id;
+            } else if (req.user.last_team_id) {
+              team_id = req.user.last_team_id;
+            } else {
+              // Fallback for owners/admins that may not have an active TeamMember row.
+              const ownedTeam = await Team.findOne({ owner_id: req.user._id, is_active: true }).select('_id');
+              if (ownedTeam?._id) {
+                team_id = ownedTeam._id;
+              }
+            }
+
+            if (!team_id) {
+              return res.status(400).json({ success: false, message: 'No team found.' });
+            }
         }
     }
 

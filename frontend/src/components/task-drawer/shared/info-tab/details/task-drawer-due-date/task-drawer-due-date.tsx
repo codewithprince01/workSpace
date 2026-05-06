@@ -34,9 +34,13 @@ const TaskDrawerDueDate = ({ task, t, form }: TaskDrawerDueDateProps) => {
   const dueDayjs = task?.end_date ? dayjs(task.end_date) : task?.due_date ? dayjs(task.due_date) : null;
   const isValidStartDate = startDayjs?.isValid();
   const isValidDueDate = dueDayjs?.isValid();
+  const now = dayjs();
 
   // Date validation
   const disabledStartDate = (current: Dayjs) => {
+    if (current && current.isBefore(now.startOf('day'))) {
+      return true;
+    }
     if (isValidDueDate && current && dueDayjs && current > dueDayjs) {
       return true;
     }
@@ -48,6 +52,38 @@ const TaskDrawerDueDate = ({ task, t, form }: TaskDrawerDueDateProps) => {
       return current && current < dayjs().startOf('day');
     }
     return current && startDayjs && current < startDayjs;
+  };
+
+  const disabledStartTime = (current: Dayjs | null) => {
+    if (!current || !current.isSame(now, 'day')) return {};
+    return {
+      disabledHours: () => Array.from({ length: now.hour() }, (_, i) => i),
+      disabledMinutes: (selectedHour: number) =>
+        selectedHour === now.hour() ? Array.from({ length: now.minute() }, (_, i) => i) : [],
+    };
+  };
+
+  const disabledEndTime = (current: Dayjs | null) => {
+    if (!current) return {};
+    const todayRestrictions = current.isSame(now, 'day')
+      ? {
+          disabledHours: () => Array.from({ length: now.hour() }, (_, i) => i),
+          disabledMinutes: (selectedHour: number) =>
+            selectedHour === now.hour() ? Array.from({ length: now.minute() }, (_, i) => i) : [],
+        }
+      : {};
+
+    if (!isShowStartDate || !isValidStartDate || !startDayjs || !current.isSame(startDayjs, 'day')) {
+      return todayRestrictions;
+    }
+
+    return {
+      disabledHours: () => Array.from({ length: startDayjs.hour() }, (_, i) => i),
+      disabledMinutes: (selectedHour: number) =>
+        selectedHour === startDayjs.hour()
+          ? Array.from({ length: startDayjs.minute() }, (_, i) => i)
+          : [],
+    };
   };
 
   const handleStartDateChange = (date: Dayjs | null) => {
@@ -124,9 +160,11 @@ const TaskDrawerDueDate = ({ task, t, form }: TaskDrawerDueDateProps) => {
             <DatePicker
               placeholder={t('taskInfoTab.details.start-date')}
               disabledDate={(current: Dayjs) => disabledStartDate(current) ?? false}
+              disabledTime={disabledStartTime}
               onChange={handleStartDateChange}
               value={isValidStartDate ? startDayjs : null}
-              format={'MMM DD, YYYY'}
+              showTime={{ use12Hours: true, format: 'hh:mm A' }}
+              format={'MMM DD, YYYY hh:mm A'}
               suffixIcon={null}
             />
             <Typography.Text>-</Typography.Text>
@@ -135,9 +173,11 @@ const TaskDrawerDueDate = ({ task, t, form }: TaskDrawerDueDateProps) => {
         <DatePicker
           placeholder={t('taskInfoTab.details.end-date')}
           disabledDate={(current: Dayjs) => disabledEndDate(current) ?? false}
+          disabledTime={disabledEndTime}
           onChange={handleEndDateChange}
           value={isValidDueDate ? dueDayjs : null}
-          format={'MMM DD, YYYY'}
+          showTime={{ use12Hours: true, format: 'hh:mm A' }}
+          format={'MMM DD, YYYY hh:mm A'}
         />
         <Button
           type="text"
