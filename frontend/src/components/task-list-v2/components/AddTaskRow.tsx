@@ -6,6 +6,10 @@ import { useSocket } from '@/socket/socketContext';
 import { SocketEvents } from '@/shared/socket-events';
 import { useAuthService } from '@/hooks/useAuth';
 import { useAppSelector } from '@/hooks/useAppSelector';
+import { useAppDispatch } from '@/hooks/useAppDispatch';
+import { fetchTasksV3 } from '@/features/task-management/task-management.slice';
+import { tasksApiService } from '@/api/tasks/tasks.api.service';
+import { message } from '@/shared/antd-imports';
 
 interface AddTaskRowProps {
   groupId: string;
@@ -38,6 +42,7 @@ const AddTaskRow: React.FC<AddTaskRowProps> = memo(({
   const { socket, connected } = useSocket();
   const { t } = useTranslation('task-list-table');
   const isDarkMode = useAppSelector(state => state.themeReducer.mode === 'dark');
+  const dispatch = useAppDispatch();
   
   // Get session data for reporter_id and team_id
   const currentSession = useAuthService().getCurrentSession();
@@ -58,7 +63,7 @@ const AddTaskRow: React.FC<AddTaskRowProps> = memo(({
   const handleAddTask = useCallback(() => {
     if (!taskName.trim() || !currentSession) return;
 
-    try {
+    const createTask = async () => {
       const body: any = {
         name: taskName.trim(),
         project_id: projectId,
@@ -66,16 +71,22 @@ const AddTaskRow: React.FC<AddTaskRowProps> = memo(({
         team_id: currentSession.team_id,
       };
 
+      const isMongoObjectId = (value: string) => /^[a-fA-F0-9]{24}$/.test(String(value || ''));
+
       // Map grouping type to correct field name expected by backend
       switch (groupType) {
         case 'status':
-          body.status_id = groupValue;
+          // Only send status_id when it's a real status ObjectId; fallback groups use 'todo/doing/done'
+          // and backend will auto-assign default status if omitted.
+          if (isMongoObjectId(groupValue)) body.status_id = groupValue;
           break;
         case 'priority':
           body.priority_id = groupValue;
           break;
         case 'phase':
-          body.phase_id = groupValue;
+          if (groupValue && groupValue !== 'no-phase' && groupValue !== 'Unmapped') {
+            body.phase_id = groupValue;
+          }
           break;
         default:
           // For any other grouping types, use the groupType as is
@@ -83,26 +94,45 @@ const AddTaskRow: React.FC<AddTaskRowProps> = memo(({
           break;
       }
 
-      if (socket && connected) {
-        socket.emit(SocketEvents.QUICK_TASK.toString(), JSON.stringify(body));
-        setTaskName('');
-        // Keep the input active and notify parent to create new row
-        onTaskAdded(rowId);
-        // Task refresh will be handled by socket response listener
-      } else {
-        console.warn('Socket not connected, unable to create task');
+      try {
+        const res = await tasksApiService.create(body);
+        if (res?.done) {
+          await dispatch(fetchTasksV3(projectId));
+          setTaskName('');
+          onTaskAdded(rowId);
+          return;
+        }
+        message.error('Failed to create task');
+      } catch (err) {
+        // Fallback to socket create when REST fails for any environment-specific reason
+        if (socket && connected) {
+          socket.emit(SocketEvents.QUICK_TASK.toString(), JSON.stringify(body));
+          return;
+        }
+        message.error('Failed to create task');
       }
-    } catch (error) {
-      console.error('Error creating task:', error);
-    }
-  }, [taskName, projectId, groupType, groupValue, socket, connected, currentSession, onTaskAdded, rowId]);
+    };
+
+    void createTask();
+  }, [
+    taskName,
+    projectId,
+    groupType,
+    groupValue,
+    socket,
+    connected,
+    currentSession,
+    onTaskAdded,
+    rowId,
+    dispatch,
+  ]);
 
   const handleCancel = useCallback(() => {
     if (taskName.trim() === '') {
-      setTaskName('');
-      setIsAdding(false);
-    }
-  }, [taskName]);
+        setTaskName('');
+        setIsAdding(false);
+      }
+    }, [taskName]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
