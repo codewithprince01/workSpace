@@ -786,7 +786,7 @@ exports.getAssignees = async (req, res, next) => {
 exports.getTaskListV3 = async (req, res, next) => {
   try {
     const { projectId } = req.params;
-    const { group, search, archived, parent_task, members, labels, priorities, statuses, field, order } = req.query;
+    const { group, search, archived, parent_task, members, labels, priorities, statusFilter, field, order } = req.query;
     const mongoose = require('mongoose');
     const projectMeta = await Project.findById(projectId).select('key').lean();
     const projectKeyPrefix =
@@ -827,7 +827,7 @@ exports.getTaskListV3 = async (req, res, next) => {
     const labelIds = parseFilter(labels);
     const memberIds = parseFilter(members);
     const priorityIds = parseFilter(priorities);
-    const statusIds = parseFilter(statuses);
+    const statusIds = parseFilter(statusFilter);
 
     if (labelIds.length > 0) {
         const validObjectIds = labelIds.filter(id => mongoose.Types.ObjectId.isValid(id)).map(id => new mongoose.Types.ObjectId(id));
@@ -1093,24 +1093,23 @@ exports.getTaskListV3 = async (req, res, next) => {
       });
     };
 
+    // Aggressive Auto-heal: Ensure project has statuses before we even check grouping
+    let projectStatuses = await TaskStatus.find({ project_id: projectId }).sort({ sort_order: 1 });
+    if (projectStatuses.length === 0) {
+        console.log(`[Auto-Heal] Project ${projectId} has no statuses. Creating defaults...`);
+        await projectService.createDefaultStatuses(projectId);
+        projectStatuses = await TaskStatus.find({ project_id: projectId }).sort({ sort_order: 1 });
+    }
+
     // Grouping logic
     let groups = [];
     if (group === 'status') {
-        let statuses = await TaskStatus.find({ project_id: projectId }).sort({ sort_order: 1 });
-
-        // Robust Auto-heal: If no statuses exist for this project, create default ones
-        // This solves the "No task groups found" issue for newly created or legacy projects
-        if (statuses.length === 0) {
-            await projectService.createDefaultStatuses(projectId);
-            statuses = await TaskStatus.find({ project_id: projectId }).sort({ sort_order: 1 });
-        }
-
-        const statusIdSet = new Set(statuses.map(s => s._id.toString()));
+        const statusIdSet = new Set(projectStatuses.map(s => s._id.toString()));
 
         // Auto-heal: move tasks with deleted/missing status to a valid status
         // so "Unmapped Status" does not keep appearing in task list.
-        if (statuses.length > 0) {
-            const fallbackStatus = statuses.find(s => s.category === 'todo') || statuses[0];
+        if (projectStatuses.length > 0) {
+            const fallbackStatus = projectStatuses.find(s => s.category === 'todo') || projectStatuses[0];
             const orphanTaskIds = tasks
               .filter(t => {
                 const taskStatusId = t.status_id?._id?.toString() || t.status_id?.toString();
@@ -1135,7 +1134,7 @@ exports.getTaskListV3 = async (req, res, next) => {
         }
         const matchedTaskIds = new Set();
 
-        groups = statuses.map(s => {
+        groups = projectStatuses.map(s => {
             const filteredTasks = tasks.filter(t => {
                 const taskStatusId = t.status_id?._id?.toString() || t.status_id?.toString();
                 const isMatch = taskStatusId === s._id.toString();
