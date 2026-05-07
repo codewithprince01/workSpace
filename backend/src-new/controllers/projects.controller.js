@@ -233,11 +233,14 @@ exports.getAll = async (req, res, next) => {
     const skip = (page - 1) * limit;
 
     const isSuperAdminContext = req.user.role === 'super_admin' && req.user.super_admin_active_team;
+    const isGlobalMode = req.query.global === 'true' && req.user.role === 'super_admin';
     
     // Build project query
     const query = {};
     
-    if (isSuperAdminContext || req.user.role === 'super_admin') {
+    if (isGlobalMode) {
+        // Platform-wide visibility for Super Admins
+    } else if (isSuperAdminContext || req.user.role === 'super_admin') {
         // Super Admins see EVERYTHING in the active team (switched or own)
         const teamId = req.user.super_admin_active_team || req.user.last_team_id;
         if (teamId) query.team_id = new mongoose.Types.ObjectId(teamId);
@@ -368,6 +371,8 @@ exports.getAll = async (req, res, next) => {
       { $unwind: { path: '$owner_doc', preserveNullAndEmptyArrays: true } },
       { $lookup: { from: 'projectcategories', localField: 'category_id', foreignField: '_id', pipeline: [{ $project: { name: 1, color_code: 1 } }], as: 'category_doc' } },
       { $unwind: { path: '$category_doc', preserveNullAndEmptyArrays: true } },
+      { $lookup: { from: 'teams', localField: 'team_id', foreignField: '_id', pipeline: [{ $project: { name: 1, color_code: 1 } }], as: 'team_doc' } },
+      { $unwind: { path: '$team_doc', preserveNullAndEmptyArrays: true } },
       {
         $addFields: {
           id: '$_id',
@@ -377,6 +382,10 @@ exports.getAll = async (req, res, next) => {
           favorite: { $ifNull: [{ $arrayElemAt: ['$my_membership.is_favorite', 0] }, false] },
           category_name: '$category_doc.name',
           category_color: '$category_doc.color_code',
+          owner_name: '$owner_doc.name',
+          owner_email: '$owner_doc.email',
+          team_name: '$team_doc.name',
+          team_color: '$team_doc.color_code',
           names: {
             $map: {
               input: '$member_docs',
@@ -397,7 +406,7 @@ exports.getAll = async (req, res, next) => {
           }
         }
       },
-      { $project: { done_statuses: 0, task_count: 0, completed_count: 0, member_docs: 0, my_membership: 0, owner_doc: 0, category_doc: 0 } }
+      { $project: { done_statuses: 0, task_count: 0, completed_count: 0, member_docs: 0, my_membership: 0, owner_doc: 0, category_doc: 0, team_doc: 0 } }
     ]);
 
     const isSuperAdmin = req.user.role === 'super_admin';
@@ -406,7 +415,12 @@ exports.getAll = async (req, res, next) => {
     let baseCountQuery = {};
     let favProjectIds = [];
 
-    if (isSuperAdmin) {
+    if (isGlobalMode) {
+        // Platform-wide counts
+        baseCountQuery = {};
+        const myFavs = await ProjectMember.find({ user_id: req.user._id, is_favorite: true, is_active: true });
+        favProjectIds = myFavs.map(m => m.project_id);
+    } else if (isSuperAdmin) {
         if (activeTeamId) baseCountQuery.team_id = new mongoose.Types.ObjectId(activeTeamId);
         // For favorites, we still check the user's specific favorites
         const myFavs = await ProjectMember.find({ user_id: req.user._id, is_favorite: true, is_active: true });

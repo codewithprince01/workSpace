@@ -139,7 +139,8 @@ const ProjectList: React.FC = () => {
 
   // Optimize query parameters to prevent unnecessary re-renders
   const optimizedQueryParams = useMemo(() => {
-    const params = {
+    const isSuperAdmin = currentSession?.role === 'super_admin';
+    const params: any = {
       index: requestParams.index,
       size: requestParams.size,
       field: requestParams.field,
@@ -148,8 +149,13 @@ const ProjectList: React.FC = () => {
       filter: requestParams.filter,
       statuses: requestParams.statuses,
       categories: requestParams.categories,
-      team_id: currentSession?.team_id || null,
     };
+
+    if (isSuperAdmin) {
+      params.global = true;
+    } else {
+      params.team_id = currentSession?.team_id || null;
+    }
     
     // Create a stable key for comparison
     const paramsKey = JSON.stringify(params);
@@ -162,7 +168,7 @@ const ProjectList: React.FC = () => {
     
     // Return the previous params to maintain reference stability
     return JSON.parse(lastQueryParamsRef.current || '{}');
-  }, [requestParams]);
+  }, [requestParams, currentSession]);
 
   // Use the optimized query with better error handling and caching
   const {
@@ -589,7 +595,8 @@ const ProjectList: React.FC = () => {
   }, []);
 
   const tableColumns: ColumnsType<IProjectViewModel> = useMemo(
-    () => [
+    () => {
+      const baseColumns: ColumnsType<IProjectViewModel> = [
       {
         title: '',
         dataIndex: 'favorite',
@@ -665,19 +672,76 @@ const ProjectList: React.FC = () => {
           />
         ),
       },
-    ],
-    [
-      t,
-      categoryFilters,
-      statusFilters,
-      filteredInfo,
-      filteredCategories,
-      filteredStatuses,
-      navigate,
-      dispatch,
-      isOwnerOrAdmin,
-    ]
-  );
+    ];
+
+    if (currentSession?.role === 'super_admin') {
+      const superAdminColumns = [
+        {
+          title: 'Team',
+          dataIndex: 'team_name',
+          key: 'team_id',
+          width: 150,
+          render: (text: string, record: IProjectViewModel) => (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div 
+                style={{ 
+                  width: 8, 
+                  height: 8, 
+                  borderRadius: '50%', 
+                  background: record.team_color || '#6366f1' 
+                }} 
+              />
+              <span style={{ fontWeight: 500 }}>{text || 'Unknown'}</span>
+            </div>
+          ),
+        },
+        {
+          title: 'Created By',
+          dataIndex: 'owner_name',
+          key: 'owner_id',
+          width: 200,
+          render: (text: string, record: IProjectViewModel) => (
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontWeight: 500 }}>{text || 'Unknown'}</span>
+              {record.owner_email && (
+                <span style={{ fontSize: 11, color: '#8c8c8c' }}>{record.owner_email}</span>
+              )}
+            </div>
+          ),
+        },
+        {
+          title: 'Created Date',
+          dataIndex: 'created_at',
+          key: 'created_at',
+          width: 150,
+          render: (date: string) => (
+            <span style={{ color: '#595959' }}>
+              {date ? new Date(date).toLocaleDateString('en-GB', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric'
+              }) : '—'}
+            </span>
+          ),
+        }
+      ];
+      // Insert after the Name column (index 1)
+      baseColumns.splice(2, 0, ...superAdminColumns);
+    }
+
+    return baseColumns;
+  }, [
+    t,
+    categoryFilters,
+    statusFilters,
+    filteredInfo,
+    filteredCategories,
+    filteredStatuses,
+    navigate,
+    dispatch,
+    isOwnerOrAdmin,
+    currentSession,
+  ]);
 
   useEffect(() => {
     const filterIndex = getFilterIndex();

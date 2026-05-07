@@ -66,4 +66,10 @@ export interface IProjectViewModel extends IProject {
   use_weighted_progress?: boolean;
   use_time_progress?: boolean;
   current_user_role?: 'owner' | 'admin' | 'member' | string | null;
+
+  // Super Admin Global View fields
+  owner_name?: string;
+  owner_email?: string;
+  team_name?: string;
+  team_color?: string;
 }

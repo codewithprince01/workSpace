@@ -49,9 +49,10 @@ export const projectsApi = createApi({
         statuses: string | null;
         categories: string | null;
         team_id?: string | null;
+        global?: boolean;
       }
     >({
-      query: ({ index, size, field, order, search, filter, statuses, categories, team_id }) => {
+      query: ({ index, size, field, order, search, filter, statuses, categories, team_id, global }) => {
         const params = new URLSearchParams({
           index: index.toString(),
           size: size.toString(),
@@ -65,6 +66,10 @@ export const projectsApi = createApi({
 
         if (team_id) {
           params.append('team_id', team_id);
+        }
+
+        if (global) {
+          params.append('global', 'true');
         }
 
         // Map filter index to query params
