@@ -48,9 +48,10 @@ export const projectsApi = createApi({
         filter: number | null;
         statuses: string | null;
         categories: string | null;
+        team_id?: string | null;
       }
     >({
-      query: ({ index, size, field, order, search, filter, statuses, categories }) => {
+      query: ({ index, size, field, order, search, filter, statuses, categories, team_id }) => {
         const params = new URLSearchParams({
           index: index.toString(),
           size: size.toString(),
@@ -61,6 +62,10 @@ export const projectsApi = createApi({
           categories: categories || '',
           t: new Date().getTime().toString(),
         });
+
+        if (team_id) {
+          params.append('team_id', team_id);
+        }
 
         // Map filter index to query params
         if (filter === 1) {

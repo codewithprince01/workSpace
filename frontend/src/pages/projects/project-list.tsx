@@ -148,6 +148,7 @@ const ProjectList: React.FC = () => {
       filter: requestParams.filter,
       statuses: requestParams.statuses,
       categories: requestParams.categories,
+      team_id: currentSession?.team_id || null,
     };
     
     // Create a stable key for comparison
@@ -171,7 +172,7 @@ const ProjectList: React.FC = () => {
     refetch: refetchProjects,
     error: projectsError,
   } = useGetProjectsQuery(optimizedQueryParams, {
-    refetchOnMountOrArgChange: 30,
+    refetchOnMountOrArgChange: true,
     refetchOnFocus: false,
     refetchOnReconnect: true,
     skip: viewMode === ProjectViewType.GROUP,

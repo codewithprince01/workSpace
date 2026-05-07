@@ -462,17 +462,22 @@ exports.getGrouped = async (req, res, next) => {
 
     const isSuperAdminContext = req.user.role === 'super_admin' && req.user.super_admin_active_team;
     const query = {};
+    let memberProjects = [];
 
     if (isSuperAdminContext || req.user.role === 'super_admin') {
         const teamId = req.user.super_admin_active_team || req.user.last_team_id;
         if (teamId) query.team_id = new mongoose.Types.ObjectId(teamId);
+        // Still needed for favorite flag mapping in response
+        memberProjects = await ProjectMember.find({ user_id: req.user._id, is_active: true });
     } else {
         const memberQuery = { user_id: req.user._id, is_active: true };
         if (starred === 'true') memberQuery.is_favorite = true;
-        const memberProjects = await ProjectMember.find(memberQuery);
+        memberProjects = await ProjectMember.find(memberQuery);
         let projectIds = memberProjects.map(pm => pm.project_id);
         query._id = { $in: projectIds };
+        // Match list endpoint behavior: default to active workspace team
         if (team_id) query.team_id = team_id;
+        else if (req.user.last_team_id) query.team_id = req.user.last_team_id;
     }
 
     if (archived === 'true') query.is_archived = true;
