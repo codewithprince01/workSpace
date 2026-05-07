@@ -11,6 +11,7 @@ const TaskListDueDateCell = ({ task }: { task: IProjectTask }) => {
   const { socket } = useSocket();
   const dueDayjs = task.end_date ? dayjs(task.end_date) : null;
   const startDayjs = task.start_date ? dayjs(task.start_date) : null;
+  const completedDayjs = task.completed_at ? dayjs(task.completed_at) : null;
 
   const handleEndDateChange = (date: Dayjs | null) => {
     try {
@@ -31,23 +32,48 @@ const TaskListDueDateCell = ({ task }: { task: IProjectTask }) => {
   };
 
   const disabledEndDate = (current: Dayjs) => {
-    return current && startDayjs ? current < startDayjs : false;
+    if (!current) return false;
+    const today = dayjs().startOf('day');
+    if (current.startOf('day').isBefore(today)) return true;
+    if (startDayjs && current.startOf('day').isBefore(startDayjs.startOf('day'))) return true;
+    return false;
   };
 
+  const getDueStatusLabel = () => {
+    if (!dueDayjs) return null;
+
+    if (completedDayjs) {
+      const lateDays = completedDayjs.startOf('day').diff(dueDayjs.startOf('day'), 'day');
+      if (lateDays > 0) return `Completed ${lateDays}d late`;
+      return null;
+    }
+
+    const overdueDays = dayjs().startOf('day').diff(dueDayjs.startOf('day'), 'day');
+    if (overdueDays > 0) return `${overdueDays}d overdue`;
+    return null;
+  };
+
+  const dueStatusLabel = getDueStatusLabel();
+
   return (
-    <DatePicker
-      placeholder="Set Date"
-      value={dueDayjs}
-      format={'MMM DD, YYYY'}
-      suffixIcon={null}
-      onChange={handleEndDateChange}
-      disabledDate={disabledEndDate}
-      style={{
-        backgroundColor: colors.transparent,
-        border: 'none',
-        boxShadow: 'none',
-      }}
-    />
+    <div className="flex flex-col">
+      <DatePicker
+        placeholder="Set Date"
+        value={dueDayjs}
+        format={'MMM DD, YYYY'}
+        suffixIcon={null}
+        onChange={handleEndDateChange}
+        disabledDate={disabledEndDate}
+        style={{
+          backgroundColor: colors.transparent,
+          border: 'none',
+          boxShadow: 'none',
+        }}
+      />
+      {dueStatusLabel ? (
+        <span className="text-[11px] leading-4 text-red-500 mt-0.5">{dueStatusLabel}</span>
+      ) : null}
+    </div>
   );
 };
 

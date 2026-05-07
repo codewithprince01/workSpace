@@ -1519,7 +1519,7 @@ const TaskListTable: React.FC<TaskListTableProps> = ({
       ESTIMATION: () => <TaskListEstimationCell task={task} />,
       START_DATE: () => <TaskListStartDateCell task={task} />,
       DUE_DATE: () => <TaskListDueDateCell task={task} />,
-      DUE_TIME: () => <TaskListDueTimeCell />,
+      DUE_TIME: () => <TaskListDueTimeCell task={task} />,
       COMPLETED_DATE: () => <TaskListCompletedDateCell completedDate={task.completed_at || null} />,
       CREATED_DATE: () => <TaskListCreatedDateCell createdDate={task.created_at || null} />,
       LAST_UPDATED: () => <TaskListLastUpdatedCell lastUpdated={task.updated_at || null} />,

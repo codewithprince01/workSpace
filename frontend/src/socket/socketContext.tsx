@@ -78,6 +78,12 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     });
 
+    // Always attach latest JWT before every reconnect attempt.
+    newSocket.io.on('reconnect_attempt', () => {
+      const latestToken = localStorage.getItem('worklenz_token') || '';
+      newSocket.auth = { ...(newSocket.auth || {}), token: latestToken };
+    });
+
     // Emit login event on connect
     if (profile && profile.id) {
       newSocket.emit(SocketEvents.LOGIN.toString(), profile.id);
@@ -90,7 +96,24 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       console.error('❌ Socket connection failed:', error.message);
       logger.error('Connection error', { error });
       setConnected(false);
-      messageApiRef.current.error(tRef.current('connection-lost'));
+      const msg = String(error?.message || '').toLowerCase();
+      const isAuthError =
+        msg.includes('authentication required') ||
+        msg.includes('invalid token') ||
+        msg.includes('jwt');
+
+      if (isAuthError) {
+        // Retry once immediately with freshest token from storage.
+        const latestToken = localStorage.getItem('worklenz_token') || '';
+        if (latestToken && (newSocket.auth as any)?.token !== latestToken) {
+          newSocket.auth = { ...(newSocket.auth || {}), token: latestToken };
+          newSocket.connect();
+          return;
+        }
+        messageApiRef.current.error('Session expired. Please login again.');
+      } else {
+        messageApiRef.current.error(tRef.current('connection-lost'));
+      }
       hasShownConnectedMessage.current = false;
     });
 

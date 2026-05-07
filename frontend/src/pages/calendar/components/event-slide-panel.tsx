@@ -320,6 +320,15 @@ const EventSlidePanel: React.FC = () => {
   const currentTypeColor = eventType ? (TYPE_COLOR_MAP[eventType] || '#1677ff') : '#1677ff';
   const disablePastDate = (current: dayjs.Dayjs) =>
     !!current && current.startOf('day').isBefore(dayjs().startOf('day'));
+  const normalizeDateWithCurrentTime = (value?: dayjs.Dayjs | null, fallback?: dayjs.Dayjs | null) => {
+    if (!value) return value;
+    const now = dayjs();
+    const base = fallback || now;
+    const hasExplicitTime = value.hour() !== 0 || value.minute() !== 0 || value.second() !== 0;
+    return hasExplicitTime
+      ? value.second(base.second()).millisecond(base.millisecond())
+      : value.hour(base.hour()).minute(base.minute()).second(base.second()).millisecond(base.millisecond());
+  };
   const getDisabledPastTime = (selectedDate?: dayjs.Dayjs | null) => {
     if (!selectedDate || !selectedDate.isSame(dayjs(), 'day')) return {};
     const now = dayjs();
@@ -365,7 +374,8 @@ const EventSlidePanel: React.FC = () => {
       });
     } else {
       form.resetFields();
-      const defaultStart = dayjs(currentDate).hour(9).minute(0).second(0);
+      const now = dayjs();
+      const defaultStart = dayjs(currentDate).hour(now.hour()).minute(now.minute()).second(now.second());
       form.setFieldsValue({
         type: 'meeting',
         priority: 'medium',
@@ -581,6 +591,13 @@ const EventSlidePanel: React.FC = () => {
                   suffixIcon={<ClockCircleOutlined />}
                   disabledDate={disablePastDate}
                   disabledTime={allDay ? undefined : getDisabledPastTime}
+                  needConfirm={false}
+                  onChange={(value) => {
+                    if (allDay) return;
+                    const currentStart = form.getFieldValue('start_time');
+                    const nextStart = normalizeDateWithCurrentTime(value, currentStart);
+                    if (nextStart) form.setFieldValue('start_time', nextStart);
+                  }}
                 />
               </Form.Item>
               <Form.Item name="end_time" label="End" style={{ flex: 1 }}>
@@ -590,6 +607,13 @@ const EventSlidePanel: React.FC = () => {
                   style={{ width: '100%' }}
                   disabledDate={disablePastDate}
                   disabledTime={allDay ? undefined : getDisabledPastTime}
+                  needConfirm={false}
+                  onChange={(value) => {
+                    if (allDay) return;
+                    const currentEnd = form.getFieldValue('end_time');
+                    const nextEnd = normalizeDateWithCurrentTime(value, currentEnd);
+                    if (nextEnd) form.setFieldValue('end_time', nextEnd);
+                  }}
                 />
               </Form.Item>
             </Space>
@@ -637,6 +661,12 @@ const EventSlidePanel: React.FC = () => {
                 style={{ width: '100%' }}
                 disabledDate={disablePastDate}
                 disabledTime={getDisabledPastTime}
+                needConfirm={false}
+                onChange={(value) => {
+                  const currentStart = form.getFieldValue('start_time');
+                  const nextStart = normalizeDateWithCurrentTime(value, currentStart);
+                  if (nextStart) form.setFieldValue('start_time', nextStart);
+                }}
               />
             </Form.Item>
             <Form.Item name="description" label="Note">
@@ -668,6 +698,12 @@ const EventSlidePanel: React.FC = () => {
                 style={{ width: '100%' }}
                 disabledDate={disablePastDate}
                 disabledTime={getDisabledPastTime}
+                needConfirm={false}
+                onChange={(value) => {
+                  const currentStart = form.getFieldValue('start_time');
+                  const nextStart = normalizeDateWithCurrentTime(value, currentStart);
+                  if (nextStart) form.setFieldValue('start_time', nextStart);
+                }}
               />
             </Form.Item>
             <Form.Item name="description" label="Description">

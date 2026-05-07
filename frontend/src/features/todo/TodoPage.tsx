@@ -750,12 +750,31 @@ const TodoPage: React.FC = () => {
                   <DatePicker 
                     value={date ? dayjs(date) : null}
                     onChange={(val) => {
-                        const newDate = val ? val.toISOString() : null;
+                        const newDate = normalizeDueDate(val);
                         dispatch(updateTodo({ id: record._id, data: { due_date: newDate } }));
+                    }}
+                    onCalendarChange={(val) => {
+                        const selected = Array.isArray(val) ? val[0] : val;
+                        const newDate = normalizeDueDate(selected);
+                        if (newDate) {
+                          dispatch(updateTodo({ id: record._id, data: { due_date: newDate } }));
+                        }
                     }}
                     showTime={{ format: 'hh:mm A', use12Hours: true }}
                     format="MMM DD, YYYY hh:mm A"
                     disabledDate={(current) => current && current < dayjs().startOf('day')}
+                    disabledTime={(current) => {
+                      if (!current || !dayjs(current).isSame(dayjs(), 'day')) return {};
+                      const now = dayjs();
+                      return {
+                        disabledHours: () => Array.from({ length: now.hour() }, (_, i) => i),
+                        disabledMinutes: (selectedHour: number) =>
+                          selectedHour === now.hour()
+                            ? Array.from({ length: now.minute() }, (_, i) => i)
+                            : [],
+                      };
+                    }}
+                    needConfirm={false}
                     bordered={false}
                     placeholder="No date"
                     style={{ 
@@ -877,6 +896,24 @@ const TodoPage: React.FC = () => {
           message.error(err || 'Update failed');
       }
   }
+
+  const normalizeDueDate = (val: any) => {
+    if (!val) return null;
+    let next = dayjs(val);
+    if (!next.isValid()) return null;
+
+    const hasDefaultTime =
+      next.minute() === 0 &&
+      next.second() === 0 &&
+      (next.hour() === 0 || next.hour() === 12);
+
+    if (hasDefaultTime) {
+      const now = dayjs();
+      next = next.hour(now.hour()).minute(now.minute()).second(0).millisecond(0);
+    }
+
+    return next.toISOString();
+  };
 
   return (
     <div style={{ minHeight: '100vh', background: isDark ? '#141414' : '#fff', position: 'relative' }}>

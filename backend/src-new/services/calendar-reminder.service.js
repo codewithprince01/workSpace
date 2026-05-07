@@ -44,7 +44,7 @@ async function checkAndSendReminders() {
       $lte: moment().add(1, 'day').toDate() // Check for next 24 hours
     },
     reminder_minutes: { $exists: true, $not: { $size: 0 } }
-  }).populate('user_id assigned_user_id');
+  }).populate('user_id assigned_user_id assigned_user_ids');
 
   for (const event of events) {
     for (const minutes of event.reminder_minutes) {
@@ -68,11 +68,33 @@ async function checkAndSendReminders() {
 }
 
 async function sendNotification(event, minutes) {
-  const recipients = [];
-  if (event.user_id) recipients.push(event.user_id);
-  if (event.assigned_user_id && event.assigned_user_id._id.toString() !== event.user_id._id.toString()) {
-    recipients.push(event.assigned_user_id);
+  const recipientsMap = new Map();
+
+  // Helper to add a user to the recipients list, avoiding duplicates
+  const addRecipient = (user) => {
+    if (user && user._id && user.email) {
+      recipientsMap.set(user._id.toString(), user);
+    }
+  };
+
+  // Add the creator
+  if (event.user_id) {
+    addRecipient(event.user_id);
   }
+
+  // Add single assigned user
+  if (event.assigned_user_id) {
+    addRecipient(event.assigned_user_id);
+  }
+
+  // Add multiple assigned users from assigned_user_ids array
+  if (event.assigned_user_ids && Array.isArray(event.assigned_user_ids)) {
+    for (const user of event.assigned_user_ids) {
+      addRecipient(user);
+    }
+  }
+
+  const recipients = Array.from(recipientsMap.values());
 
   const timeStr = minutes >= 60 
     ? `${Math.round(minutes/60)} hour(s)` 
@@ -80,6 +102,7 @@ async function sendNotification(event, minutes) {
 
   const message = `Reminder: "${event.title}" starts in ${timeStr}.`;
 
+  // Send to all registered user recipients
   for (const user of recipients) {
     // 1. In-app notification
     try {
@@ -123,6 +146,44 @@ async function sendNotification(event, minutes) {
       logger.info(`Email reminder sent to ${user.email} for event ${event._id}`);
     } catch (err) {
       logger.error('Failed to send email reminder:', err);
+    }
+  }
+
+  // 3. Send email to external assigned emails (who are not registered in DB)
+  if (event.external_assigned_emails && Array.isArray(event.external_assigned_emails)) {
+    const existingEmails = new Set(recipients.map(u => u.email.toLowerCase().trim()));
+
+    for (const extEmail of event.external_assigned_emails) {
+      const trimmedExtEmail = extEmail?.toLowerCase()?.trim();
+      if (trimmedExtEmail && !existingEmails.has(trimmedExtEmail)) {
+        try {
+          const subject = `Event Reminder: ${event.title}`;
+          const html = `
+            <div style="font-family: sans-serif; padding: 20px; color: #333; max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 8px;">
+              <h2 style="color: #1890ff;">Upcoming Event Reminder</h2>
+              <p>Hello,</p>
+              <p>This is a reminder for your upcoming event:</p>
+              <div style="background: #f9f9f9; padding: 15px; border-radius: 6px; margin: 20px 0;">
+                <p style="margin: 0; font-size: 18px; font-weight: bold;">${event.title}</p>
+                <p style="margin: 5px 0; color: #666;">Starts in: ${timeStr}</p>
+                <p style="margin: 5px 0; color: #666;">Time: ${moment(event.start_time).format('MMMM Do YYYY, h:mm a')}</p>
+              </div>
+              ${event.description ? `<p><strong>Description:</strong><br/>${event.description}</p>` : ''}
+              <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;" />
+              <p style="color: #9eadb6; font-size: 12px;">Sent by Workspace Calendar System</p>
+            </div>
+          `;
+
+          await sendEmail({
+            to: extEmail,
+            subject,
+            html
+          });
+          logger.info(`External email reminder sent to ${extEmail} for event ${event._id}`);
+        } catch (err) {
+          logger.error(`Failed to send external email reminder to ${extEmail}:`, err);
+        }
+      }
     }
   }
 }

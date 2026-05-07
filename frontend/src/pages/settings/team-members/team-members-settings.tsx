@@ -24,6 +24,7 @@ import {
   Dropdown,
   Menu,
   Space,
+  Modal,
 } from '@/shared/antd-imports';
 import { createPortal } from 'react-dom';
 import { useEffect, useState, useCallback } from 'react';
@@ -91,7 +92,7 @@ const TeamMembersSettings = () => {
       setIsLoading(true);
       const res = await teamMembersApiService.toggleMemberActiveStatus(
         record.id || '',
-        record.active as boolean,
+        !record.active,
         record.email || ''
       );
       if (res.done) {

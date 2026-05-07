@@ -457,6 +457,43 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
     [form]
   );
 
+  const disabledStartTime = useCallback((current: dayjs.Dayjs | null) => {
+    if (!current || !current.isSame(dayjs(), 'day')) return {};
+    const now = dayjs();
+    return {
+      disabledHours: () => Array.from({ length: now.hour() }, (_, i) => i),
+      disabledMinutes: (selectedHour: number) =>
+        selectedHour === now.hour() ? Array.from({ length: now.minute() }, (_, i) => i) : [],
+    };
+  }, []);
+
+  const disabledEndTime = useCallback((current: dayjs.Dayjs | null) => {
+    if (!current) return {};
+    const now = dayjs();
+    const startDate = form.getFieldValue('start_date');
+    const startDayjs = startDate ? dayjs(startDate) : null;
+
+    const todayRestrictions = current.isSame(now, 'day')
+      ? {
+          disabledHours: () => Array.from({ length: now.hour() }, (_, i) => i),
+          disabledMinutes: (selectedHour: number) =>
+            selectedHour === now.hour() ? Array.from({ length: now.minute() }, (_, i) => i) : [],
+        }
+      : {};
+
+    if (!startDayjs || !current.isSame(startDayjs, 'day')) {
+      return todayRestrictions;
+    }
+
+    return {
+      disabledHours: () => Array.from({ length: startDayjs.hour() }, (_, i) => i),
+      disabledMinutes: (selectedHour: number) =>
+        selectedHour === startDayjs.hour()
+          ? Array.from({ length: startDayjs.minute() }, (_, i) => i)
+          : [],
+    };
+  }, [form]);
+
   const handleFieldsChange = (_: any, allFields: any[]) => {
     const isValid = allFields.every(field => field.errors.length === 0);
     setIsFormValid(isValid);
@@ -555,42 +592,58 @@ const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
             />
           </Form.Item>
 
-          <Form.Item name="date" layout="horizontal">
-            <Flex gap={8}>
-              <Form.Item name="start_date" label={t('startDate')} style={{ flex: 1 }}>
-                <DatePicker
-                  showTime={{ format: 'hh:mm A', use12Hours: true }}
-                  format="YYYY-MM-DD hh:mm A"
-                  disabledDate={disabledStartDate}
-                  disabled={!canEditProjectSettings}
-                  style={{ width: '100%' }}
-                  onChange={date => {
-                    const endDate = form.getFieldValue('end_date');
-                    if (date && endDate) {
-                      const days = calculateWorkingDays(date, endDate);
-                      form.setFieldsValue({ working_days: days });
+          <Flex vertical gap={12} style={{ marginBottom: 16 }}>
+            <Form.Item name="start_date" label={t('startDate')} style={{ margin: 0, width: '100%' }}>
+              <DatePicker
+                showTime={{ format: 'hh:mm A', use12Hours: true, defaultValue: dayjs() }}
+                needConfirm={false}
+                format="YYYY-MM-DD hh:mm A"
+                disabledDate={disabledStartDate}
+                disabledTime={disabledStartTime}
+                disabled={!canEditProjectSettings}
+                style={{ width: '100%' }}
+                onChange={date => {
+                  if (date) {
+                    const now = dayjs();
+                    if (date.hour() === 0 && date.minute() === 0) {
+                      date = date.hour(now.hour()).minute(now.minute()).second(now.second());
+                      form.setFieldsValue({ start_date: date });
                     }
-                  }}
-                />
-              </Form.Item>
-              <Form.Item name="end_date" label={t('endDate')} style={{ flex: 1 }}>
-                <DatePicker
-                  showTime={{ format: 'hh:mm A', use12Hours: true }}
-                  format="YYYY-MM-DD hh:mm A"
-                  disabledDate={disabledEndDate}
-                  disabled={!canEditProjectSettings}
-                  style={{ width: '100%' }}
-                  onChange={date => {
-                    const startDate = form.getFieldValue('start_date');
-                    if (startDate && date) {
-                      const days = calculateWorkingDays(startDate, date);
-                      form.setFieldsValue({ working_days: days });
+                  }
+                  const endDate = form.getFieldValue('end_date');
+                  if (date && endDate) {
+                    const days = calculateWorkingDays(date, endDate);
+                    form.setFieldsValue({ working_days: days });
+                  }
+                }}
+              />
+            </Form.Item>
+            <Form.Item name="end_date" label={t('endDate')} style={{ margin: 0, width: '100%' }}>
+              <DatePicker
+                showTime={{ format: 'hh:mm A', use12Hours: true, defaultValue: dayjs() }}
+                needConfirm={false}
+                format="YYYY-MM-DD hh:mm A"
+                disabledDate={disabledEndDate}
+                disabledTime={disabledEndTime}
+                disabled={!canEditProjectSettings}
+                style={{ width: '100%' }}
+                onChange={date => {
+                  if (date) {
+                    const now = dayjs();
+                    if (date.hour() === 0 && date.minute() === 0) {
+                      date = date.hour(now.hour()).minute(now.minute()).second(now.second());
+                      form.setFieldsValue({ end_date: date });
                     }
-                  }}
-                />
-              </Form.Item>
-            </Flex>
-          </Form.Item>
+                  }
+                  const startDate = form.getFieldValue('start_date');
+                  if (startDate && date) {
+                    const days = calculateWorkingDays(startDate, date);
+                    form.setFieldsValue({ working_days: days });
+                  }
+                }}
+              />
+            </Form.Item>
+          </Flex>
 
           <Form.Item
             name="working_days"

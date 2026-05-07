@@ -79,9 +79,10 @@ initTransporter();
  */
 exports.sendEmail = async ({ to, subject, html, text }) => {
   const mailTransporter = initTransporter();
+  const normalizedTo = String(to || '').trim().toLowerCase();
   const mailOptions = {
     from: constants.MAIL_FROM,
-    to,
+    to: normalizedTo,
     subject,
     html,
     text: text || html.replace(/<[^>]*>?/gm, ''), // Simple HTML to Text fallback
@@ -95,12 +96,28 @@ exports.sendEmail = async ({ to, subject, html, text }) => {
   }
 
   try {
-    console.log(`[EmailService] Sending email to ${to}...`);
+    console.log(`[EmailService] Sending email to ${normalizedTo}...`);
     const info = await mailTransporter.sendMail(mailOptions);
+    const accepted = Array.isArray(info.accepted) ? info.accepted : [];
+    const rejected = Array.isArray(info.rejected) ? info.rejected : [];
+    const response = info.response || '';
+
+    console.log(`[EmailService] SMTP response: ${response}`);
+    console.log(`[EmailService] Accepted: ${accepted.join(', ') || '-'}`);
+    console.log(`[EmailService] Rejected: ${rejected.join(', ') || '-'}`);
+
+    if (rejected.length > 0 || accepted.length === 0) {
+      return {
+        success: false,
+        error: `SMTP accepted=${accepted.length}, rejected=${rejected.length}, response=${response}`,
+        messageId: info.messageId,
+      };
+    }
+
     console.log(`[EmailService] SUCCESS: ${info.messageId}`);
-    return { success: true, messageId: info.messageId };
+    return { success: true, messageId: info.messageId, accepted, response };
   } catch (error) {
-    console.error(`[EmailService] FAILED to ${to}: ${error.message}`);
+    console.error(`[EmailService] FAILED to ${normalizedTo}: ${error.message}`);
     if (error.code === 'EAUTH') {
       console.error('[EmailService] AUTH ERROR: Check your credentials or App Password');
     }

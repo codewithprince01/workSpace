@@ -35,6 +35,24 @@ const TodoFormModal: React.FC<Props> = ({ open, todo, onClose }) => {
   const isDark = themeMode === 'dark';
   const [submitting, setSubmitting] = useState(false);
 
+  const normalizeDueDate = (val: any) => {
+    if (!val) return null;
+    let next = dayjs(val);
+    if (!next.isValid()) return null;
+
+    const hasDefaultTime =
+      next.minute() === 0 &&
+      next.second() === 0 &&
+      (next.hour() === 0 || next.hour() === 12);
+
+    if (hasDefaultTime) {
+      const now = dayjs();
+      next = next.hour(now.hour()).minute(now.minute()).second(0).millisecond(0);
+    }
+
+    return next.toISOString();
+  };
+
   useEffect(() => {
     if (open) {
       dispatch(searchAssignableUsers());
@@ -56,12 +74,7 @@ const TodoFormModal: React.FC<Props> = ({ open, todo, onClose }) => {
     try {
       let dueDateValue = null;
       if (values.due_date) {
-        // Robust check for dayjs/moment/string
-        if (typeof values.due_date.toISOString === 'function') {
-            dueDateValue = values.due_date.toISOString();
-        } else if (typeof values.due_date === 'string' && values.due_date.trim() !== '') {
-            dueDateValue = dayjs(values.due_date).toISOString();
-        }
+        dueDateValue = normalizeDueDate(values.due_date);
       }
 
       const payload = {
@@ -183,6 +196,25 @@ const TodoFormModal: React.FC<Props> = ({ open, todo, onClose }) => {
             showTime={{ format: 'hh:mm A', use12Hours: true }}
             format="YYYY-MM-DD hh:mm A"
             disabledDate={(current) => current && current < dayjs().startOf('day')}
+            disabledTime={(current) => {
+              if (!current || !dayjs(current).isSame(dayjs(), 'day')) return {};
+              const now = dayjs();
+              return {
+                disabledHours: () => Array.from({ length: now.hour() }, (_, i) => i),
+                disabledMinutes: (selectedHour: number) =>
+                  selectedHour === now.hour()
+                    ? Array.from({ length: now.minute() }, (_, i) => i)
+                    : [],
+              };
+            }}
+            onCalendarChange={(val) => {
+              const selected = Array.isArray(val) ? val[0] : val;
+              const normalized = selected ? dayjs(normalizeDueDate(selected) || undefined) : null;
+              if (normalized) {
+                form.setFieldsValue({ due_date: normalized });
+              }
+            }}
+            needConfirm={false}
             style={{ width: '100%' }} 
           />
         </Form.Item>

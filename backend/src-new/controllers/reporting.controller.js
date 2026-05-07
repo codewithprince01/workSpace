@@ -1,4 +1,4 @@
-const { Project, Task, TaskStatus, TimeLog, ActivityLog, ProjectComment, ProjectCategory, ProjectMember, Team, TeamMember, TaskPhase } = require('../models');
+﻿const { Project, Task, TaskStatus, TimeLog, ActivityLog, ProjectComment, ProjectCategory, ProjectMember, Team, TeamMember, TaskPhase, User } = require('../models');
 const mongoose = require('mongoose');
 const logger = require('../utils/logger');
 const cacheService = require('../services/cache.service');
@@ -1534,24 +1534,32 @@ exports.getTasksReports = async (req, res, next) => {
     
     const userId = req.user._id;
     const page = parseInt(index) || 1;
-    console.log('--- PRIORITY FILTER DEBUG ---');
-    console.log('Received Priorities:', priorities);
-    console.log('---------------------------');
     const limit = parseInt(size) || 10;
     const skip = (page - 1) * limit;
 
     // 1. Determine which projects the user can see
-    const memberships = await ProjectMember.find({ user_id: userId, is_active: true }).select('project_id');
-    const allowedProjectIds = memberships.map(m => m.project_id);
+    // Super admins viewing a switched org see ALL projects for that team.
+    // Regular users see projects they are a member of OR the owner of.
+    let allowedProjectIds;
+    if (req.isSuperAdmin && req.superAdminActiveTeam) {
+      const teamProjects = await Project.find({ team_id: req.superAdminActiveTeam }).select('_id').lean();
+      allowedProjectIds = teamProjects.map(p => p._id);
+    } else {
+      const [memberships, ownedProjects] = await Promise.all([
+        ProjectMember.find({ user_id: userId, is_active: true }).select('project_id'),
+        Project.find({ owner_id: userId }).select('_id').lean()
+      ]);
+      const memberIds = memberships.map(m => String(m.project_id));
+      const ownerIds = ownedProjects.map(p => String(p._id));
+      const uniqueIds = [...new Set([...memberIds, ...ownerIds])];
+      allowedProjectIds = uniqueIds.map(id => new mongoose.Types.ObjectId(id));
+    }
 
     // 2. Build Project Filter first (to narrow down tasks)
     const pQuery = { _id: { $in: allowedProjectIds } };
     if (!archived) pQuery.is_archived = false;
     if (teamIds && teamIds.length) pQuery.team_id = { $in: teamIds };
     if (categories && categories.length) pQuery.category_id = { $in: categories };
-    
-    // Project Manager filter (if needed, but for now we prioritize Task Assignee filter)
-    // if (project_managers && project_managers.length) pQuery.owner_id = { $in: project_managers.filter(id => id !== 'unassigned') };
 
     const matchingProjects = await Project.find(pQuery).select('_id name color_code').lean();
     const finalProjectIds = matchingProjects.map(p => p._id);
@@ -1813,13 +1821,29 @@ exports.getTasksReportingFilters = async (req, res, next) => {
   try {
     const userId = req.user._id;
 
-    // 1. Teams
-    const teamMemberships = await TeamMember.find({ user_id: userId, is_active: true }).populate('team_id', 'name color_code');
-    const teams = teamMemberships.map(tm => tm.team_id).filter(Boolean);
+    // 1. Determine teams and projects (same logic as getTasksReports)
+    let teams = [];
+    let allowedProjectIds;
+
+    if (req.isSuperAdmin && req.superAdminActiveTeam) {
+      const activeTeam = await Team.findById(req.superAdminActiveTeam).select('name color_code').lean();
+      if (activeTeam) teams = [activeTeam];
+      const teamProjects = await Project.find({ team_id: req.superAdminActiveTeam }).select('_id').lean();
+      allowedProjectIds = teamProjects.map(p => p._id);
+    } else {
+      const teamMemberships = await TeamMember.find({ user_id: userId, is_active: true }).populate('team_id', 'name color_code');
+      teams = teamMemberships.map(tm => tm.team_id).filter(Boolean);
+      const [projectMemberships, ownedProjects] = await Promise.all([
+        ProjectMember.find({ user_id: userId, is_active: true }).select('project_id'),
+        Project.find({ owner_id: userId }).select('_id').lean()
+      ]);
+      const memberIds = projectMemberships.map(m => String(m.project_id));
+      const ownerIds = ownedProjects.map(p => String(p._id));
+      const uniqueIds = [...new Set([...memberIds, ...ownerIds])];
+      allowedProjectIds = uniqueIds.map(id => new mongoose.Types.ObjectId(id));
+    }
 
     // 2. Projects
-    const projectMemberships = await ProjectMember.find({ user_id: userId, is_active: true }).select('project_id');
-    const allowedProjectIds = projectMemberships.map(m => m.project_id);
     const projects = await Project.find({ _id: { $in: allowedProjectIds }, is_archived: false }).select('name color_code team_id owner_id category_id').lean();
 
     // 3. Statuses (Distinct names/ids across allowed projects)

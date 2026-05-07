@@ -9,9 +9,11 @@ import { IProjectTask } from '@/types/project/projectTasksViewModel.types';
 const TaskListStartDateCell = ({ task }: { task: IProjectTask }) => {
   const { socket } = useSocket();
   const startDayjs = task.start_date ? dayjs(task.start_date) : null;
-  const dueDayjs = task.end_date ? dayjs(task.end_date) : null;
 
   const handleStartDateChange = (date: Dayjs | null) => {
+    if (date && date.startOf('day').isBefore(dayjs().startOf('day'))) {
+      return;
+    }
     socket?.emit(
       SocketEvents.TASK_START_DATE_CHANGE.toString(),
       JSON.stringify({
@@ -26,7 +28,10 @@ const TaskListStartDateCell = ({ task }: { task: IProjectTask }) => {
   };
 
   const disabledStartDate = (current: Dayjs) => {
-    return current && dueDayjs ? current > dueDayjs : false;
+    if (!current) return false;
+    const today = dayjs().startOf('day');
+    if (current.startOf('day').isBefore(today)) return true;
+    return false;
   };
 
   return (

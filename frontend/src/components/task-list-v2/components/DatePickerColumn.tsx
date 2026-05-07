@@ -57,12 +57,16 @@ export const DatePickerColumn: React.FC<DatePickerColumnProps> = memo(({
   // Handle date change
   const handleDateChange = useCallback(
     (date: dayjs.Dayjs | null) => {
+      if (field === 'startDate' && date && date.startOf('day').isBefore(dayjs().startOf('day'))) {
+        onActiveDatePickerChange(null);
+        return;
+      }
       emitDateChange(date);
 
       // Close the date picker after selection
       onActiveDatePickerChange(null);
     },
-    [emitDateChange, onActiveDatePickerChange]
+    [field, emitDateChange, onActiveDatePickerChange]
   );
 
   const handleTimeChange = useCallback(
@@ -103,6 +107,39 @@ export const DatePickerColumn: React.FC<DatePickerColumnProps> = memo(({
   }, [field, onActiveDatePickerChange]);
 
   const isActive = activeDatePicker === field;
+  const startDateValue = task.startDate || task.start_date;
+  const dueDateValue = task.dueDate || task.due_date;
+  const startDay = startDateValue ? dayjs(startDateValue) : null;
+  const dueDay = dueDateValue ? dayjs(dueDateValue) : null;
+
+  const disabledDate = (current: dayjs.Dayjs) => {
+    if (!current) return false;
+    const today = dayjs().startOf('day');
+    const currentDay = current.startOf('day');
+
+    // Never allow selecting past dates.
+    if (currentDay.isBefore(today)) return true;
+
+    // Keep start/due relation valid.
+    if (field === 'dueDate' && startDay && currentDay.isBefore(startDay.startOf('day'))) return true;
+
+    return false;
+  };
+
+  const disabledDueTime = () => {
+    const now = dayjs();
+    const taskDue = dateValue || dueDay;
+    if (!taskDue || !taskDue.isValid() || !taskDue.isSame(now, 'day')) return {};
+
+    const currentHour = now.hour();
+    const currentMinute = now.minute();
+
+    return {
+      disabledHours: () => Array.from({ length: currentHour }, (_, i) => i),
+      disabledMinutes: (selectedHour: number) =>
+        selectedHour === currentHour ? Array.from({ length: currentMinute }, (_, i) => i) : [],
+    };
+  };
   const placeholder =
     field === 'dueDate'
       ? t('dueDatePlaceholder')
@@ -133,6 +170,7 @@ export const DatePickerColumn: React.FC<DatePickerColumnProps> = memo(({
               onChange={handleTimeChange}
               format="hh:mm A"
               use12Hours
+              disabledTime={disabledDueTime}
               allowClear={false}
               open={true}
               onOpenChange={(open) => {
@@ -148,6 +186,7 @@ export const DatePickerColumn: React.FC<DatePickerColumnProps> = memo(({
               className="w-full bg-transparent border-none shadow-none"
               value={dateValue}
               onChange={handleDateChange}
+              disabledDate={disabledDate}
               placeholder={placeholder}
               allowClear={false}
               suffixIcon={null}

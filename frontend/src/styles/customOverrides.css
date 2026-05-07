@@ -180,3 +180,22 @@ body.dark .overview-stat-card .ant-card-body,
 .ql-snow .ql-stroke {
   stroke: #6c757d !important;
 }
+
+/* Custom styling to place hour '12' at the bottom of the Ant Design time picker column */
+.ant-picker-time-panel-column {
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.ant-picker-time-panel-column:first-of-type > li {
+  order: 2;
+}
+
+.ant-picker-time-panel-column:first-of-type > li:first-of-type {
+  order: 99 !important;
+}
+
+/* Hide fallback OK button in DatePicker popup */
+.ant-picker-ok {
+  display: none !important;
+}

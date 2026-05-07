@@ -41,9 +41,6 @@ const TaskDrawerDueDate = ({ task, t, form }: TaskDrawerDueDateProps) => {
     if (current && current.isBefore(now.startOf('day'))) {
       return true;
     }
-    if (isValidDueDate && current && dueDayjs && current > dueDayjs) {
-      return true;
-    }
     return false;
   };
 
@@ -121,6 +118,22 @@ const TaskDrawerDueDate = ({ task, t, form }: TaskDrawerDueDateProps) => {
 
   const handleEndDateChange = (date: Dayjs | null) => {
     try {
+      let normalizedDate = date;
+      if (date) {
+        const hasDefaultPickerTime =
+          date.minute() === 0 &&
+          date.second() === 0 &&
+          (date.hour() === 0 || date.hour() === 12);
+        if (hasDefaultPickerTime) {
+          const currentTime = dayjs();
+          normalizedDate = date
+            .hour(currentTime.hour())
+            .minute(currentTime.minute())
+            .second(0)
+            .millisecond(0);
+        }
+      }
+
       const eventName = SocketEvents.TASK_END_DATE_CHANGE.toString();
       const handler = (data: IProjectTask) => {
         if (!data || String((data as any).id || '') !== String(task?.id || '')) {
@@ -140,7 +153,7 @@ const TaskDrawerDueDate = ({ task, t, form }: TaskDrawerDueDateProps) => {
         eventName,
         JSON.stringify({
           task_id: task?.id,
-          end_date: date?.format(),
+          end_date: normalizedDate?.format(),
           parent_task: task?.parent_task_id,
           time_zone: getUserSession()?.timezone_name
             ? getUserSession()?.timezone_name
@@ -162,9 +175,11 @@ const TaskDrawerDueDate = ({ task, t, form }: TaskDrawerDueDateProps) => {
               disabledDate={(current: Dayjs) => disabledStartDate(current) ?? false}
               disabledTime={disabledStartTime}
               onChange={handleStartDateChange}
+              onCalendarChange={(date) => handleStartDateChange((date as Dayjs) || null)}
               value={isValidStartDate ? startDayjs : null}
               showTime={{ use12Hours: true, format: 'hh:mm A' }}
               format={'MMM DD, YYYY hh:mm A'}
+              needConfirm={false}
               suffixIcon={null}
             />
             <Typography.Text>-</Typography.Text>
@@ -175,9 +190,11 @@ const TaskDrawerDueDate = ({ task, t, form }: TaskDrawerDueDateProps) => {
           disabledDate={(current: Dayjs) => disabledEndDate(current) ?? false}
           disabledTime={disabledEndTime}
           onChange={handleEndDateChange}
+          onCalendarChange={(date) => handleEndDateChange((date as Dayjs) || null)}
           value={isValidDueDate ? dueDayjs : null}
-          showTime={{ use12Hours: true, format: 'hh:mm A' }}
+          showTime={{ use12Hours: true, format: 'hh:mm A', defaultOpenValue: dayjs() }}
           format={'MMM DD, YYYY hh:mm A'}
+          needConfirm={false}
         />
         <Button
           type="text"

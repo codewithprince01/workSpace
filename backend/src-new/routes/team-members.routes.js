@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { protect } = require('../middlewares/auth.middleware');
-const { TeamMember, User, Team, Notification, ProjectMember } = require('../models');
+const { TeamMember, User, Team, Notification, ProjectMember, Project } = require('../models');
 const emailService = require('../services/email.service');
 const crypto = require('crypto');
 
@@ -580,8 +580,7 @@ router.delete('/:id', async (req, res) => {
         if (!member) {
             member = await TeamMember.findOne({ 
                 user_id: memberId, 
-                team_id: req.user.last_team_id,
-                is_active: true 
+                team_id: req.user.last_team_id
             });
         }
 
@@ -589,11 +588,86 @@ router.delete('/:id', async (req, res) => {
             return res.status(404).json({ done: false, message: 'Team member not found' });
         }
 
-        member.is_active = false;
+        if (member.role === 'owner') {
+            return res.status(400).json({ done: false, message: 'Cannot remove the team owner' });
+        }
+
+        const teamId = member.team_id;
+        const userId = member.user_id;
+
+        // 1. Delete TeamMember record
+        await TeamMember.deleteOne({ _id: member._id });
+
+        // 2. Delete corresponding ProjectMember records for this team's projects
+        const projectsInTeam = await Project.find({ team_id: teamId }).select('_id').lean();
+        if (projectsInTeam.length > 0) {
+            const projectIds = projectsInTeam.map(p => p._id);
+            await ProjectMember.deleteMany({ 
+                user_id: userId, 
+                project_id: { $in: projectIds } 
+            });
+        }
+
+        res.json({ done: true, message: 'Team member removed successfully' });
+    } catch (error) {
+        res.status(500).json({ done: false, message: error.message });
+    }
+});
+
+// GET /api/team-members/deactivate/:id - Toggle team member active status
+router.get('/deactivate/:id', async (req, res) => {
+    try {
+        const memberId = req.params.id;
+        const activeParam = req.query.active;
+        const email = req.query.email;
+
+        // Parse desired active state (invert if the frontend passes current state)
+        const shouldBeActive = activeParam === 'true';
+
+        // Find the member record
+        let member = await TeamMember.findById(memberId);
+        if (!member) {
+            member = await TeamMember.findOne({
+                user_id: memberId,
+                team_id: req.user.last_team_id
+            });
+        }
+
+        if (!member && email) {
+            const user = await User.findOne({ email: email.toLowerCase().trim() });
+            if (user) {
+                member = await TeamMember.findOne({
+                    user_id: user._id,
+                    team_id: req.user.last_team_id
+                });
+            }
+        }
+
+        if (!member) {
+            return res.status(404).json({ done: false, message: 'Team member not found' });
+        }
+
+        if (member.role === 'owner') {
+            return res.status(400).json({ done: false, message: 'Cannot deactivate the team owner' });
+        }
+
+        // Toggle the is_active status of the TeamMember
+        member.is_active = shouldBeActive;
         await member.save();
 
-        res.json({ done: true, message: 'Team member removed' });
+        // Also toggle corresponding ProjectMember records for this team's projects
+        const projectsInTeam = await Project.find({ team_id: member.team_id }).select('_id').lean();
+        if (projectsInTeam.length > 0) {
+            const projectIds = projectsInTeam.map(p => p._id);
+            await ProjectMember.updateMany(
+                { user_id: member.user_id, project_id: { $in: projectIds } },
+                { is_active: shouldBeActive }
+            );
+        }
+
+        res.json({ done: true, message: `Team member active status updated to ${shouldBeActive}` });
     } catch (error) {
+        console.error('Toggle member active status error:', error.message);
         res.status(500).json({ done: false, message: error.message });
     }
 });

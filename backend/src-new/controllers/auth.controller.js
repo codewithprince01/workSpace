@@ -437,17 +437,45 @@ exports.forgotPassword = async (req, res, next) => {
       </div>
     `;
 
-    console.log(`[ForgotPassword] Attempting to send email to ${user.email}...`);
-    const emailResult = await emailService.sendEmail({
-      to: user.email,
+    console.log(`[ForgotPassword] Attempting to send email to ${user.email}...`);    let emailResult = await emailService.sendEmail({
+      to: String(user.email || '').trim().toLowerCase(),
       subject: 'Password Reset Request',
       html: message
     });
 
+    // One retry to handle transient SMTP/provider failures.
     if (!emailResult.success) {
-      console.error(`[ForgotPassword] Email send FAILED: ${emailResult.error}`);
-    } else {
-      console.log(`[ForgotPassword] Email send SUCCESS: ${emailResult.messageId}`);
+      console.error(`[ForgotPassword] Email send FAILED (attempt 1): ${emailResult.error}`);
+      emailResult = await emailService.sendEmail({
+        to: String(user.email || '').trim().toLowerCase(),
+        subject: 'Password Reset Request',
+        html: message
+      });
+    }
+
+    if (!emailResult.success) {
+      console.error(`[ForgotPassword] Email send FAILED (final): ${emailResult.error}`);
+      if (process.env.NODE_ENV !== 'production') {
+        return res.json({
+          success: true,
+          message: 'Email delivery failed in non-production. Use reset_url from response.',
+          reset_url: resetUrl,
+        });
+      }
+      return res.status(500).json({
+        success: false,
+        message: 'Unable to send reset email right now. Please try again in a few minutes.'
+      });
+    }
+
+    console.log(`[ForgotPassword] Email send SUCCESS: ${emailResult.messageId}`);
+
+    if (process.env.NODE_ENV !== 'production') {
+      return res.json({
+        success: true,
+        message: 'If an account exists with that email, a reset link has been sent.',
+        reset_url: resetUrl,
+      });
     }
 
     res.json({
@@ -558,3 +586,4 @@ module.exports = {
   updatePassword: exports.updatePassword,
   getMe: exports.getMe
 };
+
